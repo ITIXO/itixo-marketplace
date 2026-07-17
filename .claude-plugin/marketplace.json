@@ -17,12 +17,12 @@
     {
       "name": "itixo-claude",
       "source": "./plugins/itixo-claude",
-      "description": "Orchestration plugin for Claude: orchestrator on user-selected model delegates precise steps to sonnet/haiku subagents"
+      "description": "Itixo library for Claude users: agents, skills, rules, prompts. Orchestration module included (delegation to sonnet/haiku subagents)"
     },
     {
       "name": "itixo-codex",
       "source": "./plugins/itixo-codex",
-      "description": "Orchestration plugin for Codex: orchestrator on user-selected model delegates precise steps to gpt-5.6-terra/luna subagents"
+      "description": "Itixo library for Codex users: agents, prompts, rules. Orchestration module included (delegation to gpt-5.6-terra/luna subagents)"
     }
   ]
 }

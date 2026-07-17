@@ -12,9 +12,11 @@ base/                     # Shared source of truth for both orchestration plugin
   agents/                 # Platform-neutral agent role definitions
 plugins/
   example-plugin/         # Template plugin
-  itixo-claude/           # Orchestration for Claude (inherit/sonnet/haiku tiers)
-  itixo-codex/            # Orchestration for Codex (user-selected/terra/luna tiers)
+  itixo-claude/           # Itixo library for Claude users (agents, skills, rules, prompts)
+  itixo-codex/            # Itixo library for Codex users (agents, prompts, rules)
 ```
+
+`itixo-claude` and `itixo-codex` are company-wide libraries — anything useful for Itixo people working with Claude or Codex belongs there. Orchestration below is the first module; more skills/agents/rules will accumulate over time.
 
 ## Orchestration concept
 

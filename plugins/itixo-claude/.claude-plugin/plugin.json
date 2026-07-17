@@ -1,6 +1,6 @@
 {
   "name": "itixo-claude",
-  "description": "Itixo orchestration plugin for Claude: orchestrator thinks on user-selected model, delegates precise steps to cheaper-model subagents",
+  "description": "Itixo library for Claude users: agents, skills, rules and prompts shared across the company. Includes orchestration module (orchestrator on user-selected model delegates precise steps to cheaper-model subagents).",
   "version": "0.1.0",
   "author": {
     "name": "Itixo",
