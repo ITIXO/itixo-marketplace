@@ -33,6 +33,7 @@ const TIERS = {
   investigator: "cheap",
   planner: "orchestrator",
   builder: "mid",
+  "github-issues": "mid",
   tester: "mid",
   reviewer: "mid",
   "docs-updater": "cheap",
