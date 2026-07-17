@@ -11,10 +11,12 @@ Marketplace with plugins for Claude (Claude Code / Cowork) and Codex.
   marketplace.json        # Marketplace manifest — Codex native
 base/                     # Shared source of truth for both orchestration plugins
   rules/agents.md         # Delegation rules + model tier table
-  agents/                 # Platform-neutral agent role definitions
+  agents/                 # Canonical platform-neutral agent role definitions
 plugins/
-  itixo-claude/           # Itixo library for Claude users (agents, skills, rules, prompts)
-  itixo-codex/            # Itixo library for Codex users (agents, skills, prompts, rules)
+  itixo-claude/           # Itixo library for Claude users (generated agents, skills, rules, prompts)
+  itixo-codex/            # Itixo library for Codex users (generated agents, skills, prompts, rules)
+scripts/
+  generate-agents.js      # Generates self-contained provider agent files from base/agents
 ```
 
 `itixo-claude` and `itixo-codex` are company-wide libraries — anything useful for Itixo people working with Claude or Codex belongs there. Orchestration below is the first module; more skills/agents/rules will accumulate over time.
@@ -31,7 +33,23 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 | mid | sonnet | gpt-5.6-terra | builder, github-issues, tester, reviewer |
 | cheap | haiku | gpt-5.6-luna | investigator, docs-updater |
 
-Edit `base/`, then sync changes into both plugins (plugins must stay self-contained — installed plugin does not include `base/`).
+## Developing agent roles
+
+`base/agents` is the canonical source for agent roles. Edit those files only; never hand-edit generated provider agent files under `plugins/`. Generate and commit the provider copies with:
+
+```
+node scripts/generate-agents.js
+```
+
+Provider copies remain self-contained because installed plugins do not include `base/`. `rules/` and `AGENTS.md` files are maintained separately and are not generated.
+
+Before submitting agent changes, verify generated copies and tests:
+
+```
+node scripts/generate-agents.js --check
+node --test tests/generate-agents.test.js
+node tests/validate.js
+```
 
 ## Usage (Claude Code)
 
@@ -62,4 +80,5 @@ Then install `itixo-codex` via the `/plugins` browser. Codex reads the native ma
 1. Create `plugins/<name>/.claude-plugin/plugin.json` (Claude) and/or `plugins/<name>/.codex-plugin/plugin.json` (Codex).
 2. Add skills/commands/agents as needed.
 3. Register the plugin in `.claude-plugin/marketplace.json`; Codex-capable plugins also in `.agents/plugins/marketplace.json`.
-4. Run `node tests/validate.js`.
+4. If adding or changing agent roles, generate committed provider copies with `node scripts/generate-agents.js`.
+5. Run `node scripts/generate-agents.js --check`, `node --test tests/generate-agents.test.js`, and `node tests/validate.js`.
