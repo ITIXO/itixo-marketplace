@@ -214,6 +214,39 @@ if (codexMarketplace) {
 }
 if (failures === 0) ok("Codex-native manifests valid and consistent");
 
+// --- 8. itixo-codex: default runtime-model reporting hook ---
+const codexPluginManifestRel = "plugins/itixo-codex/.codex-plugin/plugin.json";
+const claudePluginManifestRel = "plugins/itixo-codex/.claude-plugin/plugin.json";
+const codexPluginManifest = readJson(codexPluginManifestRel);
+const claudePluginManifest = readJson(claudePluginManifestRel);
+if (codexPluginManifest && Object.hasOwn(codexPluginManifest, "hooks")) {
+  fail(`${codexPluginManifestRel}: hooks must be auto-discovered from hooks/hooks.json`);
+}
+if (codexPluginManifest && claudePluginManifest && codexPluginManifest.version !== claudePluginManifest.version) {
+  fail("itixo-codex Claude and Codex manifest versions must match");
+}
+
+const runtimeModelHookRel = "plugins/itixo-codex/hooks/hooks.json";
+const runtimeModelScriptRel = "plugins/itixo-codex/scripts/runtime-model.js";
+const runtimeModelHook = readJson(runtimeModelHookRel);
+if (!fs.existsSync(path.join(ROOT, runtimeModelScriptRel))) {
+  fail(`${runtimeModelScriptRel} missing`);
+} else {
+  const runtimeModelScript = fs.readFileSync(path.join(ROOT, runtimeModelScriptRel), "utf8");
+  if (!runtimeModelScript.includes('hookEventName: "SubagentStart"')) {
+    fail(`${runtimeModelScriptRel}: missing SubagentStart hook output`);
+  }
+}
+const hookCommands = runtimeModelHook?.hooks?.SubagentStart?.flatMap((entry) => entry.hooks || []) || [];
+const expectedRuntimeModelCommand = 'node "${PLUGIN_ROOT}/scripts/runtime-model.js"';
+if (!hookCommands.some((hook) => hook.type === "command" && hook.command === expectedRuntimeModelCommand)) {
+  fail(`${runtimeModelHookRel}: missing SubagentStart runtime-model command`);
+}
+if (runtimeModelHook?.hooks?.SubagentStart?.some((entry) => entry.matcher !== "*")) {
+  fail(`${runtimeModelHookRel}: SubagentStart hook must apply to all agents`);
+}
+if (failures === 0) ok("itixo-codex runtime-model hook configured");
+
 // --- result ---
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
