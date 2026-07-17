@@ -9,7 +9,7 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 | Tier | Model | Agents |
 |------|-------|--------|
 | orchestrator | inherit (user-selected) | planner |
-| mid | sonnet | builder, tester, reviewer |
+| mid | sonnet | builder, github-issues, tester, reviewer |
 | cheap | haiku | investigator, docs-updater |
 
 ## Rules

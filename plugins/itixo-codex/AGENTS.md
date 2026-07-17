@@ -12,6 +12,7 @@ Follow delegation rules in `rules/agents.md`.
 |------|-------|---------|
 | planner | user-selected | decompose problem into delegable steps |
 | builder | gpt-5.6-terra | implement one precisely specified change |
+| github-issues | gpt-5.6-terra | assess issue shape; create one issue or Feature with linked executable sub-issues |
 | tester | gpt-5.6-terra | write/run tests for specified behavior |
 | reviewer | gpt-5.6-terra | severity-tagged diff review |
 | investigator | gpt-5.6-luna | locate code, map structure |

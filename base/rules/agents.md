@@ -27,6 +27,7 @@ MUST be delegated to a subagent on a cheaper model.
 |-------|------|------|
 | planner | orchestrator (inherit) | design implementation steps; needs full reasoning power |
 | builder | mid | implement a precisely specified change |
+| github-issues | mid | assess issue shape; create one issue or a Feature with linked executable sub-issues |
 | tester | mid | write/run tests for specified behavior |
 | reviewer | mid | review diff, severity-tagged findings |
 | investigator | cheap | locate code, map structure, answer "where/what" |

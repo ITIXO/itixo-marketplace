@@ -9,7 +9,7 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 | Tier | Model | Agents |
 |------|-------|--------|
 | orchestrator | user-selected | planner |
-| mid | gpt-5.6-terra | builder, tester, reviewer |
+| mid | gpt-5.6-terra | builder, github-issues, tester, reviewer |
 | cheap | gpt-5.6-luna | investigator, docs-updater |
 
 Equivalence: gpt-5.6-terra ~ Claude sonnet, gpt-5.6-luna ~ Claude haiku.
