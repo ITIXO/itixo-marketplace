@@ -38,7 +38,7 @@ Edit `base/`, then sync changes into both plugins (plugins must stay self-contai
 Add this marketplace:
 
 ```
-/plugin marketplace add duchacekjan/itixo-marketplace
+/plugin marketplace add ITIXO-Playground/itixo-marketplace
 ```
 
 Install a plugin:
@@ -52,7 +52,7 @@ Install a plugin:
 Codex (since March 2026) has native plugin/marketplace support:
 
 ```
-codex plugin marketplace add duchacekjan/itixo-marketplace
+codex plugin marketplace add ITIXO-Playground/itixo-marketplace
 ```
 
 Then install `itixo-codex` via the `/plugins` browser. Codex reads the native manifest at `.agents/plugins/marketplace.json` and also understands `.claude-plugin/marketplace.json` as legacy-compatible. Note: Codex plugins carry skills/hooks/MCP config but cannot define subagents or per-agent models — orchestration works as prompt convention via `AGENTS.md` + `agents/` role files.
