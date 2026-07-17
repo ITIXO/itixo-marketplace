@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 // Stop hook: summarize delegation behavior for the session.
-// Warns when the orchestrator edited files directly without delegating.
+// Warns when the orchestrator edited files directly without delegating,
+// or ran inline investigation (Grep/Glob/investigation-shaped Bash)
+// without ever delegating to the investigator subagent.
 
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { isInvestigation } = require("./investigation.js");
+
+// Inline investigations tolerated before warning when investigator was never used.
+const INVESTIGATION_THRESHOLD = 3;
 
 let input = "";
 process.stdin.on("data", (d) => (input += d));
@@ -30,6 +36,8 @@ process.stdin.on("end", () => {
 
     const delegations = lines.filter((r) => r.tool === "Task");
     const directEdits = lines.filter((r) => r.tool === "Edit" || r.tool === "Write");
+    const investigations = lines.filter((r) => isInvestigation(r.tool, { command: r.command }));
+    const investigatorRuns = delegations.filter((d) => (d.subagent || "").includes("investigator"));
 
     // Keep the log so repeated Stop events in one session stay cumulative;
     // tmpdir cleanup handles removal.
@@ -50,6 +58,14 @@ process.stdin.on("end", () => {
         .join(", ");
       console.error(
         `[itixo] Delegation summary: ${delegations.length} delegation(s) (${detail}), ${directEdits.length} direct edit(s).`
+      );
+    }
+
+    if (investigations.length >= INVESTIGATION_THRESHOLD && investigatorRuns.length === 0) {
+      console.error(
+        `[itixo] Investigation check: ${investigations.length} inline investigation call(s) ` +
+          `(Grep/Glob/ls/find/grep/rg), 0 investigator delegations this session. ` +
+          `Read-only codebase mapping is the investigator subagent's job. See rules/agents.md.`
       );
     }
   } catch {

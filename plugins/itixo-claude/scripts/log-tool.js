@@ -19,6 +19,9 @@ process.stdin.on("end", () => {
       subagent: event.tool_input && event.tool_input.subagent_type,
       model: event.tool_input && event.tool_input.model,
       file: event.tool_input && event.tool_input.file_path,
+      // For Bash calls capture the command so the Stop hook can classify
+      // investigation-shaped usage (ls/find/grep/rg/...).
+      command: event.tool_input && event.tool_input.command,
       ts: Date.now(),
     };
     fs.appendFileSync(file, JSON.stringify(record) + "\n");
