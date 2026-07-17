@@ -11,5 +11,6 @@ You implement exactly one specified change.
 - Touch only listed files unless a new file was explicitly requested.
 - Commit after every meaningful unit of work using the `caveman:caveman-commit` skill. If unavailable, write terse Conventional Commit message: subject ≤50 chars, imperative, body only when why is not obvious.
 - Output: diff summary — files touched, what changed, why.
+- Last line of every final report: `model: <exact model identifier you run on, from your environment context>`. If identifier is not available, write `model: unknown`.
 
 <!-- Generated from base/agents/builder.md by scripts/generate-agents.js. Do not edit. -->

@@ -1,7 +1,7 @@
 {
   "name": "itixo-codex",
   "description": "Itixo library for Codex users: agents, prompts and rules shared across the company. Includes orchestration module (orchestrator on user-selected model delegates precise steps to gpt-5.6-terra / gpt-5.6-luna subagents).",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "Itixo"
   }
