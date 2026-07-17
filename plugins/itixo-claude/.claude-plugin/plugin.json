@@ -1,0 +1,9 @@
+{
+  "name": "itixo-claude",
+  "description": "Itixo orchestration plugin for Claude: orchestrator thinks on user-selected model, delegates precise steps to cheaper-model subagents",
+  "version": "0.1.0",
+  "author": {
+    "name": "Itixo",
+    "email": "jan.duchacek@itixo.com"
+  }
+}

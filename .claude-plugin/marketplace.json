@@ -13,6 +13,16 @@
       "name": "example-plugin",
       "source": "./plugins/example-plugin",
       "description": "Minimal example plugin serving as a template for new plugins"
+    },
+    {
+      "name": "itixo-claude",
+      "source": "./plugins/itixo-claude",
+      "description": "Orchestration plugin for Claude: orchestrator on user-selected model delegates precise steps to sonnet/haiku subagents"
+    },
+    {
+      "name": "itixo-codex",
+      "source": "./plugins/itixo-codex",
+      "description": "Orchestration plugin for Codex: orchestrator on user-selected model delegates precise steps to gpt-5.6-terra/luna subagents"
     }
   ]
 }

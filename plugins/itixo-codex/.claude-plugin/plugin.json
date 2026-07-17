@@ -1,0 +1,9 @@
+{
+  "name": "itixo-codex",
+  "description": "Itixo orchestration plugin for Codex: orchestrator thinks on user-selected model, delegates precise steps to cheaper-model subagents (gpt-5.6-terra / gpt-5.6-luna)",
+  "version": "0.1.0",
+  "author": {
+    "name": "Itixo",
+    "email": "jan.duchacek@itixo.com"
+  }
+}

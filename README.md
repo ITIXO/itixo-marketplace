@@ -7,16 +7,26 @@ Marketplace with plugins for Claude (Claude Code / Cowork) and Codex.
 ```
 .claude-plugin/
   marketplace.json        # Marketplace manifest (list of plugins)
+base/                     # Shared source of truth for both orchestration plugins
+  rules/agents.md         # Delegation rules + model tier table
+  agents/                 # Platform-neutral agent role definitions
 plugins/
   example-plugin/         # Template plugin
-    .claude-plugin/
-      plugin.json         # Plugin manifest
-    skills/
-      example-skill/
-        SKILL.md          # Skill definition (usable by Claude and Codex)
-    commands/             # Optional slash commands
-    agents/               # Optional subagent definitions
+  itixo-claude/           # Orchestration for Claude (inherit/sonnet/haiku tiers)
+  itixo-codex/            # Orchestration for Codex (user-selected/terra/luna tiers)
 ```
+
+## Orchestration concept
+
+Orchestrator (main thread) runs on the model the user selected and does the thinking: decompose, delegate, integrate. Precisely specified steps go to subagents on cheaper models:
+
+| Tier | Claude | Codex | Agents |
+|------|--------|-------|--------|
+| orchestrator | inherit | user-selected | planner |
+| mid | sonnet | gpt-5.6-terra | builder, tester, reviewer |
+| cheap | haiku | gpt-5.6-luna | investigator, docs-updater |
+
+Edit `base/`, then sync changes into both plugins (plugins must stay self-contained — installed plugin does not include `base/`).
 
 ## Usage (Claude Code)
 
