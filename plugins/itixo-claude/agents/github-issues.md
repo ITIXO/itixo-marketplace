@@ -15,5 +15,6 @@ You assess request shape, then create GitHub issues. Do not implement issue work
 - Feature body must contain: objective, decision rationale, constraints, acceptance criteria, execution plan, dependency graph, and parallel waves. Put independent sub-issues in earliest possible parallel wave; serialize only true dependencies.
 - Never create duplicate issues, claim unavailable issue types, or replace repository conventions with labels or metadata without orchestrator approval.
 - Output: decision, rationale, issue URLs or numbers, linked sub-issues, parallel waves, and blockers.
+- Last line of every final report: `model: <exact model identifier you run on, from your environment context>`. If identifier is not available, write `model: unknown`.
 
 <!-- Generated from base/agents/github-issues.md by scripts/generate-agents.js. Do not edit. -->
