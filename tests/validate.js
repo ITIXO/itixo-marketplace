@@ -150,6 +150,30 @@ for (const rel of [
 }
 if (failures === 0) ok("rules files present");
 
+// --- 7. Codex-native manifests ---
+const codexMarketplace = readJson(".agents/plugins/marketplace.json");
+if (codexMarketplace) {
+  for (const entry of codexMarketplace.plugins || []) {
+    const src = entry.source && entry.source.path;
+    if (!src) {
+      fail(`.agents/plugins/marketplace.json: plugin '${entry.name}' missing source.path`);
+      continue;
+    }
+    if (!fs.existsSync(path.join(ROOT, src))) {
+      fail(`.agents/plugins/marketplace.json: plugin '${entry.name}' path '${src}' does not exist`);
+    }
+    const codexManifest = readJson(path.join(src, ".codex-plugin/plugin.json"));
+    if (codexManifest && codexManifest.name !== entry.name) {
+      fail(`${src}/.codex-plugin/plugin.json: name mismatch with marketplace entry '${entry.name}'`);
+    }
+  }
+  const codexNames = (codexMarketplace.plugins || []).map((p) => p.name);
+  if (!codexNames.includes("itixo-codex")) {
+    fail(".agents/plugins/marketplace.json: itixo-codex not registered");
+  }
+}
+if (failures === 0) ok("Codex-native manifests valid and consistent");
+
 // --- result ---
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);

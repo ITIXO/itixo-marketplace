@@ -1,0 +1,16 @@
+{
+  "name": "itixo-marketplace",
+  "interface": {
+    "displayName": "Itixo Marketplace"
+  },
+  "plugins": [
+    {
+      "name": "itixo-codex",
+      "source": {
+        "source": "local",
+        "path": "./plugins/itixo-codex"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -6,7 +6,9 @@ Marketplace with plugins for Claude (Claude Code / Cowork) and Codex.
 
 ```
 .claude-plugin/
-  marketplace.json        # Marketplace manifest (list of plugins)
+  marketplace.json        # Marketplace manifest — Claude Code native, Codex legacy-compatible
+.agents/plugins/
+  marketplace.json        # Marketplace manifest — Codex native
 base/                     # Shared source of truth for both orchestration plugins
   rules/agents.md         # Delegation rules + model tier table
   agents/                 # Platform-neutral agent role definitions
@@ -45,10 +47,17 @@ Install a plugin:
 
 ## Usage (Codex)
 
-Codex has no marketplace format of its own. Skills in `plugins/*/skills/` are plain Markdown (`SKILL.md`) and can be referenced from `AGENTS.md` or copied into a Codex prompts/instructions folder.
+Codex (since March 2026) has native plugin/marketplace support:
+
+```
+codex plugin marketplace add duchacekjan/itixo-marketplace
+```
+
+Then install `itixo-codex` via the `/plugins` browser. Codex reads the native manifest at `.agents/plugins/marketplace.json` and also understands `.claude-plugin/marketplace.json` as legacy-compatible. Note: Codex plugins carry skills/hooks/MCP config but cannot define subagents or per-agent models — orchestration works as prompt convention via `AGENTS.md` + `agents/` role files.
 
 ## Adding a new plugin
 
-1. Create `plugins/<name>/.claude-plugin/plugin.json`.
+1. Create `plugins/<name>/.claude-plugin/plugin.json` (Claude) and/or `plugins/<name>/.codex-plugin/plugin.json` (Codex).
 2. Add skills/commands/agents as needed.
-3. Register the plugin in `.claude-plugin/marketplace.json` (`plugins` array).
+3. Register the plugin in `.claude-plugin/marketplace.json`; Codex-capable plugins also in `.agents/plugins/marketplace.json`.
+4. Run `node tests/validate.js`.
