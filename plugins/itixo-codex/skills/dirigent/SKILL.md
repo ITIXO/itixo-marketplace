@@ -11,7 +11,7 @@ Read `../../rules/agents.md` before acting. It is binding for this task; do not 
 2. Decompose work into self-contained steps. Keep cross-step judgment with orchestrator; delegate every precise, executable step to role and model tier prescribed by `rules/agents.md`.
 3. Give every subagent: goal, exact paths or resources when known, constraints, expected output, no-expansion boundary.
 4. Start independent steps in parallel. State dependency order; do not serialize work without real dependency.
-5. Route work by role: investigator for location/read-only mapping; planner for decomposition; builder for exact implementation; tester for specified validation; reviewer for findings; docs-updater for affected docs; github-issues for GitHub issue structure and creation.
+5. Route work by role: investigator for location/read-only mapping; planner for decomposition; builder for exact implementation; tester for specified validation; reviewer for findings; docs-updater for affected docs; github-issues for GitHub issue structure and creation. Hard boundary: the orchestrator does NOT run `ls`, `find`, `grep`, `rg`, `Grep`, or `Glob` to map or scan the codebase — that IS the investigator's job, and the first inline search is already a violation. Enforce the full "Orchestrator hard boundaries" list in `rules/agents.md` for every role.
 6. Relay every subagent question to user in substance. Never answer unknown requirements on user's behalf.
 7. Integrate results, run proportionate verification, report evidence and unresolved blockers. Do not let orchestration replace implementation ownership or bypass repository safeguards.
 
