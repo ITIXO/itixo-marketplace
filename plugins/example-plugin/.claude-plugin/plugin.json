@@ -1,9 +1,0 @@
-{
-  "name": "example-plugin",
-  "description": "Minimal example plugin serving as a template for new plugins",
-  "version": "0.1.0",
-  "author": {
-    "name": "Itixo",
-    "email": "jan.duchacek@itixo.com"
-  }
-}

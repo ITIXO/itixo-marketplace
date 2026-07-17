@@ -11,7 +11,6 @@ base/                     # Shared source of truth for both orchestration plugin
   rules/agents.md         # Delegation rules + model tier table
   agents/                 # Platform-neutral agent role definitions
 plugins/
-  example-plugin/         # Template plugin
   itixo-claude/           # Itixo library for Claude users (agents, skills, rules, prompts)
   itixo-codex/            # Itixo library for Codex users (agents, prompts, rules)
 ```
