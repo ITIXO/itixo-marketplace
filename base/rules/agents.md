@@ -43,3 +43,16 @@ MUST be delegated to a subagent on a cheaper model.
 - Parallelize independent subagent runs.
 - Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
 - Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.
+
+## Orchestrator hard boundaries (strict)
+
+These are negative rules, not preferences. Soft phrasing elsewhere ("prefer", "should") never overrides them. The orchestrator itself does NOT:
+
+- run `ls`, `find`, `grep`, `rg`, `Grep`, or `Glob` to map or scan the codebase — read-only mapping IS the investigator's job. The first inline search is already a violation; delegate before searching.
+- edit or write repository files — builder's job; hand it exact file:line targets.
+- write or run test suites — tester's job.
+- produce inline review findings for a non-trivial diff — reviewer's job.
+- create GitHub issues by hand — github-issues agent's job.
+- rewrite documentation — docs-updater's job.
+
+Reading a single already-located file to make a cross-step judgment is allowed; discovering where things are is not.

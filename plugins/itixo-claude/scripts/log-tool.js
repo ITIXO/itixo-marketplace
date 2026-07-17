@@ -19,6 +19,13 @@ process.stdin.on("end", () => {
       subagent: event.tool_input && event.tool_input.subagent_type,
       model: event.tool_input && event.tool_input.model,
       file: event.tool_input && event.tool_input.file_path,
+      // For Bash calls capture the command so the Stop hook can classify
+      // investigation-shaped usage (ls/find/grep/rg/...).
+      command: event.tool_input && event.tool_input.command,
+      // Present only when the hook fired inside a subagent — lets the Stop
+      // hook separate orchestrator calls from subagent calls.
+      agentId: event.agent_id,
+      agentType: event.agent_type,
       ts: Date.now(),
     };
     fs.appendFileSync(file, JSON.stringify(record) + "\n");

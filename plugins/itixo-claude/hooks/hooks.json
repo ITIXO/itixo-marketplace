@@ -1,8 +1,19 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Grep|Glob|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/investigation-nudge.js\""
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
-        "matcher": "Task|Edit|Write",
+        "matcher": "Task|Edit|Write|Grep|Glob|Bash",
         "hooks": [
           {
             "type": "command",
