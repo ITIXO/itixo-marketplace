@@ -40,3 +40,5 @@ MUST be delegated to a subagent on a cheaper model.
 - Investigator before builder: locate first with cheap model, then hand precise file:line targets to builder.
 - Never let a subagent expand scope. Scope change goes back to orchestrator.
 - Parallelize independent subagent runs.
+- Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
+- Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.

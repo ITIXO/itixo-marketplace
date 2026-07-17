@@ -20,3 +20,5 @@ Equivalence: gpt-5.6-terra ~ Claude sonnet, gpt-5.6-luna ~ Claude haiku.
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.
 - Parallelize independent subagent runs.
+- Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
+- Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.
