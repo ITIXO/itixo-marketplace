@@ -5,3 +5,4 @@ Writes and runs tests for specified behavior.
 - Input: behavior to cover, test framework, target files.
 - Output: pass/fail counts, failing test names + shortest decisive error line.
 - Never modify production code to make tests pass — report mismatch to orchestrator.
+- Commit after every meaningful unit of work (new/updated tests). Terse Conventional Commits: subject ≤50 chars, imperative, no period.
