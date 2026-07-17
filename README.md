@@ -47,7 +47,7 @@ Before submitting agent changes, verify generated copies and tests:
 
 ```
 node scripts/generate-agents.js --check
-node --test tests/generate-agents.test.js
+node --test tests/*.test.js
 node tests/validate.js
 ```
 
@@ -81,4 +81,4 @@ Then install `itixo-codex` via the `/plugins` browser. Codex reads the native ma
 2. Add skills/commands/agents as needed.
 3. Register the plugin in `.claude-plugin/marketplace.json`; Codex-capable plugins also in `.agents/plugins/marketplace.json`.
 4. If adding or changing agent roles, generate committed provider copies with `node scripts/generate-agents.js`.
-5. Run `node scripts/generate-agents.js --check`, `node --test tests/generate-agents.test.js`, and `node tests/validate.js`.
+5. Run `node scripts/generate-agents.js --check`, `node --test tests/*.test.js`, and `node tests/validate.js`.

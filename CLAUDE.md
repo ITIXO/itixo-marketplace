@@ -28,7 +28,7 @@ tests/                            # generate-agents.test.js, validate.js
 
 ```
 node scripts/generate-agents.js --check
-node --test tests/generate-agents.test.js
+node --test tests/*.test.js
 node tests/validate.js
 ```
 
