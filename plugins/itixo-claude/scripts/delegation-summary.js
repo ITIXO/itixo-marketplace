@@ -3,6 +3,12 @@
 // Warns when the orchestrator edited files directly without delegating,
 // or ran inline investigation (Grep/Glob/investigation-shaped Bash)
 // without ever delegating to the investigator subagent.
+//
+// Records carry agentId/agentType when the call came from a subagent
+// (agent-identity fields in hook input). Orchestrator counts use only
+// main-thread records. On older Claude Code versions without these
+// fields, falls back to suppressing the investigation warning once an
+// investigator delegation exists.
 
 const fs = require("fs");
 const os = require("os");
@@ -34,9 +40,13 @@ process.stdin.on("end", () => {
       })
       .filter(Boolean);
 
-    const delegations = lines.filter((r) => r.tool === "Task");
-    const directEdits = lines.filter((r) => r.tool === "Edit" || r.tool === "Write");
-    const investigations = lines.filter((r) => isInvestigation(r.tool, { command: r.command }));
+    const fromSubagent = (r) => Boolean(r.agentId || r.agentType);
+    const hasAgentIdentity = lines.some(fromSubagent);
+    const orchestratorLines = lines.filter((r) => !fromSubagent(r));
+
+    const delegations = orchestratorLines.filter((r) => r.tool === "Task");
+    const directEdits = orchestratorLines.filter((r) => r.tool === "Edit" || r.tool === "Write");
+    const investigations = orchestratorLines.filter((r) => isInvestigation(r.tool, { command: r.command }));
     const investigatorRuns = delegations.filter((d) => (d.subagent || "").includes("investigator"));
 
     // Keep the log so repeated Stop events in one session stay cumulative;
@@ -61,10 +71,14 @@ process.stdin.on("end", () => {
       );
     }
 
-    if (investigations.length >= INVESTIGATION_THRESHOLD && investigatorRuns.length === 0) {
+    // With agent identity, orchestrator counts are exact — warn on threshold
+    // regardless of investigator use. Without it (legacy), subagent calls are
+    // indistinguishable, so suppress once an investigator delegation exists.
+    const legacySuppressed = !hasAgentIdentity && investigatorRuns.length > 0;
+    if (investigations.length >= INVESTIGATION_THRESHOLD && !legacySuppressed) {
       console.error(
         `[itixo] Investigation check: ${investigations.length} inline investigation call(s) ` +
-          `(Grep/Glob/ls/find/grep/rg), 0 investigator delegations this session. ` +
+          `(Grep/Glob/ls/find/grep/rg) in the main thread, ${investigatorRuns.length} investigator delegation(s). ` +
           `Read-only codebase mapping is the investigator subagent's job. See rules/agents.md.`
       );
     }
