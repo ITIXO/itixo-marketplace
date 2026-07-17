@@ -105,6 +105,27 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
 }
 if (failures === 0) ok("base agents mirrored in both plugins");
 
+// --- 3b. shared orchestration skill present and identical in both plugins ---
+const dirigentPaths = ORCHESTRATION_PLUGINS.map(
+  (plugin) => `plugins/${plugin}/skills/dirigent/SKILL.md`,
+);
+const dirigentContents = [];
+for (const rel of dirigentPaths) {
+  const p = path.join(ROOT, rel);
+  if (!fs.existsSync(p)) {
+    fail(`${rel} missing`);
+    continue;
+  }
+  const text = fs.readFileSync(p, "utf8");
+  if (!/^---\nname: dirigent\n/m.test(text)) fail(`${rel}: invalid dirigent frontmatter`);
+  if (!text.includes("../../rules/agents.md")) fail(`${rel}: must load delegation rules`);
+  dirigentContents.push(text);
+}
+if (dirigentContents.length === dirigentPaths.length && dirigentContents[0] !== dirigentContents[1]) {
+  fail("dirigent skill content differs between plugins");
+}
+if (failures === 0) ok("dirigent skill mirrored and loads delegation rules");
+
 // --- 4. itixo-claude: frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
   const rel = `plugins/itixo-claude/agents/${agent}.md`;

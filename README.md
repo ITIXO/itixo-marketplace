@@ -14,10 +14,12 @@ base/                     # Shared source of truth for both orchestration plugin
   agents/                 # Platform-neutral agent role definitions
 plugins/
   itixo-claude/           # Itixo library for Claude users (agents, skills, rules, prompts)
-  itixo-codex/            # Itixo library for Codex users (agents, prompts, rules)
+  itixo-codex/            # Itixo library for Codex users (agents, skills, prompts, rules)
 ```
 
 `itixo-claude` and `itixo-codex` are company-wide libraries — anything useful for Itixo people working with Claude or Codex belongs there. Orchestration below is the first module; more skills/agents/rules will accumulate over time.
+
+Both plugins include `dirigent`, which loads and enforces the plugin's `rules/agents.md` for multi-step orchestration.
 
 ## Orchestration concept
 
@@ -26,7 +28,7 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 | Tier | Claude | Codex | Agents |
 |------|--------|-------|--------|
 | orchestrator | inherit | user-selected | planner |
-| mid | sonnet | gpt-5.6-terra | builder, tester, reviewer |
+| mid | sonnet | gpt-5.6-terra | builder, github-issues, tester, reviewer |
 | cheap | haiku | gpt-5.6-luna | investigator, docs-updater |
 
 Edit `base/`, then sync changes into both plugins (plugins must stay self-contained — installed plugin does not include `base/`).
