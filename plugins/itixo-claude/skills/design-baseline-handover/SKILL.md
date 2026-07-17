@@ -100,8 +100,8 @@ Per the user's standing preferences: never assume, always ask before
 committing. When they confirm:
 
 - Use the GitHub connector/MCP first (not raw git) if it's available.
-- Author must be `jan.duchacek@itixo.com` or
-  `ing.jan.duchacek@gmail.com` — never a Claude account email.
+- Use the repository-configured Git author identity; if missing, ask the user
+  which identity to use. Never use a Claude account email.
 - Commit after this meaningful unit of work using the `/caveman-commit`
   format.
 - Never pass bypass flags on a PR unless explicitly asked.
