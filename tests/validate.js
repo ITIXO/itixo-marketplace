@@ -5,6 +5,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { collectStaleness, expectedOutputs, readBaseAgents } = require("../scripts/generate-agents.js");
 
 const ROOT = path.join(__dirname, "..");
 let failures = 0;
@@ -88,22 +89,39 @@ for (const dirent of fs.readdirSync(path.join(ROOT, "plugins"), { withFileTypes:
 }
 if (failures === 0) ok("all plugin.json manifests valid");
 
-// --- 3. base agents present in both orchestration plugins ---
-const baseAgents = fs
-  .readdirSync(path.join(ROOT, "base/agents"))
-  .filter((f) => f.endsWith(".md"))
-  .map((f) => f.replace(/\.md$/, ""));
+// --- 3. base and provider agent role sets match exactly ---
+const expectedRoles = Object.keys(TIERS).sort();
+const agentRoles = (directory) => fs
+  .readdirSync(path.join(ROOT, directory), { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+  .map((entry) => entry.name.slice(0, -3))
+  .sort();
+const baseAgents = agentRoles("base/agents");
 
-for (const agent of Object.keys(TIERS)) {
-  if (!baseAgents.includes(agent)) fail(`base/agents/${agent}.md missing`);
-}
-for (const plugin of ORCHESTRATION_PLUGINS) {
-  for (const agent of baseAgents) {
-    const p = path.join(ROOT, "plugins", plugin, "agents", `${agent}.md`);
-    if (!fs.existsSync(p)) fail(`plugins/${plugin}/agents/${agent}.md missing (exists in base)`);
+for (const [label, actualRoles] of [
+  ["base/agents", baseAgents],
+  ...ORCHESTRATION_PLUGINS.map((plugin) => [`plugins/${plugin}/agents`, agentRoles(`plugins/${plugin}/agents`)]),
+]) {
+  if (JSON.stringify(actualRoles) !== JSON.stringify(expectedRoles)) {
+    fail(`${label}: role set ${JSON.stringify(actualRoles)}, expected ${JSON.stringify(expectedRoles)}`);
   }
 }
-if (failures === 0) ok("base agents mirrored in both plugins");
+if (failures === 0) ok("base and provider agent role sets match exactly");
+
+// --- 3a. generated provider files are byte-for-byte current ---
+try {
+  const outputs = expectedOutputs(readBaseAgents(ROOT), ROOT);
+  const staleness = collectStaleness(outputs, ROOT);
+  for (const [kind, paths] of Object.entries(staleness)) {
+    for (const relativePath of paths) fail(`generated agent output ${kind}: ${relativePath}`);
+  }
+  if (outputs.length !== expectedRoles.length * ORCHESTRATION_PLUGINS.length) {
+    fail(`generated agent output count ${outputs.length}, expected ${expectedRoles.length * ORCHESTRATION_PLUGINS.length}`);
+  }
+} catch (error) {
+  fail(`generated agent validation failed (${error.message})`);
+}
+if (failures === 0) ok("generated provider agent files are byte-for-byte current");
 
 // --- 3b. shared orchestration skill present and identical in both plugins ---
 const dirigentPaths = ORCHESTRATION_PLUGINS.map(
