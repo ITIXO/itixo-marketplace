@@ -1,8 +1,7 @@
 {
   "name": "itixo-marketplace",
   "owner": {
-    "name": "Itixo",
-    "email": "jan.duchacek@itixo.com"
+    "name": "Itixo"
   },
   "metadata": {
     "description": "Itixo marketplace with plugins for Claude and Codex",
