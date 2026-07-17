@@ -56,6 +56,7 @@ Keep this table in sync with `base/rules/agents.md` and `scripts/generate-agents
 
 - Do not assume — ask when requirement, constraint, or scope is unclear.
 - Non-trivial engineering work follows `base/rules/agents.md`: orchestrator decomposes and integrates; precisely specified steps are delegated to the prescribed role and model tier.
+- Every plugin change requires a version bump in that plugin's manifest (`plugins/<name>/.claude-plugin/plugin.json` and/or `.codex-plugin/plugin.json`), in semver format `MAJOR.MINOR.PATCH` with this project's mapping: nonbreaking change bumps patch, breaking change bumps minor, major rework bumps major. If unsure which bump applies, ask the user.
 - Commit after every meaningful unit of work. Conventional Commits: subject ≤50 chars, imperative; body only when "why" is not obvious.
 - Changes go through pull requests; do not bypass branch or review rules.
 - Codex plugins cannot define subagents or per-agent models — orchestration there is a prompt convention via `AGENTS.md` + `agents/` role files.
