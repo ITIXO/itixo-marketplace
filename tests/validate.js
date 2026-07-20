@@ -144,27 +144,63 @@ if (dirigentContents.length === dirigentPaths.length && dirigentContents[0] !== 
 }
 if (failures === 0) ok("dirigent skill mirrored and loads delegation rules");
 
-// --- 3c. canonical GitHub-issues agent preserves issue-creation safeguards ---
+// --- 3c. GitHub issue classification safeguards stay synchronized ---
 const githubIssuesAgentRel = "base/agents/github-issues.md";
 const githubIssuesAgentPath = path.join(ROOT, githubIssuesAgentRel);
+const githubIssueClassificationChecks = [
+  [
+    "must prefer native IssueTypes when available",
+    /\b(?:when|with)\s+native\s+(?:github\s+)?issuetypes?\b[\s\S]{0,180}\b(?:use\s+them\s+for\s+classification|classif(?:y|ies))\b/i,
+  ],
+  [
+    "must classify root Feature and direct children Task",
+    /\b(?:root|multi-workstream\s+root)\b[\s\S]{0,120}(?:`?\bfeature\b`?)[\s\S]{0,180}\bdirect\s+(?:sub-issues?|children)\b[\s\S]{0,120}(?:`?\btask\b`?)/i,
+  ],
+  [
+    "must allow child Feature only when split into executable children",
+    /\b(?:large\s+direct\s+(?:sub-issue|child)|direct\s+child)\b[\s\S]{0,120}(?:`?\bfeature\b`?)[\s\S]{0,160}\bonly\s+when\b[\s\S]{0,160}\bsplit\b[\s\S]{0,120}\bexecutable\s+child(?:ren|\s+issues)?\b/i,
+  ],
+  [
+    "must limit hierarchy to Feature -> Feature -> Task",
+    /\bat\s+most\s+two\s+parent-child\s+edges\b[\s\S]{0,100}\bfeature\s*->\s*feature\s*->\s*task\b/i,
+  ],
+  [
+    "must limit fallback to personal repositories without native IssueTypes",
+    /\bonly\s+when\s+native\s+(?:github\s+)?issuetypes?\s+are\s+unavailable\s+in\s+a\s+personal\s+repository\b[\s\S]{0,140}\blowercase\s+(?:`?\bfeature\b`?)\s+and\s+(?:`?\btask\b`?)\s+labels\b/i,
+  ],
+  ["must create only missing fallback labels", /\bcreat(?:e|es|ing)\s+only\s+missing\s+fallback\s+labels\b/i],
+  [
+    "must apply and read back fallback labels for every parent and child",
+    /\b(?:appl(?:y|ies)\s+and\s+read(?:s)?\s+them\s+back\s+on\s+every\s+parent\s+and\s+child|apply[\s\S]{0,120}(?:the\s+)?parent\s+and\s+every\s+child[\s\S]{0,120}read[\s\S]{0,40}back)\b/i,
+  ],
+  [
+    "must require type, fallback-label, and hierarchy evidence in output",
+    /\b(?:type\/label\/depth\s+evidence|type\s+readback\s+evidence[\s\S]{0,240}label\s+creation\/assignment\s+readback\s+evidence[\s\S]{0,240}hierarchy\/depth\s+evidence)\b/i,
+  ],
+];
+
+function checkGithubIssueClassification(text, rel) {
+  for (const [message, pattern] of githubIssueClassificationChecks) {
+    if (!pattern.test(text)) fail(`${rel}: ${message}`);
+  }
+}
+
 if (!fs.existsSync(githubIssuesAgentPath)) {
   fail(`${githubIssuesAgentRel} missing`);
 } else {
   const text = fs.readFileSync(githubIssuesAgentPath, "utf8");
-  if (!/\bnever\s+create\s+(?:github\s+)?labels?\b/i.test(text)) {
-    fail(`${githubIssuesAgentRel}: must explicitly prohibit label creation`);
+  checkGithubIssueClassification(text, githubIssuesAgentRel);
+  if (!/\broot\b[\s\S]{0,180}(?:`?\bfeature\b`?)[\s\S]{0,180}\bread\s+it\s+back\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: root Feature must be read back`);
   }
-  if (!/\b(?:inspect\s+and\s+)?use\s+only\s+labels?\s+that\s+already\s+exist\b/i.test(text)) {
-    fail(`${githubIssuesAgentRel}: must restrict label use to existing labels`);
+  if (!/\bdirect\s+sub-issue\b[\s\S]{0,120}(?:`?\btask\b`?)[\s\S]{0,120}\bread\s+it\s+back\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: direct Task must be read back`);
   }
-  if (!/\b(?:explicitly\s+)?set\s+(?:its\s+)?actual\s+github\s+issuetype\s+field\s+to\s+`?feature`?\b/i.test(text)) {
-    fail(`${githubIssuesAgentRel}: Feature creation must set actual GitHub IssueType to Feature`);
-  }
-  if (!/\bread\s+it\s+back\s+to\s+verify\s+(?:the\s+)?assignment\b/i.test(text)) {
-    fail(`${githubIssuesAgentRel}: Feature creation must verify GitHub IssueType assignment`);
+  if (!/\bsole\s+exception\s+to\s+never\s+creating\s+labels\b[\s\S]{0,180}\boutside\b[\s\S]{0,120}\bexisting\s+labels\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: must forbid label creation outside fallback exception`);
   }
 }
-if (failures === 0) ok("canonical github-issues agent preserves label and Feature IssueType safeguards");
+if (failures === 0) ok("canonical github-issues agent preserves IssueType and fallback-label safeguards");
 
 // --- 3d. shared Dirigent skill delegates GitHub issue work safely ---
 for (let index = 0; index < dirigentContents.length; index++) {
@@ -222,14 +258,15 @@ for (const { rel, model } of githubIssueRuleFiles) {
   if (!model.test(text)) {
     fail(`${rel}: must select its mid-tier github-issues model`);
   }
-  if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*and\s+expected\s+output\b/i.test(text)) {
+  if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*(?:target\s+)?repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*(?:and\s+)?expected\s+output\b/i.test(text)) {
     fail(`${rel}: github-issues prompt must include outcome, repository and owner context, constraints, and expected output`);
   }
   if (!/\borchestrator\s+must\s+not\s+assess\s*,\s*structure\s*,\s*or\s+create\s+issues\s+directly\b/i.test(text)) {
     fail(`${rel}: must prohibit direct orchestrator assessment, structuring, and creation`);
   }
+  checkGithubIssueClassification(text, rel);
 }
-if (failures === 0) ok("delegation rules assign GitHub issue work, role, model, prompt, and ownership correctly");
+if (failures === 0) ok("delegation rules keep GitHub issue ownership and classification semantics synchronized");
 
 // --- 4. itixo-claude: frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
