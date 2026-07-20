@@ -153,7 +153,7 @@ if (!claudeDirigent.includes("native Claude plugin agent")) {
 if (failures === 0) ok("dirigent skills use provider-specific canonical dispatch");
 
 // --- 3c. GitHub issue classification safeguards stay synchronized ---
-const githubIssuesAgentRel = "base/agents/github-issues.md";
+const githubIssuesAgentRel = "base/agents/itixo-github-issues.md";
 const githubIssuesAgentPath = path.join(ROOT, githubIssuesAgentRel);
 const githubIssueClassificationChecks = [
   [
@@ -217,20 +217,19 @@ if (!fs.existsSync(githubIssuesAgentPath)) {
 if (failures === 0) ok("canonical github-issues agent preserves IssueType and fallback-label safeguards");
 
 // --- 3d. shared Dirigent skill delegates GitHub issue work safely ---
-for (let index = 0; index < dirigentContents.length; index++) {
-  const text = dirigentContents[index];
-  const rel = dirigentPaths[index];
-  if (!/\bgithub\s+issue\b[\s\S]{0,80}\bassessment\b[\s\S]{0,80}\bstructuring\b[\s\S]{0,80}\bcreation\b[\s\S]{0,160}\bdelegate\b[\s\S]{0,160}\bexactly\s+one\s+`?github-issues`?\s+subagent\b/i.test(text)) {
-    fail(`${rel}: must delegate GitHub issue assessment, structuring, and creation to exactly one github-issues subagent`);
+for (const [plugin, text] of dirigentContents) {
+  const rel = `plugins/${plugin}/skills/dirigent/SKILL.md`;
+  if (!/\bgithub\s+issue\b[\s\S]{0,80}\bassessment\b[\s\S]{0,80}\bstructuring\b[\s\S]{0,80}\bcreation\b[\s\S]{0,160}\bdelegate\b[\s\S]{0,160}\bexactly\s+one\s+`?itixo-github-issues`?\s+subagent\b/i.test(text)) {
+    fail(`${rel}: must delegate GitHub issue assessment, structuring, and creation to exactly one itixo-github-issues subagent`);
   }
-  if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
-    fail(`${rel}: must load github-issues role instructions`);
+  if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+    fail(`${rel}: must load itixo-github-issues role instructions`);
   }
   if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
-    fail(`${rel}: must select mid-tier github-issues model from delegation rules`);
+    fail(`${rel}: must select mid-tier itixo-github-issues model from delegation rules`);
   }
   if (!/\binclude\s+requested\s+outcome\s*,\s*target\s+repository\s+context\s*,\s*constraints\s*,\s*and\s+expected\s+output\s+in\s+(?:its\s+)?task\s+prompt\b/i.test(text)) {
-    fail(`${rel}: github-issues prompt must include outcome, repository context, constraints, and expected output`);
+    fail(`${rel}: itixo-github-issues prompt must include outcome, repository context, constraints, and expected output`);
   }
   if (!/\borchestrator\s+never\s+creates?\s+an?\s+issue\s+directly\b/i.test(text)) {
     fail(`${rel}: must prohibit direct orchestrator issue creation`);
@@ -260,20 +259,20 @@ for (const { rel, model } of githubIssueRuleFiles) {
     continue;
   }
   const text = fs.readFileSync(p, "utf8");
-  if (!/\bdelegate\s+all\s+(?:github\s+)?issue\s+assessment\s*,\s*structuring\s*,\s*and\s+creation\s+work\s+to\s+exactly\s+one\s+`?github-issues`?\s+agent\b/i.test(text)) {
-    fail(`${rel}: must assign all GitHub issue assessment, structuring, and creation to exactly one github-issues agent`);
+  if (!/\bdelegate\s+all\s+(?:github\s+)?issue\s+assessment\s*,\s*structuring\s*,\s*and\s+creation\s+work\s+to\s+exactly\s+one\s+`?itixo-github-issues`?\s+agent\b/i.test(text)) {
+    fail(`${rel}: must assign all GitHub issue assessment, structuring, and creation to exactly one itixo-github-issues agent`);
   }
   if (!/\bdo\s+not\s+split\s+checks\s+and\s+creation\s+between\s+agents\b/i.test(text)) {
     fail(`${rel}: must keep GitHub issue checks and creation with one agent`);
   }
-  if (!/\bload\s+(?:the\s+)?matching\s+`?agents\/github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
-    fail(`${rel}: must load github-issues role instructions before delegation`);
+  if (!/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+    fail(`${rel}: must load itixo-github-issues role instructions before delegation`);
   }
   if (!model.test(text)) {
-    fail(`${rel}: must select its mid-tier github-issues model`);
+    fail(`${rel}: must select its mid-tier itixo-github-issues model`);
   }
   if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*(?:target\s+)?repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*(?:and\s+)?expected\s+output\b/i.test(text)) {
-    fail(`${rel}: github-issues prompt must include outcome, repository and owner context, constraints, and expected output`);
+    fail(`${rel}: itixo-github-issues prompt must include outcome, repository and owner context, constraints, and expected output`);
   }
   if (!/\borchestrator\s+must\s+not\s+assess\s*,\s*structure\s*,\s*or\s+create\s+issues\s+directly\b/i.test(text)) {
     fail(`${rel}: must prohibit direct orchestrator assessment, structuring, and creation`);

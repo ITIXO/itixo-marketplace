@@ -18,7 +18,7 @@ Use only these canonical custom-agent IDs:
 - `itixo-investigator` — locate code and map structure.
 - `itixo-docs-updater` — sync docs after changes.
 
-For `github-issues`, include target repository and owner context, constraints, expected output, and known IssueType/project conventions; it owns IssueType-versus-personal-repository fallback-label assessment and must return classification, readback, and parent-child-depth evidence.
+For `itixo-github-issues`, include target repository and owner context, constraints, expected output, and known IssueType/project conventions; it owns IssueType-versus-personal-repository fallback-label assessment and must return classification, readback, and parent-child-depth evidence.
 
 For every delegation, invoke the installed custom TOML agent by its canonical ID. Do not load `plugins/itixo-codex/agents/*.md`, substitute a generic agent, or pass a separate model or reasoning-effort override: the installed TOML owns its instructions, model, and effort.
 
