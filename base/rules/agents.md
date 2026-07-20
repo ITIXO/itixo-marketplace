@@ -44,6 +44,14 @@ MUST be delegated to a subagent on a cheaper model.
 - Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
 - Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.
 
+## GitHub issue delegation (mandatory)
+
+- Delegate all GitHub issue assessment, structuring, and creation work to exactly one `github-issues` agent. Do not split checks and creation between agents.
+- Before delegating, load the matching `agents/github-issues.md` role instructions. Select the provider model in the `mid` tier from the table above.
+- Prompt that agent with requested outcome, repository and owner context, constraints, and expected output. Include known issue-type or project conventions when available.
+- The `github-issues` agent owns duplicate, issue-type, linked-sub-issue, and repository-convention checks, then reports or creates the issue result.
+- Orchestrator must not assess, structure, or create issues directly. Unknown repository, outcome, scope, or success criteria return to orchestrator as user questions.
+
 ## Orchestrator hard boundaries (strict)
 
 These are negative rules, not preferences. Soft phrasing elsewhere ("prefer", "should") never overrides them. The orchestrator itself does NOT:
