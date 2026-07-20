@@ -7,6 +7,7 @@ Marketplace with plugins for Claude (Claude Code / Cowork) and Codex. `itixo-cla
 ```
 .claude-plugin/marketplace.json   # Marketplace manifest — Claude Code native, Codex legacy-compatible
 .agents/plugins/marketplace.json  # Marketplace manifest — Codex native
+.wiki/                             # GitHub Wiki repository — separate Git repository, ignored by main repository
 base/rules/agents.md              # Delegation rules + model tier table (source of truth)
 base/agents/                      # Canonical platform-neutral agent role definitions
 plugins/itixo-claude/             # Claude plugin (generated native agents, skills, rules, prompts)
