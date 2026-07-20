@@ -12,8 +12,10 @@ const PROVIDERS = Object.freeze({
     models: Object.freeze({ cheap: "haiku", mid: "sonnet", orchestrator: "inherit" }),
   },
   codex: {
-    directory: path.join(ROOT, "plugins", "itixo-codex", "agents"),
-    models: Object.freeze({ cheap: "gpt-5.6-luna", mid: "gpt-5.6-terra", orchestrator: "user-selected" }),
+    directory: path.join(ROOT, "plugins", "itixo-codex", "templates", "agents"),
+    obsoleteDirectory: path.join(ROOT, "plugins", "itixo-codex", "agents"),
+    models: Object.freeze({ cheap: "gpt-5.6-luna", mid: "gpt-5.6-terra" }),
+    efforts: Object.freeze({ cheap: "low", mid: "medium" }),
   },
 });
 const CLAUDE_TOOLS = Object.freeze({
@@ -84,6 +86,23 @@ function generatedMarker(name) {
   return `<!-- Generated from base/agents/${name}.md by scripts/generate-agents.js. Do not edit. -->`;
 }
 
+function tomlGeneratedMarker(name) {
+  return [
+    "# Itixo-managed custom agent. Do not edit.",
+    `# Generated from base/agents/${name}.md by scripts/generate-agents.js.`,
+  ].join("\n");
+}
+
+function tomlMultilineBasic(value) {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"""/g, "\\\"\\\"\\\"")
+    .replace(/\u0008/g, "\\b")
+    .replace(/\t/g, "\\t")
+    .replace(/\f/g, "\\f")
+    .replace(/\r/g, "\\r");
+}
+
 function renderClaude(name, agent) {
   const model = PROVIDERS.claude.models[agent.tier];
   const tools = agent.capabilities.map((capability) => CLAUDE_TOOLS[capability]).join(", ");
@@ -104,14 +123,17 @@ function renderClaude(name, agent) {
 
 function renderCodex(name, agent) {
   const model = PROVIDERS.codex.models[agent.tier];
-  return [
-    `# ${name} — model: ${model}`,
-    "",
-    agent.body,
-    "",
-    generatedMarker(name),
-    "",
-  ].join("\n");
+  const output = [
+    tomlGeneratedMarker(name),
+    `name = ${JSON.stringify(name)}`,
+    `description = ${JSON.stringify(agent.description)}`,
+  ];
+  if (model) {
+    output.push(`model = ${JSON.stringify(model)}`);
+    output.push(`model_reasoning_effort = ${JSON.stringify(PROVIDERS.codex.efforts[agent.tier])}`);
+  }
+  output.push("", 'developer_instructions = """', tomlMultilineBasic(agent.body), '"""', "");
+  return output.join("\n");
 }
 
 function readBaseAgents(root = ROOT) {
@@ -130,7 +152,7 @@ function expectedOutputs(agents, root = ROOT) {
   const outputs = [];
   for (const { name, agent } of agents) {
     outputs.push({ provider: "claude", name, path: path.join(root, "plugins", "itixo-claude", "agents", `${name}.md`), content: renderClaude(name, agent) });
-    outputs.push({ provider: "codex", name, path: path.join(root, "plugins", "itixo-codex", "agents", `${name}.md`), content: renderCodex(name, agent) });
+    outputs.push({ provider: "codex", name, path: path.join(root, "plugins", "itixo-codex", "templates", "agents", `${name}.toml`), content: renderCodex(name, agent) });
   }
   return outputs;
 }
@@ -157,12 +179,16 @@ function compareOutputs(expectedOutputs, actualOutputs) {
 
 function collectStaleness(outputs, root = ROOT) {
   const actualOutputs = [];
-  for (const provider of Object.values(PROVIDERS)) {
-    const directory = path.relative(ROOT, provider.directory);
-    const outputDirectory = path.join(root, directory);
+  const directories = [
+    { directory: PROVIDERS.claude.directory, extension: ".md" },
+    { directory: PROVIDERS.codex.directory, extension: ".toml" },
+    { directory: PROVIDERS.codex.obsoleteDirectory, extension: ".md" },
+  ];
+  for (const { directory, extension } of directories) {
+    const outputDirectory = path.join(root, path.relative(ROOT, directory));
     if (!fs.existsSync(outputDirectory)) continue;
     for (const entry of fs.readdirSync(outputDirectory, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+      if (!entry.isFile() || !entry.name.endsWith(extension)) continue;
       const candidate = path.join(outputDirectory, entry.name);
       actualOutputs.push({ path: candidate, content: fs.readFileSync(candidate, "utf8") });
     }
@@ -233,5 +259,7 @@ module.exports = {
   readBaseAgents,
   renderClaude,
   renderCodex,
+  tomlGeneratedMarker,
+  tomlMultilineBasic,
   writeOutputs,
 };

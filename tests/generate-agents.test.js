@@ -17,16 +17,17 @@ const {
   readBaseAgents,
   renderClaude,
   renderCodex,
+  tomlGeneratedMarker,
 } = require("../scripts/generate-agents.js");
 
 const ROLE_NAMES = [
-  "builder",
-  "docs-updater",
-  "github-issues",
-  "investigator",
-  "planner",
-  "reviewer",
-  "tester",
+  "itixo-builder",
+  "itixo-docs-updater",
+  "itixo-github-issues",
+  "itixo-investigator",
+  "itixo-planner",
+  "itixo-reviewer",
+  "itixo-tester",
 ];
 
 function withTemporaryDirectory(callback) {
@@ -120,7 +121,7 @@ test("rejects malformed canonical agent sources", () => {
   }
 });
 
-test("renders every canonical role into both provider targets", () => {
+test("renders every canonical role into Claude agents and Codex TOML templates", () => {
   const agents = readBaseAgents(ROOT);
   assert.deepEqual(agents.map(({ name }) => name), ROLE_NAMES);
 
@@ -133,7 +134,7 @@ test("renders every canonical role into both provider targets", () => {
   }
 });
 
-test("renders provider model, header, and tool metadata from each tier", () => {
+test("renders provider model, TOML schema, and tool metadata from each tier", () => {
   for (const { name, agent } of readBaseAgents(ROOT)) {
     const claude = renderClaude(name, agent);
     const codex = renderCodex(name, agent);
@@ -145,12 +146,37 @@ test("renders provider model, header, and tool metadata from each tier", () => {
       frontmatter.tools,
       agent.capabilities.map((capability) => CLAUDE_TOOLS[capability]).join(", "),
     );
-    assert.match(codex, new RegExp(`^# ${name} — model: ${PROVIDERS.codex.models[agent.tier]}$`, "m"));
+    assert.match(codex, new RegExp(`^${tomlGeneratedMarker(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+    assert.match(codex, new RegExp(`^name = ${JSON.stringify(name)}$`, "m"));
+    assert.match(codex, new RegExp(`^description = ${JSON.stringify(agent.description)}$`, "m"));
+    assert.match(codex, /^developer_instructions = """$/m);
+    assert.match(codex, /\n"""\n$/);
+    if (agent.tier === "orchestrator") {
+      assert.doesNotMatch(codex, /^model(?:_reasoning_effort)? =/m);
+    } else {
+      assert.match(codex, new RegExp(`^model = ${JSON.stringify(PROVIDERS.codex.models[agent.tier])}$`, "m"));
+      assert.match(codex, new RegExp(`^model_reasoning_effort = ${JSON.stringify(PROVIDERS.codex.efforts[agent.tier])}$`, "m"));
+    }
   }
 
-  const planner = readBaseAgents(ROOT).find(({ name }) => name === "planner");
-  assert.equal(readFrontmatter(renderClaude("planner", planner.agent)).model, "inherit");
-  assert.match(renderCodex("planner", planner.agent), /^# planner — model: user-selected$/m);
+  const planner = readBaseAgents(ROOT).find(({ name }) => name === "itixo-planner");
+  assert.equal(readFrontmatter(renderClaude("itixo-planner", planner.agent)).model, "inherit");
+  assert.doesNotMatch(renderCodex("itixo-planner", planner.agent), /^model(?:_reasoning_effort)? =/m);
+});
+
+test("escapes TOML multiline instructions safely", () => {
+  const agent = parseBaseAgent([
+    "---",
+    "tier: cheap",
+    "description: Quote and slash.",
+    "capabilities: [read]",
+    "---",
+    "",
+    "Say \"\"\" then use C:\\\\work.",
+  ].join("\n"));
+  const codex = renderCodex("itixo-investigator", agent);
+
+  assert.ok(codex.includes(String.raw`Say \"\"\" then use C:\\\\work.`));
 });
 
 test("comparison detects stale, missing, and orphan outputs", () => {
@@ -174,7 +200,7 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
   withTemporaryDirectory((root) => {
     const agents = [
       {
-        name: "investigator",
+        name: "itixo-investigator",
         agent: parseBaseAgent(
           [
             "---",
@@ -189,17 +215,23 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
       },
     ];
     const outputs = expectedOutputs(agents, root);
-    const claudePath = path.join(root, "plugins/itixo-claude/agents/investigator.md");
-    const orphanPath = path.join(root, "plugins/itixo-codex/agents/orphan.md");
+    const claudePath = path.join(root, "plugins/itixo-claude/agents/itixo-investigator.md");
+    const orphanPath = path.join(root, "plugins/itixo-codex/templates/agents/orphan.toml");
+    const obsoletePath = path.join(root, "plugins/itixo-codex/agents/itixo-investigator.md");
     fs.mkdirSync(path.dirname(claudePath), { recursive: true });
     fs.mkdirSync(path.dirname(orphanPath), { recursive: true });
+    fs.mkdirSync(path.dirname(obsoletePath), { recursive: true });
     fs.writeFileSync(claudePath, "stale", "utf8");
     fs.writeFileSync(orphanPath, "orphan", "utf8");
+    fs.writeFileSync(obsoletePath, "obsolete", "utf8");
 
     assert.deepEqual(collectStaleness(outputs, root), {
-      missing: ["plugins/itixo-codex/agents/investigator.md"],
-      stale: ["plugins/itixo-claude/agents/investigator.md"],
-      orphan: ["plugins/itixo-codex/agents/orphan.md"],
+      missing: ["plugins/itixo-codex/templates/agents/itixo-investigator.toml"],
+      stale: ["plugins/itixo-claude/agents/itixo-investigator.md"],
+      orphan: [
+        "plugins/itixo-codex/agents/itixo-investigator.md",
+        "plugins/itixo-codex/templates/agents/orphan.toml",
+      ],
     });
   });
 });

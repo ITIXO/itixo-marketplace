@@ -8,13 +8,15 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 
 | Tier | Model | Agents |
 |------|-------|--------|
-| orchestrator | user-selected | planner |
-| mid | gpt-5.6-terra | builder, github-issues, tester, reviewer |
-| cheap | gpt-5.6-luna | investigator, docs-updater |
+| orchestrator | user-selected | itixo-planner |
+| mid | gpt-5.6-terra | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | gpt-5.6-luna | itixo-investigator, itixo-docs-updater |
 
 ## Rules
 
-- Investigator (luna) locates first; builder (terra) gets exact file:line targets.
+- Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md` or pass a model or reasoning-effort override: TOML owns instructions, model, and effort.
+- If a required custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with its explicit scope and cheap-model choices. Never substitute a generic agent or perform the role inline.
+- itixo-investigator (luna) locates first; itixo-builder (terra) gets exact file:line targets.
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.
 - Parallelize independent subagent runs.
@@ -36,11 +38,11 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 
 Negative rules — soft phrasing elsewhere never overrides them. The orchestrator itself does NOT:
 
-- run `ls`, `find`, `grep`, `rg`, or equivalent search tooling to map or scan the codebase — read-only mapping IS the investigator's job. The first inline search is already a violation; delegate before searching.
-- edit or write repository files — builder's job; hand it exact file:line targets.
-- write or run test suites — tester's job.
-- produce inline review findings for a non-trivial diff — reviewer's job.
-- create GitHub issues by hand — github-issues agent's job.
-- rewrite documentation — docs-updater's job.
+- run `ls`, `find`, `grep`, `rg`, or equivalent search tooling to map or scan the codebase — read-only mapping IS itixo-investigator's job. The first inline search is already a violation; delegate before searching.
+- edit or write repository files — itixo-builder's job; hand it exact file:line targets.
+- write or run test suites — itixo-tester's job.
+- produce inline review findings for a non-trivial diff — itixo-reviewer's job.
+- create GitHub issues by hand — itixo-github-issues agent's job.
+- rewrite documentation — itixo-docs-updater's job.
 
 Reading a single already-located file to make a cross-step judgment is allowed; discovering where things are is not.

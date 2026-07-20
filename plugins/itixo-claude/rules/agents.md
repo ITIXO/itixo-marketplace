@@ -8,13 +8,14 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 
 | Tier | Model | Agents |
 |------|-------|--------|
-| orchestrator | inherit (user-selected) | planner |
-| mid | sonnet | builder, github-issues, tester, reviewer |
-| cheap | haiku | investigator, docs-updater |
+| orchestrator | inherit (user-selected) | itixo-planner |
+| mid | sonnet | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | haiku | itixo-investigator, itixo-docs-updater |
 
 ## Rules
 
-- Investigator (haiku) locates first; builder (sonnet) gets exact file:line targets.
+- Claude invokes the native plugin agent using its canonical `itixo-*` ID and the definition's prescribed tier.
+- itixo-investigator (haiku) locates first; itixo-builder (sonnet) gets exact file:line targets.
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.
 - Parallelize independent subagent runs.
@@ -36,11 +37,11 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 
 Negative rules — soft phrasing elsewhere never overrides them. The orchestrator itself does NOT:
 
-- run `ls`, `find`, `grep`, `rg`, `Grep`, or `Glob` to map or scan the codebase — read-only mapping IS the investigator's job. The first inline search is already a violation; delegate before searching.
-- edit or write repository files — builder's job; hand it exact file:line targets.
-- write or run test suites — tester's job.
-- produce inline review findings for a non-trivial diff — reviewer's job.
-- create GitHub issues by hand — github-issues agent's job.
-- rewrite documentation — docs-updater's job.
+- run `ls`, `find`, `grep`, `rg`, `Grep`, or `Glob` to map or scan the codebase — read-only mapping IS itixo-investigator's job. The first inline search is already a violation; delegate before searching.
+- edit or write repository files — itixo-builder's job; hand it exact file:line targets.
+- write or run test suites — itixo-tester's job.
+- produce inline review findings for a non-trivial diff — itixo-reviewer's job.
+- create GitHub issues by hand — itixo-github-issues agent's job.
+- rewrite documentation — itixo-docs-updater's job.
 
 Reading a single already-located file to make a cross-step judgment is allowed; discovering where things are is not.
