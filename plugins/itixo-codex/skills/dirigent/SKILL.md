@@ -15,4 +15,6 @@ Read `../../rules/agents.md` before acting. It is binding for this task; do not 
 6. Relay every subagent question to user in substance. Never answer unknown requirements on user's behalf.
 7. Integrate results, run proportionate verification, report evidence and unresolved blockers. Do not let orchestration replace implementation ownership or bypass repository safeguards.
 
+For all GitHub issue assessment, structuring, or creation, delegate all such work to exactly one `itixo-github-issues` subagent. Invoke the installed custom TOML agent by that canonical ID; its TOML owns role instructions, model, and reasoning effort. Include requested outcome, target repository context, constraints, and expected output in its task prompt. Orchestrator never creates an issue directly.
+
 For GitHub work, use configured GitHub connector or MCP first. Apply all additional repository instructions, including commit, review, and approval constraints.

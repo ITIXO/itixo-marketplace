@@ -152,6 +152,159 @@ if (!claudeDirigent.includes("native Claude plugin agent")) {
 }
 if (failures === 0) ok("dirigent skills use provider-specific canonical dispatch");
 
+// --- 3c. GitHub issue classification safeguards stay synchronized ---
+const githubIssuesAgentRel = "base/agents/itixo-github-issues.md";
+const githubIssuesAgentPath = path.join(ROOT, githubIssuesAgentRel);
+const githubIssueClassificationChecks = [
+  [
+    "must prefer native IssueTypes when available",
+    /\b(?:when|with)\s+native\s+(?:github\s+)?issuetypes?\b[\s\S]{0,180}\b(?:use\s+them\s+for\s+classification|classif(?:y|ies))\b/i,
+  ],
+  [
+    "must classify root Feature and direct children Task",
+    /\b(?:root|multi-workstream\s+root)\b[\s\S]{0,120}(?:`?\bfeature\b`?)[\s\S]{0,180}\bdirect\s+(?:sub-issues?|children)\b[\s\S]{0,120}(?:`?\btask\b`?)/i,
+  ],
+  [
+    "must allow child Feature only when split into executable children",
+    /\b(?:large\s+direct\s+(?:sub-issue|child)|direct\s+child)\b[\s\S]{0,120}(?:`?\bfeature\b`?)[\s\S]{0,160}\bonly\s+when\b[\s\S]{0,160}\bsplit\b[\s\S]{0,120}\bexecutable\s+child(?:ren|\s+issues)?\b/i,
+  ],
+  [
+    "must limit hierarchy to Feature -> Feature -> Task",
+    /\bat\s+most\s+two\s+parent-child\s+edges\b[\s\S]{0,100}\bfeature\s*->\s*feature\s*->\s*task\b/i,
+  ],
+  [
+    "must limit fallback to personal repositories without native IssueTypes",
+    /\bonly\s+when\s+native\s+(?:github\s+)?issuetypes?\s+are\s+unavailable\s+in\s+a\s+personal\s+repository\b[\s\S]{0,140}\blowercase\s+(?:`?\bfeature\b`?)\s+and\s+(?:`?\btask\b`?)\s+labels\b/i,
+  ],
+  ["must create only missing fallback labels", /\bcreat(?:e|es|ing)\s+only\s+missing\s+fallback\s+labels\b/i],
+  [
+    "must apply and read back fallback labels for every parent and child",
+    /\b(?:appl(?:y|ies)\s+and\s+read(?:s)?\s+them\s+back\s+on\s+every\s+parent\s+and\s+child|appl(?:y|ies)\s+and\s+read[\s\S]{0,80}\brelevant\s+fallback\s+label\b[\s\S]{0,80}\broot\b[\s\S]{0,80}\beach\s+direct\s+child|apply[\s\S]{0,120}(?:the\s+)?parent\s+and\s+every\s+child[\s\S]{0,120}read[\s\S]{0,40}back)\b/i,
+  ],
+  [
+    "must require type, fallback-label, and hierarchy evidence in output",
+    /\b(?:type\/label\/depth\s+evidence|type\s+readback\s+evidence[\s\S]{0,240}label\s+creation\/assignment\s+readback\s+evidence[\s\S]{0,240}hierarchy\/depth\s+evidence)\b/i,
+  ],
+];
+
+function checkGithubIssueClassification(text, rel) {
+  for (const [message, pattern] of githubIssueClassificationChecks) {
+    if (!pattern.test(text)) fail(`${rel}: ${message}`);
+  }
+}
+
+if (!fs.existsSync(githubIssuesAgentPath)) {
+  fail(`${githubIssuesAgentRel} missing`);
+} else {
+  const text = fs.readFileSync(githubIssuesAgentPath, "utf8");
+  checkGithubIssueClassification(text, githubIssuesAgentRel);
+  if (!/\broot\b[\s\S]{0,180}(?:`?\bfeature\b`?)[\s\S]{0,180}\bread\s+it\s+back\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: root Feature must be read back`);
+  }
+  if (!/\bdirect\s+sub-issue\b[\s\S]{0,120}(?:`?\btask\b`?)[\s\S]{0,120}\bread\s+it\s+back\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: direct Task must be read back`);
+  }
+  if (!/\bnested\s+executable\s+child(?:ren|\s+issues)?\b[\s\S]{0,160}\bactual\s+issuetype\s+(?:`?\btask\b`?)[\s\S]{0,120}\bread\s+it\s+back\b[\s\S]{0,180}\bterminal\b[\s\S]{0,180}\bno\s+deeper\s+children\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: native nested Tasks must set/read back IssueType and be terminal`);
+  }
+  if (!/\bdirect\s+child\s+is\s+(?:a\s+)?(?:`?\bfeature\b`?)[\s\S]{0,160}\bapply\b[\s\S]{0,80}\blowercase\s+(?:`?\btask\b`?)\s+label\b[\s\S]{0,120}\bnested\s+executable\s+child\b[\s\S]{0,120}\bread\s+it\s+back\b[\s\S]{0,180}\bterminal\b[\s\S]{0,180}\bno\s+deeper\s+children\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: fallback nested Tasks must apply/read back task label and be terminal`);
+  }
+  if (!/\bsole\s+exception\s+to\s+never\s+creating\s+labels\b[\s\S]{0,180}\boutside\b[\s\S]{0,120}\bexisting\s+labels\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: must forbid label creation outside fallback exception`);
+  }
+}
+if (failures === 0) ok("canonical github-issues agent preserves IssueType and fallback-label safeguards");
+
+// --- 3d. Dirigent skills delegate GitHub issue work using provider contracts ---
+for (const [plugin, text] of dirigentContents) {
+  const rel = `plugins/${plugin}/skills/dirigent/SKILL.md`;
+  if (!/\bgithub\s+issue\b[\s\S]{0,80}\bassessment\b[\s\S]{0,80}\bstructuring\b[\s\S]{0,80}\bcreation\b[\s\S]{0,160}\bdelegate\b[\s\S]{0,160}\bexactly\s+one\s+`?itixo-github-issues`?\s+subagent\b/i.test(text)) {
+    fail(`${rel}: must delegate GitHub issue assessment, structuring, and creation to exactly one itixo-github-issues subagent`);
+  }
+  if (plugin === "itixo-claude") {
+    if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+      fail(`${rel}: must load itixo-github-issues role instructions`);
+    }
+    if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
+      fail(`${rel}: must select mid-tier itixo-github-issues model from delegation rules`);
+    }
+  } else {
+    if (!/\binvoke\s+the\s+installed\s+custom\s+toml\s+agent\s+by\s+(?:that\s+)?canonical\s+id\b/i.test(text)) {
+      fail(`${rel}: must invoke the installed custom TOML issue agent by canonical ID`);
+    }
+    if (!/\btoml\s+owns\s+role\s+instructions\s*,\s*model\s*,\s*and\s+reasoning\s+effort\b/i.test(text)) {
+      fail(`${rel}: installed TOML must own issue-agent instructions, model, and effort`);
+    }
+    if (/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+      fail(`${rel}: must not require unavailable Markdown issue-agent instructions`);
+    }
+  }
+  if (!/\binclude\s+requested\s+outcome\s*,\s*target\s+repository\s+context\s*,\s*constraints\s*,\s*and\s+expected\s+output\s+in\s+(?:its\s+)?task\s+prompt\b/i.test(text)) {
+    fail(`${rel}: itixo-github-issues prompt must include outcome, repository context, constraints, and expected output`);
+  }
+  if (!/\borchestrator\s+never\s+creates?\s+an?\s+issue\s+directly\b/i.test(text)) {
+    fail(`${rel}: must prohibit direct orchestrator issue creation`);
+  }
+}
+if (failures === 0) ok("dirigent delegates GitHub issue work with provider-specific contracts");
+
+// --- 3e. delegation rules assign GitHub issue work to the correct agent ---
+const githubIssueRuleFiles = [
+  {
+    rel: "base/rules/agents.md",
+    model: /\bselect\s+(?:the\s+)?provider\s+model\s+in\s+(?:the\s+)?`?mid`?\s+tier\b/i,
+  },
+  {
+    rel: "plugins/itixo-claude/rules/agents.md",
+    model: /\bselect\s+`?sonnet`?[\s\S]{0,80}\b`?mid`?\b/i,
+  },
+  {
+    rel: "plugins/itixo-codex/rules/agents.md",
+    codexToml: true,
+  },
+];
+for (const { rel, model, codexToml } of githubIssueRuleFiles) {
+  const p = path.join(ROOT, rel);
+  if (!fs.existsSync(p)) {
+    fail(`${rel} missing`);
+    continue;
+  }
+  const text = fs.readFileSync(p, "utf8");
+  if (!/\bdelegate\s+all\s+(?:github\s+)?issue\s+assessment\s*,\s*structuring\s*,\s*and\s+creation\s+work\s+to\s+exactly\s+one\s+`?itixo-github-issues`?\s+agent\b/i.test(text)) {
+    fail(`${rel}: must assign all GitHub issue assessment, structuring, and creation to exactly one itixo-github-issues agent`);
+  }
+  if (!/\bdo\s+not\s+split\s+checks\s+and\s+creation\s+between\s+agents\b/i.test(text)) {
+    fail(`${rel}: must keep GitHub issue checks and creation with one agent`);
+  }
+  if (codexToml) {
+    if (!/\binvoke\s+the\s+installed\s+custom\s+toml\s+agent\s+by\s+canonical\s+`?itixo-github-issues`?\s+id\b/i.test(text)) {
+      fail(`${rel}: must invoke installed custom TOML issue agent by canonical ID`);
+    }
+    if (!/\btoml\s+owns\s+role\s+instructions\s*,\s*model\s*,\s*and\s+reasoning\s+effort\b/i.test(text)) {
+      fail(`${rel}: installed TOML must own issue-agent instructions, model, and effort`);
+    }
+    if (/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+      fail(`${rel}: must not require unavailable Markdown issue-agent instructions`);
+    }
+  } else {
+    if (!/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+      fail(`${rel}: must load itixo-github-issues role instructions before delegation`);
+    }
+    if (!model.test(text)) {
+      fail(`${rel}: must select its mid-tier itixo-github-issues model`);
+    }
+  }
+  if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*(?:target\s+)?repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*(?:and\s+)?expected\s+output\b/i.test(text)) {
+    fail(`${rel}: itixo-github-issues prompt must include outcome, repository and owner context, constraints, and expected output`);
+  }
+  if (!/\borchestrator\s+must\s+not\s+assess\s*,\s*structure\s*,\s*or\s+create\s+issues\s+directly\b/i.test(text)) {
+    fail(`${rel}: must prohibit direct orchestrator assessment, structuring, and creation`);
+  }
+  checkGithubIssueClassification(text, rel);
+}
+if (failures === 0) ok("delegation rules keep GitHub issue ownership and classification semantics synchronized");
+
 // --- 4. itixo-claude: frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
   const rel = `plugins/itixo-claude/agents/${agent}.md`;
