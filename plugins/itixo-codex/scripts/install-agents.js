@@ -92,7 +92,9 @@ function resolveDestination(options) {
     root = fs.realpathSync(os.homedir());
   } else {
     const suppliedRoot = path.resolve(options.projectRoot);
-    existingDirectory(suppliedRoot, "Project root");
+    if (!existingDirectory(suppliedRoot, "Project root")) {
+      fail(`Project root must be a directory: ${suppliedRoot}`);
+    }
     root = fs.realpathSync(suppliedRoot);
   }
 
