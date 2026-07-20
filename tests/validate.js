@@ -116,12 +116,10 @@ try {
 }
 if (failures === 0) ok("generated provider agent files are byte-for-byte current");
 
-// --- 3b. shared orchestration skill present and identical in both plugins ---
-const dirigentPaths = ORCHESTRATION_PLUGINS.map(
-  (plugin) => `plugins/${plugin}/skills/dirigent/SKILL.md`,
-);
-const dirigentContents = [];
-for (const rel of dirigentPaths) {
+// --- 3b. provider dispatch uses canonical Itixo IDs ---
+const dirigentContents = new Map();
+for (const plugin of ORCHESTRATION_PLUGINS) {
+  const rel = `plugins/${plugin}/skills/dirigent/SKILL.md`;
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) {
     fail(`${rel} missing`);
@@ -130,12 +128,29 @@ for (const rel of dirigentPaths) {
   const text = fs.readFileSync(p, "utf8");
   if (!/^---\nname: dirigent\n/m.test(text)) fail(`${rel}: invalid dirigent frontmatter`);
   if (!text.includes("../../rules/agents.md")) fail(`${rel}: must load delegation rules`);
-  dirigentContents.push(text);
+  for (const agent of expectedRoles) {
+    if (!text.includes(agent)) fail(`${rel}: missing canonical agent ID '${agent}'`);
+  }
+  dirigentContents.set(plugin, text);
 }
-if (dirigentContents.length === dirigentPaths.length && dirigentContents[0] !== dirigentContents[1]) {
-  fail("dirigent skill content differs between plugins");
+const codexDirigent = dirigentContents.get("itixo-codex") || "";
+if (!codexDirigent.includes("installed custom TOML agent")) {
+  fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must invoke installed custom TOML agents");
 }
-if (failures === 0) ok("dirigent skill mirrored and loads delegation rules");
+if (!codexDirigent.includes("itixo-codex:install-agents")) {
+  fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must require installer when custom agent is unavailable");
+}
+if (codexDirigent.includes("load the matching role file")) {
+  fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must not retain Markdown role dispatch");
+}
+if (!codexDirigent.includes("substitute a generic agent")) {
+  fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must forbid generic-agent fallback");
+}
+const claudeDirigent = dirigentContents.get("itixo-claude") || "";
+if (!claudeDirigent.includes("native Claude plugin agent")) {
+  fail("plugins/itixo-claude/skills/dirigent/SKILL.md: must retain native Claude dispatch");
+}
+if (failures === 0) ok("dirigent skills use provider-specific canonical dispatch");
 
 // --- 4. itixo-claude: frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
@@ -216,6 +231,28 @@ if (fs.existsSync(path.join(ROOT, installerSkillRel))) {
   }
 }
 if (failures === 0) ok("itixo-codex custom-agent installer packaged");
+
+// --- 5b. Codex orchestration dispatches only to installed TOML agents ---
+const codexAgentsRel = "plugins/itixo-codex/AGENTS.md";
+const codexAgentsPath = path.join(ROOT, codexAgentsRel);
+if (fs.existsSync(codexAgentsPath)) {
+  const codexAgents = fs.readFileSync(codexAgentsPath, "utf8");
+  for (const agent of expectedRoles) {
+    if (!codexAgents.includes(agent)) fail(`${codexAgentsRel}: missing canonical agent ID '${agent}'`);
+  }
+  for (const required of [
+    "installed custom TOML agent",
+    "itixo-codex:install-agents",
+    "model or reasoning-effort override",
+    "substitute a generic agent",
+  ]) {
+    if (!codexAgents.includes(required)) fail(`${codexAgentsRel}: missing custom-agent dispatch requirement '${required}'`);
+  }
+  if (codexAgents.includes("definitions in `agents/`") || codexAgents.includes("load the matching role file")) {
+    fail(`${codexAgentsRel}: must not retain removed Markdown role dispatch`);
+  }
+}
+if (failures === 0) ok("itixo-codex dispatch requires installed custom agents");
 
 // --- 6. rules files exist ---
 for (const rel of [

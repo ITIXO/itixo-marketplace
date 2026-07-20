@@ -14,6 +14,7 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 
 ## Rules
 
+- Claude invokes the native plugin agent using its canonical `itixo-*` ID and the definition's prescribed tier.
 - itixo-investigator (haiku) locates first; itixo-builder (sonnet) gets exact file:line targets.
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.

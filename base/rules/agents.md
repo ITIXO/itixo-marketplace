@@ -33,6 +33,12 @@ MUST be delegated to a subagent on a cheaper model.
 | itixo-investigator | cheap | locate code, map structure, answer "where/what" |
 | itixo-docs-updater | cheap | sync docs with code changes |
 
+## Provider dispatch
+
+- Claude invokes the native plugin agent using the canonical `itixo-*` ID; its generated definition owns the prescribed tier.
+- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md` or pass a model or reasoning-effort override; the installed TOML owns instructions, model, and effort.
+- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with the explicit scope and cheap-model choices it requires. Never substitute a generic agent or perform the role inline.
+
 ## Delegation rules
 
 - Delegate when the step is self-contained; keep in orchestrator when it requires cross-step judgment.

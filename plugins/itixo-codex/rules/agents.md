@@ -14,6 +14,8 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 
 ## Rules
 
+- Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md` or pass a model or reasoning-effort override: TOML owns instructions, model, and effort.
+- If a required custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with its explicit scope and cheap-model choices. Never substitute a generic agent or perform the role inline.
 - itixo-investigator (luna) locates first; itixo-builder (terra) gets exact file:line targets.
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.
