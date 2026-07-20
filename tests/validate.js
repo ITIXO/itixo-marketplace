@@ -171,7 +171,7 @@ const githubIssueClassificationChecks = [
   ["must create only missing fallback labels", /\bcreat(?:e|es|ing)\s+only\s+missing\s+fallback\s+labels\b/i],
   [
     "must apply and read back fallback labels for every parent and child",
-    /\b(?:appl(?:y|ies)\s+and\s+read(?:s)?\s+them\s+back\s+on\s+every\s+parent\s+and\s+child|apply[\s\S]{0,120}(?:the\s+)?parent\s+and\s+every\s+child[\s\S]{0,120}read[\s\S]{0,40}back)\b/i,
+    /\b(?:appl(?:y|ies)\s+and\s+read(?:s)?\s+them\s+back\s+on\s+every\s+parent\s+and\s+child|appl(?:y|ies)\s+and\s+read[\s\S]{0,80}\brelevant\s+fallback\s+label\b[\s\S]{0,80}\broot\b[\s\S]{0,80}\beach\s+direct\s+child|apply[\s\S]{0,120}(?:the\s+)?parent\s+and\s+every\s+child[\s\S]{0,120}read[\s\S]{0,40}back)\b/i,
   ],
   [
     "must require type, fallback-label, and hierarchy evidence in output",
@@ -196,6 +196,12 @@ if (!fs.existsSync(githubIssuesAgentPath)) {
   if (!/\bdirect\s+sub-issue\b[\s\S]{0,120}(?:`?\btask\b`?)[\s\S]{0,120}\bread\s+it\s+back\b/i.test(text)) {
     fail(`${githubIssuesAgentRel}: direct Task must be read back`);
   }
+  if (!/\bnested\s+executable\s+child(?:ren|\s+issues)?\b[\s\S]{0,160}\bactual\s+issuetype\s+(?:`?\btask\b`?)[\s\S]{0,120}\bread\s+it\s+back\b[\s\S]{0,180}\bterminal\b[\s\S]{0,180}\bno\s+deeper\s+children\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: native nested Tasks must set/read back IssueType and be terminal`);
+  }
+  if (!/\bdirect\s+child\s+is\s+(?:a\s+)?(?:`?\bfeature\b`?)[\s\S]{0,160}\bapply\b[\s\S]{0,80}\blowercase\s+(?:`?\btask\b`?)\s+label\b[\s\S]{0,120}\bnested\s+executable\s+child\b[\s\S]{0,120}\bread\s+it\s+back\b[\s\S]{0,180}\bterminal\b[\s\S]{0,180}\bno\s+deeper\s+children\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: fallback nested Tasks must apply/read back task label and be terminal`);
+  }
   if (!/\bsole\s+exception\s+to\s+never\s+creating\s+labels\b[\s\S]{0,180}\boutside\b[\s\S]{0,120}\bexisting\s+labels\b/i.test(text)) {
     fail(`${githubIssuesAgentRel}: must forbid label creation outside fallback exception`);
   }
@@ -206,8 +212,8 @@ if (failures === 0) ok("canonical github-issues agent preserves IssueType and fa
 for (let index = 0; index < dirigentContents.length; index++) {
   const text = dirigentContents[index];
   const rel = dirigentPaths[index];
-  if (!/\bgithub\s+issue\s+(?:structuring\s+or\s+creation|creation\s+or\s+structuring)\b[\s\S]{0,160}\bdelegate\b[\s\S]{0,160}\bexactly\s+one\s+`?github-issues`?\s+subagent\b/i.test(text)) {
-    fail(`${rel}: must delegate GitHub issue structuring and creation to exactly one github-issues subagent`);
+  if (!/\bgithub\s+issue\b[\s\S]{0,80}\bassessment\b[\s\S]{0,80}\bstructuring\b[\s\S]{0,80}\bcreation\b[\s\S]{0,160}\bdelegate\b[\s\S]{0,160}\bexactly\s+one\s+`?github-issues`?\s+subagent\b/i.test(text)) {
+    fail(`${rel}: must delegate GitHub issue assessment, structuring, and creation to exactly one github-issues subagent`);
   }
   if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
     fail(`${rel}: must load github-issues role instructions`);
