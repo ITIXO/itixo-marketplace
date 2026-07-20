@@ -206,6 +206,30 @@ if (fs.existsSync(obsoleteCodexAgentsDirectory)) {
 }
 if (failures === 0) ok("itixo-codex custom agent templates match tiers");
 
+// --- 5a. Codex custom-agent installer is packaged with its explicit setup skill ---
+const installerScriptRel = "plugins/itixo-codex/scripts/install-agents.js";
+const installerSkillRel = "plugins/itixo-codex/skills/install-agents/SKILL.md";
+for (const rel of [installerScriptRel, installerSkillRel]) {
+  if (!fs.existsSync(path.join(ROOT, rel))) fail(`${rel} missing`);
+}
+if (fs.existsSync(path.join(ROOT, installerScriptRel))) {
+  const installerScript = fs.readFileSync(path.join(ROOT, installerScriptRel), "utf8");
+  if (!installerScript.startsWith("#!/usr/bin/env node\n")) fail(`${installerScriptRel}: missing Node shebang`);
+  if (!installerScript.includes("--scope") || !installerScript.includes("--project-root")) {
+    fail(`${installerScriptRel}: missing explicit scope arguments`);
+  }
+}
+if (fs.existsSync(path.join(ROOT, installerSkillRel))) {
+  const installerSkill = fs.readFileSync(path.join(ROOT, installerSkillRel), "utf8");
+  if (!/^---\nname: install-agents\n/m.test(installerSkill)) {
+    fail(`${installerSkillRel}: invalid install-agents frontmatter`);
+  }
+  if (!installerSkill.includes("${PLUGIN_ROOT}/scripts/install-agents.js")) {
+    fail(`${installerSkillRel}: must invoke plugin installer script`);
+  }
+}
+if (failures === 0) ok("itixo-codex custom-agent installer packaged");
+
 // --- 6. rules files exist ---
 for (const rel of [
   "base/rules/agents.md",
