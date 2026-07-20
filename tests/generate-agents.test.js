@@ -20,13 +20,13 @@ const {
 } = require("../scripts/generate-agents.js");
 
 const ROLE_NAMES = [
-  "builder",
-  "docs-updater",
-  "github-issues",
-  "investigator",
-  "planner",
-  "reviewer",
-  "tester",
+  "itixo-builder",
+  "itixo-docs-updater",
+  "itixo-github-issues",
+  "itixo-investigator",
+  "itixo-planner",
+  "itixo-reviewer",
+  "itixo-tester",
 ];
 
 function withTemporaryDirectory(callback) {
@@ -148,9 +148,9 @@ test("renders provider model, header, and tool metadata from each tier", () => {
     assert.match(codex, new RegExp(`^# ${name} — model: ${PROVIDERS.codex.models[agent.tier]}$`, "m"));
   }
 
-  const planner = readBaseAgents(ROOT).find(({ name }) => name === "planner");
-  assert.equal(readFrontmatter(renderClaude("planner", planner.agent)).model, "inherit");
-  assert.match(renderCodex("planner", planner.agent), /^# planner — model: user-selected$/m);
+  const planner = readBaseAgents(ROOT).find(({ name }) => name === "itixo-planner");
+  assert.equal(readFrontmatter(renderClaude("itixo-planner", planner.agent)).model, "inherit");
+  assert.match(renderCodex("itixo-planner", planner.agent), /^# itixo-planner — model: user-selected$/m);
 });
 
 test("comparison detects stale, missing, and orphan outputs", () => {
@@ -174,7 +174,7 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
   withTemporaryDirectory((root) => {
     const agents = [
       {
-        name: "investigator",
+        name: "itixo-investigator",
         agent: parseBaseAgent(
           [
             "---",
@@ -189,7 +189,7 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
       },
     ];
     const outputs = expectedOutputs(agents, root);
-    const claudePath = path.join(root, "plugins/itixo-claude/agents/investigator.md");
+    const claudePath = path.join(root, "plugins/itixo-claude/agents/itixo-investigator.md");
     const orphanPath = path.join(root, "plugins/itixo-codex/agents/orphan.md");
     fs.mkdirSync(path.dirname(claudePath), { recursive: true });
     fs.mkdirSync(path.dirname(orphanPath), { recursive: true });
@@ -197,8 +197,8 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
     fs.writeFileSync(orphanPath, "orphan", "utf8");
 
     assert.deepEqual(collectStaleness(outputs, root), {
-      missing: ["plugins/itixo-codex/agents/investigator.md"],
-      stale: ["plugins/itixo-claude/agents/investigator.md"],
+      missing: ["plugins/itixo-codex/agents/itixo-investigator.md"],
+      stale: ["plugins/itixo-claude/agents/itixo-investigator.md"],
       orphan: ["plugins/itixo-codex/agents/orphan.md"],
     });
   });

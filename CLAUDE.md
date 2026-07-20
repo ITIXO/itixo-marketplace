@@ -38,9 +38,9 @@ All three must pass.
 
 | Tier | Claude | Codex | Agents |
 |------|--------|-------|--------|
-| orchestrator | inherit | user-selected | planner |
-| mid | sonnet | gpt-5.6-terra | builder, github-issues, tester, reviewer |
-| cheap | haiku | gpt-5.6-luna | investigator, docs-updater |
+| orchestrator | inherit | user-selected | itixo-planner |
+| mid | sonnet | gpt-5.6-terra | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | haiku | gpt-5.6-luna | itixo-investigator, itixo-docs-updater |
 
 Keep this table in sync with `base/rules/agents.md` and `scripts/generate-agents.js` (PROVIDERS map).
 

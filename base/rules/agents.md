@@ -25,20 +25,20 @@ MUST be delegated to a subagent on a cheaper model.
 
 | Agent | Tier | Role |
 |-------|------|------|
-| planner | orchestrator (inherit) | design implementation steps; needs full reasoning power |
-| builder | mid | implement a precisely specified change |
-| github-issues | mid | assess issue shape; create one issue or a Feature with linked executable sub-issues |
-| tester | mid | write/run tests for specified behavior |
-| reviewer | mid | review diff, severity-tagged findings |
-| investigator | cheap | locate code, map structure, answer "where/what" |
-| docs-updater | cheap | sync docs with code changes |
+| itixo-planner | orchestrator (inherit) | design implementation steps; needs full reasoning power |
+| itixo-builder | mid | implement a precisely specified change |
+| itixo-github-issues | mid | assess issue shape; create one issue or a Feature with linked executable sub-issues |
+| itixo-tester | mid | write/run tests for specified behavior |
+| itixo-reviewer | mid | review diff, severity-tagged findings |
+| itixo-investigator | cheap | locate code, map structure, answer "where/what" |
+| itixo-docs-updater | cheap | sync docs with code changes |
 
 ## Delegation rules
 
 - Delegate when the step is self-contained; keep in orchestrator when it requires cross-step judgment.
 - Prompt to subagent must include: goal, exact files/paths if known, constraints, expected output format.
 - Subagent returns compact result; orchestrator never re-reads what subagent already summarized.
-- Investigator before builder: locate first with cheap model, then hand precise file:line targets to builder.
+- itixo-investigator before itixo-builder: locate first with cheap model, then hand precise file:line targets to itixo-builder.
 - Never let a subagent expand scope. Scope change goes back to orchestrator.
 - Parallelize independent subagent runs.
 - Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
@@ -48,11 +48,11 @@ MUST be delegated to a subagent on a cheaper model.
 
 These are negative rules, not preferences. Soft phrasing elsewhere ("prefer", "should") never overrides them. The orchestrator itself does NOT:
 
-- run `ls`, `find`, `grep`, `rg`, `Grep`, or `Glob` to map or scan the codebase — read-only mapping IS the investigator's job. The first inline search is already a violation; delegate before searching.
-- edit or write repository files — builder's job; hand it exact file:line targets.
-- write or run test suites — tester's job.
-- produce inline review findings for a non-trivial diff — reviewer's job.
-- create GitHub issues by hand — github-issues agent's job.
-- rewrite documentation — docs-updater's job.
+- run `ls`, `find`, `grep`, `rg`, `Grep`, or `Glob` to map or scan the codebase — read-only mapping IS itixo-investigator's job. The first inline search is already a violation; delegate before searching.
+- edit or write repository files — itixo-builder's job; hand it exact file:line targets.
+- write or run test suites — itixo-tester's job.
+- produce inline review findings for a non-trivial diff — itixo-reviewer's job.
+- create GitHub issues by hand — itixo-github-issues agent's job.
+- rewrite documentation — itixo-docs-updater's job.
 
 Reading a single already-located file to make a cross-step judgment is allowed; discovering where things are is not.

@@ -31,13 +31,13 @@ function readJson(rel) {
 
 // --- Expected orchestration model tiers (must match base/rules/agents.md) ---
 const TIERS = {
-  investigator: "cheap",
-  planner: "orchestrator",
-  builder: "mid",
-  "github-issues": "mid",
-  tester: "mid",
-  reviewer: "mid",
-  "docs-updater": "cheap",
+  "itixo-investigator": "cheap",
+  "itixo-planner": "orchestrator",
+  "itixo-builder": "mid",
+  "itixo-github-issues": "mid",
+  "itixo-tester": "mid",
+  "itixo-reviewer": "mid",
+  "itixo-docs-updater": "cheap",
 };
 const CLAUDE_MODEL = { cheap: "haiku", mid: "sonnet", orchestrator: "inherit" };
 const CODEX_MODEL = {
