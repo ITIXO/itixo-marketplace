@@ -89,7 +89,7 @@ for (const dirent of fs.readdirSync(path.join(ROOT, "plugins"), { withFileTypes:
 }
 if (failures === 0) ok("all plugin.json manifests valid");
 
-// --- 3. base and provider agent role sets match exactly ---
+// --- 3. base, Claude, and Codex template role sets match exactly ---
 const expectedRoles = Object.keys(TIERS).sort();
 const agentRoles = (directory) => fs
   .readdirSync(path.join(ROOT, directory), { withFileTypes: true })
@@ -97,10 +97,16 @@ const agentRoles = (directory) => fs
   .map((entry) => entry.name.slice(0, -3))
   .sort();
 const baseAgents = agentRoles("base/agents");
+const codexTemplateRoles = fs
+  .readdirSync(path.join(ROOT, "plugins/itixo-codex/templates/agents"), { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith(".toml"))
+  .map((entry) => entry.name.slice(0, -5))
+  .sort();
 
 for (const [label, actualRoles] of [
   ["base/agents", baseAgents],
-  ...ORCHESTRATION_PLUGINS.map((plugin) => [`plugins/${plugin}/agents`, agentRoles(`plugins/${plugin}/agents`)]),
+  ["plugins/itixo-claude/agents", agentRoles("plugins/itixo-claude/agents")],
+  ["plugins/itixo-codex/templates/agents", codexTemplateRoles],
 ]) {
   if (JSON.stringify(actualRoles) !== JSON.stringify(expectedRoles)) {
     fail(`${label}: role set ${JSON.stringify(actualRoles)}, expected ${JSON.stringify(expectedRoles)}`);
@@ -166,18 +172,39 @@ for (const agent of Object.keys(TIERS)) {
 }
 if (failures === 0) ok("itixo-claude agent models match tiers");
 
-// --- 5. itixo-codex: header states expected model ---
+// --- 5. itixo-codex: custom TOML templates model tiers ---
 for (const agent of Object.keys(TIERS)) {
-  const rel = `plugins/itixo-codex/agents/${agent}.md`;
+  const rel = `plugins/itixo-codex/templates/agents/${agent}.toml`;
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) continue;
-  const firstLine = fs.readFileSync(p, "utf8").split("\n")[0];
-  const expected = CODEX_MODEL[TIERS[agent]];
-  if (!firstLine.includes(expected)) {
-    fail(`${rel}: first line must state model '${expected}', got: ${firstLine}`);
+  const text = fs.readFileSync(p, "utf8");
+  if (!text.startsWith("# Itixo-managed custom agent. Do not edit.\n")) {
+    fail(`${rel}: missing Itixo-managed marker`);
+  }
+  if (!text.includes(`# Generated from base/agents/${agent}.md by scripts/generate-agents.js.`)) {
+    fail(`${rel}: missing generated-source marker`);
+  }
+  for (const field of ["name", "description", "developer_instructions"]) {
+    if (!new RegExp(`^${field} =`, "m").test(text)) fail(`${rel}: missing '${field}'`);
+  }
+  const model = (text.match(/^model = "([^"]+)"$/m) || [])[1];
+  const effort = (text.match(/^model_reasoning_effort = "([^"]+)"$/m) || [])[1];
+  if (agent === "itixo-planner") {
+    if (model || effort) fail(`${rel}: planner must inherit model and effort`);
+  } else {
+    const expected = CODEX_MODEL[TIERS[agent]];
+    const expectedEffort = TIERS[agent] === "cheap" ? "low" : "medium";
+    if (model !== expected) fail(`${rel}: model '${model}', expected '${expected}'`);
+    if (effort !== expectedEffort) fail(`${rel}: effort '${effort}', expected '${expectedEffort}'`);
   }
 }
-if (failures === 0) ok("itixo-codex agent models match tiers");
+const obsoleteCodexAgentsDirectory = path.join(ROOT, "plugins/itixo-codex/agents");
+if (fs.existsSync(obsoleteCodexAgentsDirectory)) {
+  const obsolete = fs.readdirSync(obsoleteCodexAgentsDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"));
+  if (obsolete.length > 0) fail("plugins/itixo-codex/agents: obsolete Markdown agent files remain");
+}
+if (failures === 0) ok("itixo-codex custom agent templates match tiers");
 
 // --- 6. rules files exist ---
 for (const rel of [
