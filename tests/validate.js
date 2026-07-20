@@ -216,17 +216,29 @@ if (!fs.existsSync(githubIssuesAgentPath)) {
 }
 if (failures === 0) ok("canonical github-issues agent preserves IssueType and fallback-label safeguards");
 
-// --- 3d. shared Dirigent skill delegates GitHub issue work safely ---
+// --- 3d. Dirigent skills delegate GitHub issue work using provider contracts ---
 for (const [plugin, text] of dirigentContents) {
   const rel = `plugins/${plugin}/skills/dirigent/SKILL.md`;
   if (!/\bgithub\s+issue\b[\s\S]{0,80}\bassessment\b[\s\S]{0,80}\bstructuring\b[\s\S]{0,80}\bcreation\b[\s\S]{0,160}\bdelegate\b[\s\S]{0,160}\bexactly\s+one\s+`?itixo-github-issues`?\s+subagent\b/i.test(text)) {
     fail(`${rel}: must delegate GitHub issue assessment, structuring, and creation to exactly one itixo-github-issues subagent`);
   }
-  if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
-    fail(`${rel}: must load itixo-github-issues role instructions`);
-  }
-  if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
-    fail(`${rel}: must select mid-tier itixo-github-issues model from delegation rules`);
+  if (plugin === "itixo-claude") {
+    if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+      fail(`${rel}: must load itixo-github-issues role instructions`);
+    }
+    if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
+      fail(`${rel}: must select mid-tier itixo-github-issues model from delegation rules`);
+    }
+  } else {
+    if (!/\binvoke\s+the\s+installed\s+custom\s+toml\s+agent\s+by\s+(?:that\s+)?canonical\s+id\b/i.test(text)) {
+      fail(`${rel}: must invoke the installed custom TOML issue agent by canonical ID`);
+    }
+    if (!/\btoml\s+owns\s+role\s+instructions\s*,\s*model\s*,\s*and\s+reasoning\s+effort\b/i.test(text)) {
+      fail(`${rel}: installed TOML must own issue-agent instructions, model, and effort`);
+    }
+    if (/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+      fail(`${rel}: must not require unavailable Markdown issue-agent instructions`);
+    }
   }
   if (!/\binclude\s+requested\s+outcome\s*,\s*target\s+repository\s+context\s*,\s*constraints\s*,\s*and\s+expected\s+output\s+in\s+(?:its\s+)?task\s+prompt\b/i.test(text)) {
     fail(`${rel}: itixo-github-issues prompt must include outcome, repository context, constraints, and expected output`);
@@ -235,7 +247,7 @@ for (const [plugin, text] of dirigentContents) {
     fail(`${rel}: must prohibit direct orchestrator issue creation`);
   }
 }
-if (failures === 0) ok("dirigent delegates GitHub issue work with required role, model, prompt, and boundary");
+if (failures === 0) ok("dirigent delegates GitHub issue work with provider-specific contracts");
 
 // --- 3e. delegation rules assign GitHub issue work to the correct agent ---
 const githubIssueRuleFiles = [
@@ -249,7 +261,7 @@ const githubIssueRuleFiles = [
   },
   {
     rel: "plugins/itixo-codex/rules/agents.md",
-    model: /\bselect\s+`?gpt-5\.6-terra`?[\s\S]{0,80}\b`?mid`?\b/i,
+    codexToml: true,
   },
 ];
 for (const { rel, model } of githubIssueRuleFiles) {
@@ -265,11 +277,23 @@ for (const { rel, model } of githubIssueRuleFiles) {
   if (!/\bdo\s+not\s+split\s+checks\s+and\s+creation\s+between\s+agents\b/i.test(text)) {
     fail(`${rel}: must keep GitHub issue checks and creation with one agent`);
   }
-  if (!/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
-    fail(`${rel}: must load itixo-github-issues role instructions before delegation`);
-  }
-  if (!model.test(text)) {
-    fail(`${rel}: must select its mid-tier itixo-github-issues model`);
+  if (codexToml) {
+    if (!/\binvoke\s+the\s+installed\s+custom\s+toml\s+agent\s+by\s+canonical\s+`?itixo-github-issues`?\s+id\b/i.test(text)) {
+      fail(`${rel}: must invoke installed custom TOML issue agent by canonical ID`);
+    }
+    if (!/\btoml\s+owns\s+role\s+instructions\s*,\s*model\s*,\s*and\s+reasoning\s+effort\b/i.test(text)) {
+      fail(`${rel}: installed TOML must own issue-agent instructions, model, and effort`);
+    }
+    if (/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+      fail(`${rel}: must not require unavailable Markdown issue-agent instructions`);
+    }
+  } else {
+    if (!/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+      fail(`${rel}: must load itixo-github-issues role instructions before delegation`);
+    }
+    if (!model.test(text)) {
+      fail(`${rel}: must select its mid-tier itixo-github-issues model`);
+    }
   }
   if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*(?:target\s+)?repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*(?:and\s+)?expected\s+output\b/i.test(text)) {
     fail(`${rel}: itixo-github-issues prompt must include outcome, repository and owner context, constraints, and expected output`);
