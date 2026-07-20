@@ -25,8 +25,11 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 
 - Delegate all GitHub issue assessment, structuring, and creation work to exactly one `github-issues` agent. Do not split checks and creation between agents.
 - Before delegating, load matching `agents/github-issues.md` role instructions. Select `sonnet`, the `mid` model in the table above.
-- Prompt that agent with requested outcome, repository and owner context, constraints, and expected output. Include known issue-type or project conventions when available.
-- The `github-issues` agent owns duplicate, issue-type, linked-sub-issue, and repository-convention checks, then reports or creates the issue result.
+- Prompt that agent with requested outcome, target repository and owner context, constraints, expected output, and known IssueType or project conventions. Require it to determine whether native GitHub IssueTypes are available; the fallback below applies only when they are unavailable in a personal repository.
+- The `github-issues` agent owns duplicate, native-IssueType availability, fallback-label, linked-sub-issue/depth, and repository-convention checks, then reports or creates the issue result.
+- With native IssueTypes, it classifies the root as `Feature` when appropriate, direct children as `Task` by default, and a direct child as `Feature` only when that large child is split into executable children. It allows at most two parent-child edges: `Feature -> Feature -> Task`.
+- Only when native IssueTypes are unavailable in a personal repository, it uses lowercase `feature` and `task` labels as classification; it creates only missing fallback labels, applies and reads them back on every parent and child, and otherwise uses existing labels only.
+- Returned result must include the decision and rationale; issue URLs or numbers; linked sub-issues and parallel waves; native IssueType availability plus type readback evidence, or personal-repository fallback justification plus label creation/assignment readback evidence; parent-child hierarchy/depth evidence; and blockers.
 - Orchestrator must not assess, structure, or create issues directly. Unknown repository, outcome, scope, or success criteria return to orchestrator as user questions.
 
 ## Orchestrator hard boundaries (strict)

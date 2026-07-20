@@ -12,10 +12,10 @@ Follow delegation rules in `rules/agents.md`, including the "Orchestrator hard b
 |------|-------|---------|
 | planner | user-selected | decompose problem into delegable steps |
 | builder | gpt-5.6-terra | implement one precisely specified change |
-| github-issues | gpt-5.6-terra | assess issue shape; create one issue or Feature with linked executable sub-issues |
+| github-issues | gpt-5.6-terra | assess IssueType/fallback-label availability; create one issue or a classified Feature with linked executable sub-issues |
 | tester | gpt-5.6-terra | write/run tests for specified behavior |
 | reviewer | gpt-5.6-terra | severity-tagged diff review |
 | investigator | gpt-5.6-luna | locate code, map structure |
 | docs-updater | gpt-5.6-luna | sync docs after changes |
 
-When spawning a subtask, load the matching role file from `agents/` as its instructions and set the model per table above.
+When spawning a subtask, load the matching role file from `agents/` as its instructions and set the model per table above. For `github-issues`, include target repository and owner context, constraints, expected output, and known IssueType/project conventions; it owns IssueType-versus-personal-repository fallback-label assessment and must return classification, readback, and parent-child-depth evidence.
