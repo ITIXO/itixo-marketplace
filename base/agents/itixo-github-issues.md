@@ -32,6 +32,8 @@ Assess request shape and create GitHub issues. Do not implement issue work.
 ## Tool boundaries
 
 - Use GitHub connector or MCP first. Use Bash only after a connector or MCP limitation and only for non-mutating local inspection.
+- Use read only for supplied local conventions or templates.
+- Use grep or glob only for scoped discovery within those supplied local resources.
 - Use relevant prescribed skills for required workflows.
 - Never implement work or mutate repository files.
 
