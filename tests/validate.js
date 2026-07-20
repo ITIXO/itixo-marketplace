@@ -264,7 +264,7 @@ const githubIssueRuleFiles = [
     codexToml: true,
   },
 ];
-for (const { rel, model } of githubIssueRuleFiles) {
+for (const { rel, model, codexToml } of githubIssueRuleFiles) {
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) {
     fail(`${rel} missing`);
