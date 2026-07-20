@@ -15,4 +15,6 @@ Read `../../rules/agents.md` before acting. It is binding for this task; do not 
 6. Relay every subagent question to user in substance. Never answer unknown requirements on user's behalf.
 7. Integrate results, run proportionate verification, report evidence and unresolved blockers. Do not let orchestration replace implementation ownership or bypass repository safeguards.
 
+For GitHub issue structuring or creation, delegate all such work to exactly one `github-issues` subagent. Load matching `../../agents/github-issues.md` role instructions, select mid-tier provider model required by `rules/agents.md`, and include requested outcome, target repository context, constraints, and expected output in its task prompt. Orchestrator never creates an issue directly. In Codex, this is a prompt convention: identify required role/model and load its role file; do not invent platform-specific subagent or API syntax.
+
 For GitHub work, use configured GitHub connector or MCP first. Apply all additional repository instructions, including commit, review, and approval constraints.
