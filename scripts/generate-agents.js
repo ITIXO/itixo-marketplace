@@ -17,6 +17,12 @@ const PROVIDERS = Object.freeze({
     models: Object.freeze({ cheap: "gpt-5.6-luna", mid: "gpt-5.6-terra" }),
     efforts: Object.freeze({ cheap: "low", mid: "medium" }),
   },
+  copilot: {
+    directory: path.join(ROOT, "plugins", "itixo-copilot", "agents"),
+    // orchestrator tier omits model field (inherits); cheap and mid use full Copilot CLI model IDs
+    models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-4.6" }),
+    fileExtension: ".agent.md",
+  },
 });
 const CLAUDE_TOOLS = Object.freeze({
   read: "Read",
@@ -27,6 +33,20 @@ const CLAUDE_TOOLS = Object.freeze({
   bash: "Bash",
   skill: "Skill",
   github: "mcp__github__*",
+});
+// Copilot CLI tool aliases. null = capability has no direct alias; drop from tools list.
+// grep and glob both map to "search" — deduplicated in renderCopilot.
+// write is an alias of edit — deduplicated.
+// skill has no Copilot alias — dropped.
+const COPILOT_TOOLS = Object.freeze({
+  read: "read",
+  edit: "edit",
+  write: "edit",
+  grep: "search",
+  glob: "search",
+  bash: "execute",
+  skill: null,
+  github: "github/*",
 });
 
 function normalizeLf(text) {
@@ -121,6 +141,20 @@ function renderClaude(name, agent) {
   ].join("\n");
 }
 
+function renderCopilot(name, agent) {
+  const model = PROVIDERS.copilot.models[agent.tier]; // undefined for orchestrator → omit
+  const rawTools = agent.capabilities.map((capability) => COPILOT_TOOLS[capability]).filter(Boolean);
+  const tools = [...new Set(rawTools)]; // deduplicate (e.g. grep+glob → search once)
+  const lines = [
+    "---",
+    `description: ${yamlQuote(agent.description)}`,
+    `tools: [${tools.map((t) => JSON.stringify(t)).join(", ")}]`,
+  ];
+  if (model) lines.push(`model: ${JSON.stringify(model)}`);
+  lines.push("---", "", agent.body, "", generatedMarker(name), "");
+  return lines.join("\n");
+}
+
 function renderCodex(name, agent) {
   const model = PROVIDERS.codex.models[agent.tier];
   const output = [
@@ -153,6 +187,7 @@ function expectedOutputs(agents, root = ROOT) {
   for (const { name, agent } of agents) {
     outputs.push({ provider: "claude", name, path: path.join(root, "plugins", "itixo-claude", "agents", `${name}.md`), content: renderClaude(name, agent) });
     outputs.push({ provider: "codex", name, path: path.join(root, "plugins", "itixo-codex", "templates", "agents", `${name}.toml`), content: renderCodex(name, agent) });
+    outputs.push({ provider: "copilot", name, path: path.join(root, "plugins", "itixo-copilot", "agents", `${name}.agent.md`), content: renderCopilot(name, agent) });
   }
   return outputs;
 }
@@ -183,6 +218,7 @@ function collectStaleness(outputs, root = ROOT) {
     { directory: PROVIDERS.claude.directory, extension: ".md" },
     { directory: PROVIDERS.codex.directory, extension: ".toml" },
     { directory: PROVIDERS.codex.obsoleteDirectory, extension: ".md" },
+    { directory: PROVIDERS.copilot.directory, extension: ".agent.md" },
   ];
   for (const { directory, extension } of directories) {
     const outputDirectory = path.join(root, path.relative(ROOT, directory));
@@ -248,6 +284,7 @@ if (require.main === module) process.exitCode = main();
 
 module.exports = {
   CLAUDE_TOOLS,
+  COPILOT_TOOLS,
   PROVIDERS,
   compareOutputs,
   collectStaleness,
@@ -259,6 +296,7 @@ module.exports = {
   readBaseAgents,
   renderClaude,
   renderCodex,
+  renderCopilot,
   tomlGeneratedMarker,
   tomlMultilineBasic,
   writeOutputs,

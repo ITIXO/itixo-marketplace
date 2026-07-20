@@ -9,6 +9,7 @@ const test = require("node:test");
 const ROOT = path.join(__dirname, "..");
 const {
   CLAUDE_TOOLS,
+  COPILOT_TOOLS,
   PROVIDERS,
   collectStaleness,
   compareOutputs,
@@ -17,6 +18,7 @@ const {
   readBaseAgents,
   renderClaude,
   renderCodex,
+  renderCopilot,
   tomlGeneratedMarker,
 } = require("../scripts/generate-agents.js");
 
@@ -121,12 +123,12 @@ test("rejects malformed canonical agent sources", () => {
   }
 });
 
-test("renders every canonical role into Claude agents and Codex TOML templates", () => {
+test("renders every canonical role into Claude agents, Codex TOML templates, and Copilot agents", () => {
   const agents = readBaseAgents(ROOT);
   assert.deepEqual(agents.map(({ name }) => name), ROLE_NAMES);
 
   const outputs = expectedOutputs(agents, ROOT);
-  assert.equal(outputs.length, 14);
+  assert.equal(outputs.length, 21);
 
   for (const { provider, name, path: outputPath, content } of outputs) {
     assert.ok(fs.existsSync(outputPath), `${provider}/${name} output is missing`);
@@ -162,6 +164,64 @@ test("renders provider model, TOML schema, and tool metadata from each tier", ()
   const planner = readBaseAgents(ROOT).find(({ name }) => name === "itixo-planner");
   assert.equal(readFrontmatter(renderClaude("itixo-planner", planner.agent)).model, "inherit");
   assert.doesNotMatch(renderCodex("itixo-planner", planner.agent), /^model(?:_reasoning_effort)? =/m);
+});
+
+test("renderCopilot produces correct frontmatter for each tier", () => {
+  for (const { name, agent } of readBaseAgents(ROOT)) {
+    const copilot = renderCopilot(name, agent);
+    // must have YAML frontmatter
+    assert.match(copilot, /^---\n/);
+    assert.match(copilot, /\n---\n/);
+    // description required
+    assert.match(copilot, /^description: /m);
+    // tools required, JSON array format
+    assert.match(copilot, /^tools: \[/m);
+    // model: orchestrator omits, others present
+    if (agent.tier === "orchestrator") {
+      assert.doesNotMatch(copilot, /^model:/m);
+    } else {
+      assert.match(copilot, new RegExp(`^model: ${JSON.stringify(PROVIDERS.copilot.models[agent.tier])}$`, "m"));
+    }
+    // generated marker present
+    assert.ok(copilot.includes(`<!-- Generated from base/agents/${name}.md by scripts/generate-agents.js. Do not edit. -->`));
+    // output path uses .agent.md extension
+    const outputs = expectedOutputs([{ name, agent }], "/tmp/root");
+    const copilotOutput = outputs.find((o) => o.provider === "copilot");
+    assert.ok(copilotOutput.path.replace(/\\/g, "/").includes("itixo-copilot/agents/"));
+    assert.ok(copilotOutput.path.endsWith(`${name}.agent.md`));
+  }
+});
+
+test("renderCopilot deduplicates tools mapping to the same alias", () => {
+  // grep and glob both map to "search"; write maps to "edit" — each must appear once
+  const agent = parseBaseAgent([
+    "---",
+    "tier: mid",
+    "description: Dedup test.",
+    "capabilities: [read, edit, write, grep, glob, bash]",
+    "---",
+    "",
+    "Body.",
+  ].join("\n"));
+  const copilot = renderCopilot("itixo-builder", agent);
+  const toolsLine = copilot.match(/^tools: \[(.+)\]$/m)?.[1] ?? "";
+  const tools = toolsLine.split(", ").map((t) => t.replace(/"/g, ""));
+  assert.deepEqual(tools, ["read", "edit", "search", "execute"]);
+});
+
+test("renderCopilot drops null-mapped capabilities (skill)", () => {
+  const agent = parseBaseAgent([
+    "---",
+    "tier: mid",
+    "description: Skill drop test.",
+    "capabilities: [read, skill]",
+    "---",
+    "",
+    "Body.",
+  ].join("\n"));
+  const copilot = renderCopilot("itixo-tester", agent);
+  assert.doesNotMatch(copilot, /\bnull\b/);
+  assert.match(copilot, /^tools: \["read"\]$/m);
 });
 
 test("escapes TOML multiline instructions safely", () => {
@@ -225,8 +285,15 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
     fs.writeFileSync(orphanPath, "orphan", "utf8");
     fs.writeFileSync(obsoletePath, "obsolete", "utf8");
 
-    assert.deepEqual(collectStaleness(outputs, root), {
-      missing: ["plugins/itixo-codex/templates/agents/itixo-investigator.toml"],
+    const normalizePaths = (s) => {
+      const norm = (arr) => arr.map((p) => p.replace(/\\/g, "/"));
+      return { missing: norm(s.missing), stale: norm(s.stale), orphan: norm(s.orphan) };
+    };
+    assert.deepEqual(normalizePaths(collectStaleness(outputs, root)), {
+      missing: [
+        "plugins/itixo-codex/templates/agents/itixo-investigator.toml",
+        "plugins/itixo-copilot/agents/itixo-investigator.agent.md",
+      ],
       stale: ["plugins/itixo-claude/agents/itixo-investigator.md"],
       orphan: [
         "plugins/itixo-codex/agents/itixo-investigator.md",

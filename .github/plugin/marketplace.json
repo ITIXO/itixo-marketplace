@@ -1,0 +1,17 @@
+{
+  "name": "itixo-marketplace",
+  "owner": {
+    "name": "Itixo"
+  },
+  "metadata": {
+    "description": "Itixo marketplace with plugins for Copilot CLI",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "itixo-copilot",
+      "source": "./plugins/itixo-copilot",
+      "description": "Itixo library for Copilot CLI users: agents, skills, rules, prompts. Orchestration module included (delegation to sonnet/haiku subagents)"
+    }
+  ]
+}
