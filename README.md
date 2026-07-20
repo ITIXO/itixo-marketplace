@@ -2,6 +2,17 @@
 
 Marketplace with plugins for Claude (Claude Code / Cowork) and Codex.
 
+## Changelog
+
+### 0.2.0 — 2026-07-20
+
+Breaking changes:
+
+- Generic agent identifiers were replaced by seven canonical `itixo-*` IDs. Migrate any configs or prompts that use the former generic IDs.
+  Mappings: `builder` → `itixo-builder`; `docs-updater` → `itixo-docs-updater`; `github-issues` → `itixo-github-issues`; `investigator` → `itixo-investigator`; `planner` → `itixo-planner`; `reviewer` → `itixo-reviewer`; `tester` → `itixo-tester`.
+- Codex custom agents now require explicit installation with `itixo-codex:install-agents` before they can be discovered.
+- `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
+
 ## Structure
 
 ```
