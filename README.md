@@ -4,23 +4,7 @@ Marketplace with plugins for Claude (Claude Code / Cowork) and Codex.
 
 ## Changelog
 
-### 0.2.1 — 2026-07-20
-
-Non-breaking changes:
-
-- GitHub issue planning now uses native GitHub IssueTypes with readback: multi-workstream roots are `Feature`, direct children default to `Task`, and larger direct children may be `Feature` only when split into terminal `Task` children, bounded to `Feature -> Feature -> Task`.
-- Personal repositories without native IssueTypes use lowercase `feature` and `task` labels as a narrow fallback, creating only missing fallback labels and reading assignments back on each parent and child.
-- GitHub issue assessment, structuring, and creation must be delegated to exactly one `itixo-github-issues` agent with repository and owner context.
-- Added validation coverage for IssueTypes, fallback labels, bounded hierarchy, and mandatory delegation; bumped both plugin manifests to `0.2.1`.
-
-### 0.2.0 — 2026-07-20
-
-Breaking changes:
-
-- Generic agent identifiers were replaced by seven canonical `itixo-*` IDs. Migrate any configs or prompts that use the former generic IDs.
-  Mappings: `builder` → `itixo-builder`; `docs-updater` → `itixo-docs-updater`; `github-issues` → `itixo-github-issues`; `investigator` → `itixo-investigator`; `planner` → `itixo-planner`; `reviewer` → `itixo-reviewer`; `tester` → `itixo-tester`.
-- Codex custom agents now require explicit installation with `itixo-codex:install-agents` before they can be discovered.
-- `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
+See the [full changelog in the project Wiki](https://github.com/ITIXO-Playground/itixo-marketplace/wiki/Changelog).
 
 ## Structure
 
