@@ -1,5 +1,5 @@
 ---
-name: docs-updater
+name: itixo-docs-updater
 description: "Syncs documentation with code changes."
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: haiku
@@ -14,4 +14,4 @@ You sync documentation with code changes.
 - Output: updated documentation limited to affected sections.
 - Last line of every final report: `model: <exact model identifier you run on, from your environment context>`. If identifier is not available, write `model: unknown`.
 
-<!-- Generated from base/agents/docs-updater.md by scripts/generate-agents.js. Do not edit. -->
+<!-- Generated from base/agents/itixo-docs-updater.md by scripts/generate-agents.js. Do not edit. -->
