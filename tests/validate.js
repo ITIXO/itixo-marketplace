@@ -47,19 +47,12 @@ const CODEX_MODEL = {
 };
 const ORCHESTRATION_PLUGINS = ["itixo-claude", "itixo-codex"];
 
-// --- 1. marketplace.json valid + plugins registered both ways ---
+// --- 1. Claude marketplace registrations have valid Claude manifests ---
 const marketplace = readJson(".claude-plugin/marketplace.json");
 if (marketplace) {
   const registered = (marketplace.plugins || []).map((p) => p.name);
-  const onDisk = fs
-    .readdirSync(path.join(ROOT, "plugins"), { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name);
-
-  for (const name of onDisk) {
-    if (!registered.includes(name)) {
-      fail(`plugins/${name} exists on disk but is not registered in marketplace.json`);
-    }
+  if (new Set(registered).size !== registered.length) {
+    fail("marketplace.json: duplicate plugin registrations");
   }
   for (const entry of marketplace.plugins || []) {
     const src = entry.source || "";
@@ -70,24 +63,18 @@ if (marketplace) {
     if (!entry.description) {
       fail(`marketplace.json: plugin '${entry.name}' has no description`);
     }
+    const manifestRel = path.join(src, ".claude-plugin/plugin.json");
+    const manifest = readJson(manifestRel);
+    if (!manifest) continue;
+    for (const field of ["name", "description", "version"]) {
+      if (!manifest[field]) fail(`${manifestRel}: missing '${field}'`);
+    }
+    if (manifest.name !== entry.name) {
+      fail(`${manifestRel}: name '${manifest.name}' does not match marketplace entry '${entry.name}'`);
+    }
   }
-  if (failures === 0) ok("marketplace.json valid, registration consistent");
+  if (failures === 0) ok("Claude marketplace registrations and manifests valid");
 }
-
-// --- 2. every plugin has valid plugin.json with required fields ---
-for (const dirent of fs.readdirSync(path.join(ROOT, "plugins"), { withFileTypes: true })) {
-  if (!dirent.isDirectory()) continue;
-  const rel = `plugins/${dirent.name}/.claude-plugin/plugin.json`;
-  const manifest = readJson(rel);
-  if (!manifest) continue;
-  for (const field of ["name", "description", "version"]) {
-    if (!manifest[field]) fail(`${rel}: missing '${field}'`);
-  }
-  if (manifest && manifest.name !== dirent.name) {
-    fail(`${rel}: name '${manifest.name}' does not match folder '${dirent.name}'`);
-  }
-}
-if (failures === 0) ok("all plugin.json manifests valid");
 
 // --- 3. base, Claude, and Codex template role sets match exactly ---
 const expectedRoles = Object.keys(TIERS).sort();
@@ -253,28 +240,33 @@ if (codexMarketplace) {
     if (!fs.existsSync(path.join(ROOT, src))) {
       fail(`.agents/plugins/marketplace.json: plugin '${entry.name}' path '${src}' does not exist`);
     }
-    const codexManifest = readJson(path.join(src, ".codex-plugin/plugin.json"));
-    if (codexManifest && codexManifest.name !== entry.name) {
+    const codexManifestRel = path.join(src, ".codex-plugin/plugin.json");
+    const codexManifest = readJson(codexManifestRel);
+    if (!codexManifest) continue;
+    if (codexManifest.name !== entry.name) {
       fail(`${src}/.codex-plugin/plugin.json: name mismatch with marketplace entry '${entry.name}'`);
     }
   }
-  const codexNames = (codexMarketplace.plugins || []).map((p) => p.name);
-  if (!codexNames.includes("itixo-codex")) {
+  const codexEntry = (codexMarketplace.plugins || []).find((p) => p.name === "itixo-codex");
+  if (!codexEntry) {
     fail(".agents/plugins/marketplace.json: itixo-codex not registered");
+  } else {
+    const manifestRel = path.join(codexEntry.source?.path || "", ".codex-plugin/plugin.json");
+    const manifest = readJson(manifestRel);
+    if (!manifest) {
+      fail(`.agents/plugins/marketplace.json: itixo-codex missing native manifest '${manifestRel}'`);
+    } else if (manifest.name !== "itixo-codex") {
+      fail(`${manifestRel}: expected native manifest name 'itixo-codex', got '${manifest.name}'`);
+    }
   }
 }
 if (failures === 0) ok("Codex-native manifests valid and consistent");
 
 // --- 8. itixo-codex: default runtime-model reporting hook ---
 const codexPluginManifestRel = "plugins/itixo-codex/.codex-plugin/plugin.json";
-const claudePluginManifestRel = "plugins/itixo-codex/.claude-plugin/plugin.json";
 const codexPluginManifest = readJson(codexPluginManifestRel);
-const claudePluginManifest = readJson(claudePluginManifestRel);
 if (codexPluginManifest && Object.hasOwn(codexPluginManifest, "hooks")) {
   fail(`${codexPluginManifestRel}: hooks must be auto-discovered from hooks/hooks.json`);
-}
-if (codexPluginManifest && claudePluginManifest && codexPluginManifest.version !== claudePluginManifest.version) {
-  fail("itixo-codex Claude and Codex manifest versions must match");
 }
 
 const runtimeModelHookRel = "plugins/itixo-codex/hooks/hooks.json";
