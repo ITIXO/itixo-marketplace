@@ -144,6 +144,93 @@ if (dirigentContents.length === dirigentPaths.length && dirigentContents[0] !== 
 }
 if (failures === 0) ok("dirigent skill mirrored and loads delegation rules");
 
+// --- 3c. canonical GitHub-issues agent preserves issue-creation safeguards ---
+const githubIssuesAgentRel = "base/agents/github-issues.md";
+const githubIssuesAgentPath = path.join(ROOT, githubIssuesAgentRel);
+if (!fs.existsSync(githubIssuesAgentPath)) {
+  fail(`${githubIssuesAgentRel} missing`);
+} else {
+  const text = fs.readFileSync(githubIssuesAgentPath, "utf8");
+  if (!/\bnever\s+create\s+(?:github\s+)?labels?\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: must explicitly prohibit label creation`);
+  }
+  if (!/\b(?:inspect\s+and\s+)?use\s+only\s+labels?\s+that\s+already\s+exist\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: must restrict label use to existing labels`);
+  }
+  if (!/\b(?:explicitly\s+)?set\s+(?:its\s+)?actual\s+github\s+issuetype\s+field\s+to\s+`?feature`?\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: Feature creation must set actual GitHub IssueType to Feature`);
+  }
+  if (!/\bread\s+it\s+back\s+to\s+verify\s+(?:the\s+)?assignment\b/i.test(text)) {
+    fail(`${githubIssuesAgentRel}: Feature creation must verify GitHub IssueType assignment`);
+  }
+}
+if (failures === 0) ok("canonical github-issues agent preserves label and Feature IssueType safeguards");
+
+// --- 3d. shared Dirigent skill delegates GitHub issue work safely ---
+for (let index = 0; index < dirigentContents.length; index++) {
+  const text = dirigentContents[index];
+  const rel = dirigentPaths[index];
+  if (!/\bgithub\s+issue\s+(?:structuring\s+or\s+creation|creation\s+or\s+structuring)\b[\s\S]{0,160}\bdelegate\b[\s\S]{0,160}\bexactly\s+one\s+`?github-issues`?\s+subagent\b/i.test(text)) {
+    fail(`${rel}: must delegate GitHub issue structuring and creation to exactly one github-issues subagent`);
+  }
+  if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+    fail(`${rel}: must load github-issues role instructions`);
+  }
+  if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
+    fail(`${rel}: must select mid-tier github-issues model from delegation rules`);
+  }
+  if (!/\binclude\s+requested\s+outcome\s*,\s*target\s+repository\s+context\s*,\s*constraints\s*,\s*and\s+expected\s+output\s+in\s+(?:its\s+)?task\s+prompt\b/i.test(text)) {
+    fail(`${rel}: github-issues prompt must include outcome, repository context, constraints, and expected output`);
+  }
+  if (!/\borchestrator\s+never\s+creates?\s+an?\s+issue\s+directly\b/i.test(text)) {
+    fail(`${rel}: must prohibit direct orchestrator issue creation`);
+  }
+}
+if (failures === 0) ok("dirigent delegates GitHub issue work with required role, model, prompt, and boundary");
+
+// --- 3e. delegation rules assign GitHub issue work to the correct agent ---
+const githubIssueRuleFiles = [
+  {
+    rel: "base/rules/agents.md",
+    model: /\bselect\s+(?:the\s+)?provider\s+model\s+in\s+(?:the\s+)?`?mid`?\s+tier\b/i,
+  },
+  {
+    rel: "plugins/itixo-claude/rules/agents.md",
+    model: /\bselect\s+`?sonnet`?[\s\S]{0,80}\b`?mid`?\b/i,
+  },
+  {
+    rel: "plugins/itixo-codex/rules/agents.md",
+    model: /\bselect\s+`?gpt-5\.6-terra`?[\s\S]{0,80}\b`?mid`?\b/i,
+  },
+];
+for (const { rel, model } of githubIssueRuleFiles) {
+  const p = path.join(ROOT, rel);
+  if (!fs.existsSync(p)) {
+    fail(`${rel} missing`);
+    continue;
+  }
+  const text = fs.readFileSync(p, "utf8");
+  if (!/\bdelegate\s+all\s+(?:github\s+)?issue\s+assessment\s*,\s*structuring\s*,\s*and\s+creation\s+work\s+to\s+exactly\s+one\s+`?github-issues`?\s+agent\b/i.test(text)) {
+    fail(`${rel}: must assign all GitHub issue assessment, structuring, and creation to exactly one github-issues agent`);
+  }
+  if (!/\bdo\s+not\s+split\s+checks\s+and\s+creation\s+between\s+agents\b/i.test(text)) {
+    fail(`${rel}: must keep GitHub issue checks and creation with one agent`);
+  }
+  if (!/\bload\s+(?:the\s+)?matching\s+`?agents\/github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+    fail(`${rel}: must load github-issues role instructions before delegation`);
+  }
+  if (!model.test(text)) {
+    fail(`${rel}: must select its mid-tier github-issues model`);
+  }
+  if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*and\s+expected\s+output\b/i.test(text)) {
+    fail(`${rel}: github-issues prompt must include outcome, repository and owner context, constraints, and expected output`);
+  }
+  if (!/\borchestrator\s+must\s+not\s+assess\s*,\s*structure\s*,\s*or\s+create\s+issues\s+directly\b/i.test(text)) {
+    fail(`${rel}: must prohibit direct orchestrator assessment, structuring, and creation`);
+  }
+}
+if (failures === 0) ok("delegation rules assign GitHub issue work, role, model, prompt, and ownership correctly");
+
 // --- 4. itixo-claude: frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
   const rel = `plugins/itixo-claude/agents/${agent}.md`;
