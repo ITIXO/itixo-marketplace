@@ -7,6 +7,8 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
+const { install } = require("../plugins/itixo-codex/scripts/install-agents.js");
+
 const ROOT = path.join(__dirname, "..");
 const SOURCE_PLUGIN = path.join(ROOT, "plugins", "itixo-codex");
 const AGENT_IDS = [
@@ -65,6 +67,22 @@ function assertAgentSet(root) {
 
 function readAgent(root, agentId) {
   return fs.readFileSync(path.join(destination(root), `${agentId}.toml`), "utf8");
+}
+
+function runInstallQuietly(options, dependencies) {
+  const originalLog = console.log;
+  const output = [];
+  console.log = (...values) => output.push(values.join(" "));
+  try {
+    install(options, dependencies);
+  } finally {
+    console.log = originalLog;
+  }
+  return output;
+}
+
+function temporaryFiles(root) {
+  return fs.readdirSync(destination(root)).filter((name) => name.endsWith(".tmp"));
 }
 
 test("installs exactly seven default Luna custom agents into an isolated personal home", () => {
@@ -256,5 +274,119 @@ test("fails safely for missing and malformed copied templates", () => {
     assert.equal(malformed.status, 1);
     assert.match(malformed.stderr, /missing required Itixo markers/);
     assert.deepEqual(installedFiles(project), []);
+  });
+});
+
+test("rolls back every completed write after an injected mid-sequence rename failure", () => {
+  withTemporaryDirectory((temporary) => {
+    const project = path.join(temporary, "project");
+    fs.mkdirSync(destination(project), { recursive: true });
+    const originals = new Map([
+      ["itixo-builder", Buffer.from(`${MARKER}original builder\n`, "utf8")],
+      ["itixo-github-issues", Buffer.from(`${MARKER}original GitHub issues\n`, "utf8")],
+    ]);
+    for (const [agentId, content] of originals) {
+      fs.writeFileSync(path.join(destination(project), `${agentId}.toml`), content);
+    }
+    const unrelatedPath = path.join(destination(project), "personal-agent.toml");
+    const unrelatedContent = Buffer.from("name = \"personal-agent\"\n", "utf8");
+    fs.writeFileSync(unrelatedPath, unrelatedContent);
+
+    let renameCount = 0;
+    const injectedRename = (source, target) => {
+      renameCount += 1;
+      if (renameCount === 4) throw new Error("injected rename failure");
+      fs.renameSync(source, target);
+    };
+
+    assert.throws(
+      () => runInstallQuietly(
+        { scope: "project", projectRoot: project, cheapModel: "luna" },
+        { renameSync: injectedRename },
+      ),
+      /injected rename failure/,
+    );
+    assert.equal(renameCount, 4);
+    for (const [agentId, content] of originals) {
+      assert.deepEqual(fs.readFileSync(path.join(destination(project), `${agentId}.toml`)), content);
+    }
+    for (const agentId of AGENT_IDS.filter((agentId) => !originals.has(agentId))) {
+      assert.equal(fs.existsSync(path.join(destination(project), `${agentId}.toml`)), false);
+    }
+    assert.deepEqual(fs.readFileSync(unrelatedPath), unrelatedContent);
+    assert.deepEqual(temporaryFiles(project), []);
+  });
+});
+
+test("revalidates a target swapped between adjacent atomic writes", () => {
+  withTemporaryDirectory((temporary) => {
+    const project = path.join(temporary, "project");
+    fs.mkdirSync(destination(project), { recursive: true });
+    const builderPath = path.join(destination(project), "itixo-builder.toml");
+    const docsPath = path.join(destination(project), "itixo-docs-updater.toml");
+    const builderOriginal = Buffer.from(`${MARKER}original builder\n`, "utf8");
+    const docsOriginal = Buffer.from(`${MARKER}original docs\n`, "utf8");
+    const swappedDocs = Buffer.from(`${MARKER}externally swapped docs\n`, "utf8");
+    fs.writeFileSync(builderPath, builderOriginal);
+    fs.writeFileSync(docsPath, docsOriginal);
+
+    let renameCount = 0;
+    const swapAfterFirstRename = (source, target) => {
+      fs.renameSync(source, target);
+      renameCount += 1;
+      if (renameCount === 1) {
+        const replacement = path.join(temporary, "replacement.toml");
+        fs.writeFileSync(replacement, swappedDocs);
+        fs.renameSync(replacement, docsPath);
+      }
+    };
+
+    assert.throws(
+      () => runInstallQuietly(
+        { scope: "project", projectRoot: project, cheapModel: "luna" },
+        { renameSync: swapAfterFirstRename },
+      ),
+      /Agent target changed during installation/,
+    );
+    assert.equal(renameCount, 1);
+    assert.deepEqual(fs.readFileSync(builderPath), builderOriginal);
+    assert.deepEqual(fs.readFileSync(docsPath), swappedDocs);
+    for (const agentId of AGENT_IDS.slice(2)) {
+      assert.equal(fs.existsSync(path.join(destination(project), `${agentId}.toml`)), false);
+    }
+    assert.deepEqual(temporaryFiles(project), []);
+  });
+});
+
+test("revalidates a destination swapped between adjacent atomic writes", () => {
+  withTemporaryDirectory((temporary) => {
+    const project = path.join(temporary, "project");
+    const displacedDestination = path.join(temporary, "displaced-agents");
+    fs.mkdirSync(destination(project), { recursive: true });
+    const unrelatedPath = path.join(destination(project), "personal-agent.toml");
+    const unrelatedContent = Buffer.from("name = \"personal-agent\"\n", "utf8");
+    fs.writeFileSync(unrelatedPath, unrelatedContent);
+
+    let renameCount = 0;
+    const swapAfterFirstRename = (source, target) => {
+      fs.renameSync(source, target);
+      renameCount += 1;
+      if (renameCount === 1) {
+        fs.renameSync(destination(project), displacedDestination);
+        fs.mkdirSync(destination(project));
+      }
+    };
+
+    assert.throws(
+      () => runInstallQuietly(
+        { scope: "project", projectRoot: project, cheapModel: "luna" },
+        { renameSync: swapAfterFirstRename },
+      ),
+      /Agent destination changed during installation:.*; rollback failed:/,
+    );
+    assert.equal(renameCount, 1);
+    assert.deepEqual(fs.readdirSync(destination(project)), []);
+    assert.deepEqual(fs.readFileSync(path.join(displacedDestination, "personal-agent.toml")), unrelatedContent);
+    assert.deepEqual(fs.readdirSync(displacedDestination).filter((name) => name.endsWith(".tmp")), []);
   });
 });
