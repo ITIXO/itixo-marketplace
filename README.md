@@ -4,6 +4,10 @@ Marketplace with plugins for Claude (Claude Code / Cowork) and Codex.
 
 ## Changelog
 
+### 0.2.2 — Agent contract release
+
+Both `itixo-claude` and `itixo-codex` are now version `0.2.2`. This release documents structured responsibilities for orchestration, explicit strict tool and refusal boundaries, and unchanged capability allowlists. Claude and Codex provider artifacts were regenerated from the canonical agent definitions.
+
 See the [full changelog in the project Wiki](https://github.com/ITIXO-Playground/itixo-marketplace/wiki/Changelog).
 
 ## Structure

@@ -116,6 +116,46 @@ try {
 }
 if (failures === 0) ok("generated provider agent files are byte-for-byte current");
 
+// --- 3aa. canonical structured contracts survive provider generation ---
+const CONTRACT_HEADINGS = [
+  "Role",
+  "Required input",
+  "Responsibilities",
+  "Workflow",
+  "Tool boundaries",
+  "Refusals and escalation",
+  "Output contract",
+];
+const MODEL_FOOTER = "- Last line of every final report: `model: <exact model identifier you run on, from your environment context>`. If identifier is not available, write `model: unknown`.";
+
+function providerBody(text, provider) {
+  if (provider === "claude") {
+    return text.replace(/^---\n[\s\S]*?\n---\n(?:\n)?/, "").replace(/\n<!-- Generated[\s\S]*?-->\n?$/, "");
+  }
+  return text.replace(/^#[\s\S]*?developer_instructions = \"\"\"\n/, "").replace(/\n\"\"\"\n?$/, "");
+}
+
+for (const agent of expectedRoles) {
+  for (const [provider, extension] of [["claude", "md"], ["codex", "toml"]]) {
+    const rel = provider === "claude"
+      ? `plugins/itixo-claude/agents/${agent}.${extension}`
+      : `plugins/itixo-codex/templates/agents/${agent}.${extension}`;
+    const p = path.join(ROOT, rel);
+    if (!fs.existsSync(p)) continue;
+    const body = providerBody(fs.readFileSync(p, "utf8"), provider);
+    let previousHeading = -1;
+    for (const heading of CONTRACT_HEADINGS) {
+      const position = body.indexOf(`## ${heading}`);
+      if (position <= previousHeading) fail(`${rel}: '${heading}' heading missing or out of order`);
+      previousHeading = position;
+    }
+    if (body.trimEnd().split("\n").at(-1) !== MODEL_FOOTER) {
+      fail(`${rel}: model footer must be final nonblank instruction line`);
+    }
+  }
+}
+if (failures === 0) ok("generated provider bodies retain structured contracts");
+
 // --- 3b. provider dispatch uses canonical Itixo IDs ---
 const dirigentContents = new Map();
 for (const plugin of ORCHESTRATION_PLUGINS) {
