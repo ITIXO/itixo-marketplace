@@ -370,6 +370,13 @@ test("Codex report follows recursive parent_thread_id and final usage snapshots"
   const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
   const stateDir = temporaryDirectory();
   startSession("itixo-codex", { source: "startup", session_id: "root-rollout" }, stateDir);
+  const stopped = stopSession("itixo-codex", {
+    hook_event_name: "Stop", session_id: "root-rollout", transcript_path: path.join(sessions, "root.jsonl"),
+    cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+  }, stateDir, { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions });
+  assert.equal(stopped.status, 0, stopped.stderr);
+  assert.equal(stopped.stderr, "");
+  assert.equal(stopped.stdout, "");
   const result = spawnSync(process.execPath, [script], {
     encoding: "utf8",
     input: JSON.stringify({ prompt: "/dirigent-stats", session_id: "root-rollout", transcript_path: path.join(sessions, "unrelated.jsonl") }),
