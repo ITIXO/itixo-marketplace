@@ -6,7 +6,16 @@ const os = require("os");
 const path = require("path");
 const INVOCATION = /(^|\s)(?:\/|\$)dirigent-stats(?=$|[\s.,!?;:])/;
 const STATE_SCHEMA = 2;
-const STOP_BUDGET_MS = Number(process.env.DIRIGENT_STATS_STOP_BUDGET_MS) || 1500;
+const DEFAULT_STOP_BUDGET_MS = 1500;
+
+function stopBudgetMs(raw) {
+  if (raw === undefined) return DEFAULT_STOP_BUDGET_MS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return DEFAULT_STOP_BUDGET_MS;
+  return Math.min(5000, Math.max(100, Math.trunc(parsed)));
+}
+
+const STOP_BUDGET_MS = stopBudgetMs(process.env.DIRIGENT_STATS_STOP_BUDGET_MS);
 
 function stateDir() {
   return process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.PLUGIN_DATA || path.join(os.homedir(), ".codex"), "dirigent-stats");
@@ -15,6 +24,14 @@ function stateDir() {
 function stateFile(sessionId) {
   const dir = stateDir();
   return path.join(dir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
+}
+
+function cleanupTemporary(file) {
+  if (!file) return;
+  try { fs.unlinkSync(file); } catch (error) {
+    if (error && error.code === "ENOENT") return;
+    // Stats hooks fail open, including cleanup failures.
+  }
 }
 
 function sessionState(sessionId) {
@@ -37,6 +54,7 @@ function noData() {
 }
 
 function writeState(sessionId, anchor, reportText, turnId) {
+  let temporary = null;
   try {
     const dir = stateDir();
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -52,10 +70,10 @@ function writeState(sessionId, anchor, reportText, turnId) {
       source: typeof source.source === "string" ? source.source : "stop",
       cache: { sessionId, transcriptPath: source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null, report: reportText, updatedAt: Date.now(), ...(typeof turnId === "string" && turnId ? { turnId } : {}) },
     };
-    const temporary = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`);
+    temporary = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`);
     fs.writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
     fs.renameSync(temporary, file);
-  } catch { /* Hooks must fail open. */ }
+  } catch { /* Hooks must fail open. */ } finally { cleanupTemporary(temporary); }
 }
 
 function stdin() {
@@ -291,7 +309,7 @@ async function main() {
   if (stop) {
     if (typeof sessionId !== "string" || !sessionId) return;
     const state = sessionState(sessionId);
-    const reportText = currentReport(event, state, Date.now() + Math.max(100, STOP_BUDGET_MS));
+    const reportText = currentReport(event, state, Date.now() + STOP_BUDGET_MS);
     if (reportText) writeState(sessionId, state, reportText, event.turn_id);
     return;
   }
@@ -302,7 +320,7 @@ async function main() {
   let reportText = cachedReport(state, sessionId);
   if (!reportText) {
     // Schema-1/corrupt caches recover once on demand; normal requests never parse.
-    reportText = currentReport(event, state, Date.now() + Math.max(100, STOP_BUDGET_MS));
+    reportText = currentReport(event, state, Date.now() + STOP_BUDGET_MS);
     if (reportText) writeState(sessionId, state, reportText, event.turn_id);
   }
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: reportText || noData() } }));
