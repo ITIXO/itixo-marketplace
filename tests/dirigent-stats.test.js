@@ -84,6 +84,13 @@ function assertCompleteMarker(file, sessionId) {
   assert.equal(marker.sessionId, sessionId);
 }
 
+function preload(source) {
+  const directory = temporaryDirectory();
+  const file = path.join(directory, "preload.cjs");
+  fs.writeFileSync(file, source);
+  return { directory, option: `--require=${file}` };
+}
+
 test("SessionStart persists isolated, atomically refreshed provider session markers", () => {
   for (const plugin of plugins) {
     const stateDir = temporaryDirectory();
@@ -362,6 +369,192 @@ test("legacy, corrupt, and missing state self-heal through Stop or one explicit 
         : { DIRIGENT_STATS_CODEX_SESSIONS_DIR: unavailableStorage }),
     }));
     assert.equal(cachedRecovery, recovered);
+  }
+});
+
+test("Codex resume and compact without transcript_path preserve cached report", () => {
+  const fixture = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  for (const source of ["resume", "compact"]) {
+    const storageRoot = temporaryDirectory();
+    const sessions = path.join(storageRoot, "sessions");
+    fs.cpSync(fixture, sessions, { recursive: true });
+    const transcript = path.join(sessions, "root.jsonl");
+    const stateDir = temporaryDirectory();
+    startSession("itixo-codex", { source: "startup", session_id: "root-rollout", transcript_path: transcript }, stateDir);
+    const stopped = stopSession("itixo-codex", {
+      hook_event_name: "Stop", session_id: "root-rollout", transcript_path: transcript,
+      cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+    }, stateDir, { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions });
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const cached = context(run(script, { prompt: "$dirigent-stats", session_id: "root-rollout" }, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir,
+    }));
+
+    const refreshed = startSession("itixo-codex", { source, session_id: "root-rollout", cwd: "/tmp/resumed" }, stateDir);
+    assert.equal(refreshed.status, 0, refreshed.stderr);
+    fs.rmSync(storageRoot, { recursive: true, force: true });
+    const afterRefresh = context(run(script, { prompt: "/dirigent-stats", session_id: "root-rollout" }, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir,
+    }));
+    assert.equal(afterRefresh, cached);
+  }
+});
+
+test("Claude corrupt-state Stop persists a valid cached report from event transcript", () => {
+  const fixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
+  const storageRoot = temporaryDirectory();
+  const copiedFixture = path.join(storageRoot, "claude");
+  fs.cpSync(fixture, copiedFixture, { recursive: true });
+  const projects = path.join(copiedFixture, "projects");
+  const ledger = path.join(copiedFixture, "ledger");
+  const transcript = path.join(projects, "synthetic-project", "root-run.jsonl");
+  const stateDir = temporaryDirectory();
+  const file = statePath(stateDir, "root-run");
+  fs.writeFileSync(file, "{\"schema\":1");
+
+  const stopped = stopSession("itixo-claude", {
+    hook_event_name: "Stop", session_id: "root-run", transcript_path: transcript,
+    cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+  }, stateDir, { DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger });
+  assert.equal(stopped.status, 0, stopped.stderr);
+  assert.equal(stopped.stderr, "");
+  assert.equal(stopped.stdout, "");
+  const persisted = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(persisted.schema, 2);
+  assert.equal(persisted.sessionId, "root-run");
+  assert.equal(persisted.transcriptPath, path.resolve(transcript));
+  assert.equal(persisted.cache.sessionId, "root-run");
+  assert.equal(persisted.cache.transcriptPath, path.resolve(transcript));
+  assert.match(persisted.cache.report, /\| orchestrator \| root-model \|/);
+
+  fs.rmSync(storageRoot, { recursive: true, force: true });
+  const script = path.join(root, "plugins", "itixo-claude", "scripts", "dirigent-stats.js");
+  const cached = context(run(script, { prompt: "$dirigent-stats", session_id: "root-run" }, {
+    DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects,
+    DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger,
+    DIRIGENT_STATS_STATE_DIR: stateDir,
+  }));
+  assert.equal(cached, persisted.cache.report);
+});
+
+test("valid provider caches perform zero transcript reads", () => {
+  const claudeFixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
+  const codexFixture = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const cases = [
+    {
+      plugin: "itixo-claude", sessionId: "root-run", fixture: claudeFixture,
+      storage: (copy) => path.join(copy, "projects"), transcript: (copy) => path.join(copy, "projects", "synthetic-project", "root-run.jsonl"),
+      env: (copy) => ({ DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: path.join(copy, "projects"), DIRIGENT_STATS_CLAUDE_LEDGER_DIR: path.join(copy, "ledger") }),
+    },
+    {
+      plugin: "itixo-codex", sessionId: "root-rollout", fixture: codexFixture,
+      storage: (copy) => copy, transcript: (copy) => path.join(copy, "root.jsonl"),
+      env: (copy) => ({ DIRIGENT_STATS_CODEX_SESSIONS_DIR: copy }),
+    },
+  ];
+  const sentinel = preload([
+    "const fs = require('node:fs');",
+    "const original = fs.readFileSync;",
+    "fs.readFileSync = function(file, ...args) {",
+    "  if (typeof file === 'string' && file.endsWith('.jsonl')) { process.stderr.write('unexpected transcript read'); throw new Error('unexpected transcript read'); }",
+    "  return original.call(this, file, ...args);",
+    "};",
+  ].join("\n"));
+  try {
+    for (const current of cases) {
+      const storageRoot = temporaryDirectory();
+      const copy = path.join(storageRoot, "source");
+      fs.cpSync(current.fixture, copy, { recursive: true });
+      const stateDir = temporaryDirectory();
+      const transcript = current.transcript(copy);
+      const env = current.env(copy);
+      startSession(current.plugin, { source: "startup", session_id: current.sessionId, transcript_path: transcript }, stateDir);
+      const stopped = stopSession(current.plugin, {
+        hook_event_name: "Stop", session_id: current.sessionId, transcript_path: transcript,
+        cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+      }, stateDir, env);
+      assert.equal(stopped.status, 0, stopped.stderr);
+      const script = path.join(root, "plugins", current.plugin, "scripts", "dirigent-stats.js");
+      const before = context(run(script, { prompt: "$dirigent-stats", session_id: current.sessionId }, {
+        ...env, DIRIGENT_STATS_STATE_DIR: stateDir,
+      }));
+      fs.rmSync(current.storage(copy), { recursive: true, force: true });
+      const result = run(script, { prompt: "$dirigent-stats", session_id: current.sessionId }, {
+        ...env, DIRIGENT_STATS_STATE_DIR: stateDir, NODE_OPTIONS: sentinel.option,
+      });
+      assert.equal(context(result), before);
+    }
+  } finally {
+    fs.rmSync(sentinel.directory, { recursive: true, force: true });
+  }
+});
+
+test("Codex atomic writers remove temporary files after rename failure", () => {
+  const sessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const cases = [
+    {
+      run: (stateDir) => startSession("itixo-codex", {
+        source: "startup", session_id: "rename-failure", transcript_path: path.join(sessions, "root.jsonl"),
+      }, stateDir),
+    },
+    {
+      run: (stateDir) => stopSession("itixo-codex", {
+        hook_event_name: "Stop", session_id: "rename-failure", transcript_path: path.join(sessions, "root.jsonl"),
+        cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+      }, stateDir, { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions }),
+    },
+  ];
+  for (const current of cases) {
+    const stateDir = temporaryDirectory();
+    fs.mkdirSync(statePath(stateDir, "rename-failure"));
+    const result = current.run(stateDir);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    assert.equal(result.stdout, "");
+    assert.deepEqual(fs.readdirSync(stateDir).filter((name) => name.endsWith(".tmp")), []);
+  }
+});
+
+test("Codex budget values normalize to finite bounded behavior", () => {
+  const clock = preload([
+    "let now = 0;",
+    "Date.now = () => (now += 100);",
+  ].join("\n"));
+  const sessions = temporaryDirectory();
+  const transcript = path.join(sessions, "budget-rollout.jsonl");
+  fs.writeFileSync(transcript, [
+    JSON.stringify({ type: "session_meta", payload: { id: "budget-rollout" } }),
+    JSON.stringify({ type: "turn_context", payload: { turn_id: "turn", model: "budget-model" } }),
+    JSON.stringify({ type: "event_msg", payload: { turn_id: "turn", info: { total_token_usage: { total_tokens: 7 }, last_token_usage: { total_tokens: 7 } } } }),
+  ].join("\n"));
+  for (let index = 0; index < 80; index++) {
+    fs.writeFileSync(path.join(sessions, `unrelated-${index}.jsonl`), JSON.stringify({ type: "session_meta", payload: { id: `unrelated-${index}` } }));
+  }
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  const reportFor = (budget) => {
+    const env = {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+      DIRIGENT_STATS_STATE_DIR: temporaryDirectory(),
+      NODE_OPTIONS: clock.option,
+    };
+    if (budget !== undefined) env.DIRIGENT_STATS_STOP_BUDGET_MS = budget;
+    return context(run(script, {
+      prompt: "$dirigent-stats", session_id: "budget-rollout", transcript_path: transcript,
+    }, env));
+  };
+  try {
+    const defaultReport = reportFor(undefined);
+    const maximumReport = reportFor("5000");
+    assert.match(defaultReport, /Exact known total: 0 tokens\./);
+    assert.match(maximumReport, /Exact known total: 0 tokens\./);
+    assert.equal(reportFor("not-a-number"), defaultReport);
+    assert.equal(reportFor("Infinity"), defaultReport);
+    assert.equal(reportFor("999999999999999999999"), maximumReport);
+    assert.equal(reportFor("5000.9"), maximumReport);
+  } finally {
+    fs.rmSync(clock.directory, { recursive: true, force: true });
+    fs.rmSync(sessions, { recursive: true, force: true });
   }
 });
 
