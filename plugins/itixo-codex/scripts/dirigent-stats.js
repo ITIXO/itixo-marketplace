@@ -5,23 +5,57 @@ const crypto = require("crypto");
 const os = require("os");
 const path = require("path");
 const INVOCATION = /(^|\s)(?:\/|\$)dirigent-stats(?=$|[\s.,!?;:])/;
-const STATE_SCHEMA = 1;
+const STATE_SCHEMA = 2;
+const STOP_BUDGET_MS = Number(process.env.DIRIGENT_STATS_STOP_BUDGET_MS) || 1500;
+
+function stateDir() {
+  return process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.PLUGIN_DATA || path.join(os.homedir(), ".codex"), "dirigent-stats");
+}
 
 function stateFile(sessionId) {
-  const stateDir = process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.PLUGIN_DATA || path.join(os.homedir(), ".codex"), "dirigent-stats");
-  return path.join(stateDir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
+  const dir = stateDir();
+  return path.join(dir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
 }
 
 function sessionState(sessionId) {
   try {
     const state = JSON.parse(fs.readFileSync(stateFile(sessionId), "utf8"));
-    return state && state.schema === STATE_SCHEMA && state.sessionId === sessionId
+    return state && (state.schema === 1 || state.schema === STATE_SCHEMA) && state.sessionId === sessionId
       && (state.transcriptPath === null || typeof state.transcriptPath === "string") ? state : null;
   } catch { return null; }
 }
 
-function unavailable() {
-  return ["<!-- dirigent-stats:begin -->", "## Dirigent Stats", "", "Unavailable: current session stats context is missing or invalid.", "<!-- dirigent-stats:end -->"].join("\n");
+function cachedReport(state, sessionId) {
+  const cache = state && state.schema === STATE_SCHEMA && state.cache;
+  return cache && cache.sessionId === sessionId && cache.transcriptPath === state.transcriptPath && typeof cache.report === "string"
+    && cache.report.includes("<!-- dirigent-stats:begin -->")
+    && cache.report.includes("<!-- dirigent-stats:end -->") ? cache.report : null;
+}
+
+function noData() {
+  return ["<!-- dirigent-stats:begin -->", "## Dirigent Stats", "", "No completed token usage available yet.", "", "Exact known total: 0 tokens.", "Snapshot: reporting response excluded; active values exact so far.", "Instruction: reproduce this report verbatim; do not recalculate or estimate.", "<!-- dirigent-stats:end -->"].join("\n");
+}
+
+function writeState(sessionId, anchor, reportText, turnId) {
+  try {
+    const dir = stateDir();
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const file = stateFile(sessionId);
+    // Re-read immediately before write: preserve a newer SessionStart anchor.
+    const current = sessionState(sessionId);
+    const source = current || anchor || {};
+    const state = {
+      schema: STATE_SCHEMA,
+      sessionId,
+      transcriptPath: source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null,
+      cwd: typeof source.cwd === "string" ? source.cwd : null,
+      source: typeof source.source === "string" ? source.source : "stop",
+      cache: { sessionId, transcriptPath: source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null, report: reportText, updatedAt: Date.now(), ...(typeof turnId === "string" && turnId ? { turnId } : {}) },
+    };
+    const temporary = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`);
+    fs.writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
+    fs.renameSync(temporary, file);
+  } catch { /* Hooks must fail open. */ }
 }
 
 function stdin() {
@@ -47,22 +81,25 @@ function at(object, keys) {
   return value;
 }
 
-function jsonlFiles(dir, result = []) {
+function jsonlFiles(dir, result = [], deadline = Infinity) {
+  if (Date.now() > deadline) return result;
   let entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return result; }
   for (const entry of entries) {
+    if (Date.now() > deadline) break;
     const item = path.join(dir, entry.name);
-    if (entry.isDirectory()) jsonlFiles(item, result);
+    if (entry.isDirectory()) jsonlFiles(item, result, deadline);
     else if (entry.isFile() && entry.name.endsWith(".jsonl")) result.push(item);
   }
   return result;
 }
 
-function records(file) {
+function records(file, deadline = Infinity) {
   let text;
   try { text = fs.readFileSync(file, "utf8"); } catch { return null; }
   const result = [];
   for (const line of text.split("\n")) {
+    if (Date.now() > deadline) return null;
     if (!line.trim()) continue;
     try { result.push(JSON.parse(line)); } catch { /* tolerate incomplete trailing JSONL */ }
   }
@@ -78,21 +115,22 @@ function rolloutId(metaRecord) {
   return payload && typeof payload.id === "string" ? payload.id : null;
 }
 
-function resolveTranscript(event, sessionsDir) {
+function resolveTranscript(event, sessionsDir, deadline = Infinity) {
   if (typeof event.transcript_path === "string" && event.transcript_path) {
     try { return fs.statSync(event.transcript_path).isFile() ? event.transcript_path : null; } catch { return null; }
   }
   const id = event.session_id || event.thread_id;
   if (typeof id !== "string" || !id) return null;
-  for (const file of jsonlFiles(sessionsDir)) {
-    const metadata = meta(records(file));
+  for (const file of jsonlFiles(sessionsDir, [], deadline)) {
+    if (Date.now() > deadline) return null;
+    const metadata = meta(records(file, deadline));
     if (rolloutId(metadata) === id) return file;
   }
   return null;
 }
 
-function parseRollout(file) {
-  const items = records(file);
+function parseRollout(file, deadline = Infinity) {
+  const items = records(file, deadline);
   const metadata = meta(items);
   const id = rolloutId(metadata);
   if (!id) return null;
@@ -105,6 +143,7 @@ function parseRollout(file) {
   let total = null;
 
   items.forEach((item) => {
+    if (Date.now() > deadline) return;
     const payload = item && item.payload && typeof item.payload === "object" ? item.payload : {};
     if (item.type === "turn_context") {
       const id = payload.turn_id || payload.id || item.turn_id;
@@ -161,6 +200,40 @@ function parseRollout(file) {
   return { id, parentId: session.parent_thread_id || null, role: session.agent_role || "unknown", total, models, warnings };
 }
 
+function currentReport(event, state, deadline = Infinity) {
+  const sessionsDir = process.env.DIRIGENT_STATS_CODEX_SESSIONS_DIR || path.join(process.env.HOME || "", ".codex", "sessions");
+  const sessionId = event.session_id || event.thread_id;
+  if (typeof sessionId !== "string" || !sessionId || Date.now() > deadline) return null;
+  const transcript = state && state.transcriptPath !== null ? state.transcriptPath : resolveTranscript({ session_id: sessionId }, sessionsDir, deadline);
+  const selected = transcript && parseRollout(transcript, deadline);
+  if (!selected || selected.id !== sessionId || Date.now() > deadline) return null;
+  const children = new Map();
+  if (selected.parentId) children.set(selected.parentId, [selected]);
+  for (const file of jsonlFiles(sessionsDir, [], deadline)) {
+    if (Date.now() > deadline) return null;
+    if (file === transcript) continue;
+    const rollout = parseRollout(file, deadline);
+    if (!rollout) continue;
+    if (!rollout.parentId) continue;
+    const items = children.get(rollout.parentId) || [];
+    items.push(rollout);
+    children.set(rollout.parentId, items);
+  }
+  const rollouts = [selected];
+  const seen = new Set([selected.id]);
+  const pending = [selected.id];
+  while (pending.length) {
+    if (Date.now() > deadline) return null;
+    for (const child of (children.get(pending.shift()) || []).sort((a, b) => a.id.localeCompare(b.id))) {
+      if (seen.has(child.id)) continue;
+      seen.add(child.id);
+      rollouts.push(child);
+      pending.push(child.id);
+    }
+  }
+  return report(selected, rollouts);
+}
+
 function report(root, rollouts) {
   const agents = new Map();
   const models = new Map();
@@ -212,49 +285,25 @@ function report(root, rollouts) {
 async function main() {
   let event;
   try { event = JSON.parse(await stdin()); } catch { return; }
+  const sessionId = event && (event.session_id || event.thread_id);
+  if (event && event.hook_event_name === "Stop") {
+    if (typeof sessionId !== "string" || !sessionId) return;
+    const state = sessionState(sessionId);
+    const reportText = currentReport(event, state, Date.now() + Math.max(100, STOP_BUDGET_MS));
+    if (reportText) writeState(sessionId, state, reportText, event.turn_id);
+    return;
+  }
   const prompt = event && (event.prompt || event.user_prompt || event.message || "");
   if (typeof prompt !== "string" || !INVOCATION.test(prompt)) return;
-  const sessionsDir = process.env.DIRIGENT_STATS_CODEX_SESSIONS_DIR || path.join(process.env.HOME || "", ".codex", "sessions");
-  const sessionId = event.session_id || event.thread_id;
   if (typeof sessionId !== "string" || !sessionId) return;
   const state = sessionState(sessionId);
-  if (!state) {
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }));
-    return;
+  let reportText = cachedReport(state, sessionId);
+  if (!reportText) {
+    // Schema-1/corrupt caches recover once on demand; normal requests never parse.
+    reportText = currentReport(event, state, Date.now() + Math.max(100, STOP_BUDGET_MS));
+    if (reportText) writeState(sessionId, state, reportText, event.turn_id);
   }
-  // State transcript is report anchor. Fall back only when SessionStart had no path.
-  const transcript = state.transcriptPath === null ? resolveTranscript({ session_id: sessionId }, sessionsDir) : state.transcriptPath;
-  const selected = transcript && parseRollout(transcript);
-  if (!selected || selected.id !== sessionId) {
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }));
-    return;
-  }
-  const children = new Map();
-  const byId = new Map([[selected.id, selected]]);
-  if (selected.parentId) children.set(selected.parentId, [selected]);
-  for (const file of jsonlFiles(sessionsDir)) {
-    if (file === transcript) continue;
-    const rollout = parseRollout(file);
-    if (!rollout) continue;
-    byId.set(rollout.id, rollout);
-    if (!rollout.parentId) continue;
-    const items = children.get(rollout.parentId) || [];
-    items.push(rollout);
-    children.set(rollout.parentId, items);
-  }
-  const root = selected;
-  const rollouts = [root];
-  const seen = new Set([root.id]);
-  const pending = [root.id];
-  while (pending.length) {
-    for (const child of (children.get(pending.shift()) || []).sort((a, b) => a.id.localeCompare(b.id))) {
-      if (seen.has(child.id)) continue;
-      seen.add(child.id);
-      rollouts.push(child);
-      pending.push(child.id);
-    }
-  }
-  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: report(root, rollouts) } }));
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: reportText || noData() } }));
 }
 
 main().catch(() => {});
