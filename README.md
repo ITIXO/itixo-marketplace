@@ -4,6 +4,10 @@ Marketplace with plugins for Claude (Claude Code / Cowork) and Codex.
 
 ## Changelog
 
+### 0.2.3 — Parallel worker orchestration (2026-07-22)
+
+Both providers now support four direct workers plus the orchestrator for safe parallel work. Claude uses ordinary subagents, not experimental Agent Teams; Codex requires `agents.max_threads >= 5` and recommends `max_depth = 1`. The skill saturates available independent work, refills freed slots, and reports concurrency-cap or dependency shortfalls.
+
 ### 0.2.2 — Agent contract release
 
 Both `itixo-claude` and `itixo-codex` are now version `0.2.2`. This release documents structured responsibilities for orchestration, explicit strict tool and refusal boundaries, and unchanged capability allowlists. Claude and Codex provider artifacts were regenerated from the canonical agent definitions.

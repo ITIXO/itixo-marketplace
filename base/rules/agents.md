@@ -47,6 +47,11 @@ MUST be delegated to a subagent on a cheaper model.
 - itixo-investigator before itixo-builder: locate first with cheap model, then hand precise file:line targets to itixo-builder.
 - Never let a subagent expand scope. Scope change goes back to orchestrator.
 - Parallelize independent subagent runs.
+- **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least four safe independent executable units exist, launch exactly four direct worker subagents in one parallel batch before awaiting any result. The orchestrator is not a worker.
+- Keep a rolling window: dispatch the next ready independent worker task as soon as a worker slot opens; never wait serially while ready independent work exists.
+- Never invent redundant work or violate dependencies or role ownership to fill a slot. When fewer than four workers can run because of dependency, ambiguity, agent availability, or runtime cap, launch the maximum possible and report the exact shortfall reason.
+- **Codex capacity:** four direct workers plus root require `agents.max_threads >= 5`; recommend `agents.max_depth = 1` for root-owned fanout. A skill cannot raise a runtime cap.
+- **Claude dispatch:** use ordinary `Agent` subagents and issue up to four calls together; do not use experimental Agent Teams.
 - Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
 - Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.
 

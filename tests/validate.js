@@ -192,6 +192,73 @@ if (!claudeDirigent.includes("native Claude plugin agent")) {
 }
 if (failures === 0) ok("dirigent skills use provider-specific canonical dispatch");
 
+// --- 3ba. parallel-worker contract stays explicit in every rule and skill copy ---
+const parallelContractFiles = [
+  "base/rules/agents.md",
+  "plugins/itixo-claude/rules/agents.md",
+  "plugins/itixo-codex/rules/agents.md",
+  "plugins/itixo-claude/skills/dirigent/SKILL.md",
+  "plugins/itixo-codex/skills/dirigent/SKILL.md",
+];
+const parallelContractChecks = [
+  ["decompose upfront", /\bdecompose\s+upfront\b/i],
+  ["require four safe units", /\bat\s+least\s+four\b[\s\S]{0,100}\bsafe\s+independent\s+executable\s+units\b/i],
+  ["launch four direct workers before awaiting", /\b(?:launch|issue)\s+exactly\s+four\s+direct[\s\S]{0,100}\bbefore\s+awaiting\s+any\s+result\b/i],
+  ["exclude orchestrator from worker count", /\borchestrator\s+is\s+not\s+a\s+worker\b/i],
+  ["keep rolling window full", /\brolling\s+window\b[\s\S]{0,180}\b(?:as\s+(?:a\s+)?(?:worker\s+)?slot\s+opens|as\s+a\s+slot\s+opens)\b/i],
+  ["forbid serial waits with ready work", /\bnever\s+wait\s+serially\s+while\s+ready\s+independent\s+work\s+exists\b/i],
+  ["forbid redundant slot filling", /\bnever\s+invent\s+redundant\s+work\s+or\s+violate\s+dependencies\s+or\s+role\s+ownership\s+to\s+fill\s+(?:a\s+)?slot\b/i],
+  ["report exact shortfall", /\bfewer\s+than\s+four[\s\S]{0,240}\bdependency\s*,\s*ambiguity\s*,\s*agent\s+availability\s*,\s*or\s+runtime\s+cap\b[\s\S]{0,160}\breport\s+(?:the\s+)?exact\s+shortfall\s+reason\b/i],
+];
+for (const rel of parallelContractFiles) {
+  const p = path.join(ROOT, rel);
+  if (!fs.existsSync(p)) {
+    fail(`${rel} missing`);
+    continue;
+  }
+  const text = fs.readFileSync(p, "utf8");
+  for (const [message, pattern] of parallelContractChecks) {
+    if (!pattern.test(text)) fail(`${rel}: parallel-worker contract must ${message}`);
+  }
+}
+const providerParallelContracts = [
+  {
+    provider: "Claude",
+    files: [
+      "base/rules/agents.md",
+      "plugins/itixo-claude/rules/agents.md",
+      "plugins/itixo-claude/skills/dirigent/SKILL.md",
+    ],
+    checks: [
+      ["use ordinary Agent subagents", /\bordinary\s+`?agent`?\s+subagents\b/i],
+      ["issue up to four calls together", /\b(?:issue\s+)?up\s+to\s+four\s+calls\s+together\b/i],
+      ["forbid experimental Agent Teams", /\bdo\s+not\s+use\s+experimental\s+agent\s+teams\b/i],
+    ],
+  },
+  {
+    provider: "Codex",
+    files: [
+      "base/rules/agents.md",
+      "plugins/itixo-codex/rules/agents.md",
+      "plugins/itixo-codex/skills/dirigent/SKILL.md",
+    ],
+    checks: [
+      ["require agents.max_threads >= 5", /`?agents\.max_threads\s*>=\s*5`?/i],
+      ["recommend agents.max_depth = 1", /\brecommend\s+`?agents\.max_depth\s*=\s*1`?/i],
+      ["state that skill cannot raise runtime cap", /\b(?:a|this)\s+skill\s+cannot\s+raise\s+a\s+runtime\s+cap\b/i],
+    ],
+  },
+];
+for (const { provider, files, checks } of providerParallelContracts) {
+  for (const rel of files) {
+    const text = fs.readFileSync(path.join(ROOT, rel), "utf8");
+    for (const [message, pattern] of checks) {
+      if (!pattern.test(text)) fail(`${rel}: ${provider} parallel-worker contract must ${message}`);
+    }
+  }
+}
+if (failures === 0) ok("parallel-worker contract synchronized across rules and dirigent skills");
+
 // --- 3c. GitHub issue classification safeguards stay synchronized ---
 const githubIssuesAgentRel = "base/agents/itixo-github-issues.md";
 const githubIssuesAgentPath = path.join(ROOT, githubIssuesAgentRel);
