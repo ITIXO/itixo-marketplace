@@ -1,8 +1,28 @@
 #!/usr/bin/env node
 
 const fs = require("fs");
+const crypto = require("crypto");
+const os = require("os");
 const path = require("path");
 const INVOCATION = /(^|\s)(?:\/|\$)dirigent-stats(?=$|[\s.,!?;:])/;
+const STATE_SCHEMA = 1;
+
+function stateFile(sessionId) {
+  const stateDir = process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.PLUGIN_DATA || path.join(os.homedir(), ".codex"), "dirigent-stats");
+  return path.join(stateDir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
+}
+
+function sessionState(sessionId) {
+  try {
+    const state = JSON.parse(fs.readFileSync(stateFile(sessionId), "utf8"));
+    return state && state.schema === STATE_SCHEMA && state.sessionId === sessionId
+      && (state.transcriptPath === null || typeof state.transcriptPath === "string") ? state : null;
+  } catch { return null; }
+}
+
+function unavailable() {
+  return ["<!-- dirigent-stats:begin -->", "## Dirigent Stats", "", "Unavailable: current session stats context is missing or invalid.", "<!-- dirigent-stats:end -->"].join("\n");
+}
 
 function stdin() {
   return new Promise((resolve) => {
@@ -195,9 +215,20 @@ async function main() {
   const prompt = event && (event.prompt || event.user_prompt || event.message || "");
   if (typeof prompt !== "string" || !INVOCATION.test(prompt)) return;
   const sessionsDir = process.env.DIRIGENT_STATS_CODEX_SESSIONS_DIR || path.join(process.env.HOME || "", ".codex", "sessions");
-  const transcript = resolveTranscript(event, sessionsDir);
+  const sessionId = event.session_id || event.thread_id;
+  if (typeof sessionId !== "string" || !sessionId) return;
+  const state = sessionState(sessionId);
+  if (!state) {
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }));
+    return;
+  }
+  // State transcript is report anchor. Fall back only when SessionStart had no path.
+  const transcript = state.transcriptPath === null ? resolveTranscript({ session_id: sessionId }, sessionsDir) : state.transcriptPath;
   const selected = transcript && parseRollout(transcript);
-  if (!selected) return;
+  if (!selected || selected.id !== sessionId) {
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }));
+    return;
+  }
   const children = new Map();
   const byId = new Map([[selected.id, selected]]);
   if (selected.parentId) children.set(selected.parentId, [selected]);
@@ -211,8 +242,7 @@ async function main() {
     items.push(rollout);
     children.set(rollout.parentId, items);
   }
-  let root = selected;
-  while (root.parentId && byId.has(root.parentId)) root = byId.get(root.parentId);
+  const root = selected;
   const rollouts = [root];
   const seen = new Set([root.id]);
   const pending = [root.id];
