@@ -39,21 +39,21 @@ function startSession(plugin, event, stateDir) {
   });
 }
 
-function statsStopScript(plugin) {
+function statsStopCommand(plugin) {
   const hooks = JSON.parse(read(plugin, "hooks/hooks.json")).hooks;
   const commands = (hooks.Stop || []).flatMap((entry) => entry.hooks || [])
     .map((hook) => hook.command)
     .filter((command) => typeof command === "string" && /dirigent-stats/i.test(command));
   assert.ok(commands.length > 0, `${plugin} must register a stats update on Stop`);
-  const match = commands[0].match(/\/scripts\/([^"'\\s]+\.js)/);
-  assert.ok(match, `${plugin} Stop stats command must invoke a script`);
-  return path.join(root, "plugins", plugin, "scripts", match[1]);
+  return commands[0].replace(/\$\{(?:CLAUDE_)?PLUGIN_ROOT\}/g, path.join(root, "plugins", plugin));
 }
 
 function stopSession(plugin, event, stateDir, env = {}) {
-  return run(statsStopScript(plugin), event, {
-    ...env,
-    DIRIGENT_STATS_STATE_DIR: stateDir,
+  return spawnSync(statsStopCommand(plugin), {
+    shell: true,
+    encoding: "utf8",
+    input: JSON.stringify(event),
+    env: { ...process.env, ...env, DIRIGENT_STATS_STATE_DIR: stateDir },
   });
 }
 
@@ -293,6 +293,7 @@ test("Stop caches completed reports and explicit stats survives unavailable tran
     }, stateDir, current.env);
     assert.equal(stopped.status, 0, stopped.stderr);
     assert.equal(stopped.stderr, "");
+    assert.equal(stopped.stdout, "");
 
     const cached = context(run(current.script, { prompt: "$dirigent-stats", session_id: current.sessionId }, {
       ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
@@ -339,6 +340,8 @@ test("legacy, corrupt, and missing state self-heal through Stop or one explicit 
         cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
       }, stateDir, current.env);
       assert.equal(stopped.status, 0, stopped.stderr);
+      assert.equal(stopped.stderr, "");
+      assert.equal(stopped.stdout, "");
       const healed = context(run(current.script, { prompt: "/dirigent-stats", session_id: current.sessionId }, {
         ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
       }));
