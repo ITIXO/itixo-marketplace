@@ -58,6 +58,7 @@ Keep this table in sync with `base/rules/agents.md` and `scripts/generate-agents
 ### Workflow
 
 - Do not assume — ask when requirement, constraint, or scope is unclear.
+- Start all future work in this repository on a new branch or in a new worktree; never work directly on `main` unless the user specifically asks.
 - Non-trivial engineering work follows `base/rules/agents.md`: orchestrator decomposes and integrates; precisely specified steps are delegated to the prescribed role and model tier.
 - Every plugin change requires a version bump in that plugin's manifest (`plugins/<name>/.claude-plugin/plugin.json` and/or `.codex-plugin/plugin.json`), in semver format `MAJOR.MINOR.PATCH` with this project's mapping: nonbreaking change bumps patch, breaking change bumps minor, major rework bumps major. If unsure which bump applies, ask the user.
 - Every plugin version change must also update the changelog in the wiki repository checkout at `.wiki/Changelog.md`.
