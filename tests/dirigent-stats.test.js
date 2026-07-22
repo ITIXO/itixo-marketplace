@@ -108,6 +108,24 @@ test("Codex report follows recursive parent_thread_id and final usage snapshots"
   assert.doesNotMatch(output, /unrelated-model|999/);
 });
 
+test("Codex sums distinct incremental usage events within one turn", () => {
+  const sessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  const result = spawnSync(process.execPath, [script], {
+    encoding: "utf8",
+    input: JSON.stringify({ prompt: "$dirigent-stats", transcript_path: path.join(sessions, "incremental.jsonl") }),
+    env: { ...process.env, DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  const output = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  assert.match(output, /\| orchestrator \| incremental-model \| 1 \| 30 \| 100\.0% \|/);
+  assert.match(output, /\| incremental-model \| 1 \| 30 \| 100\.0% \|/);
+  assert.match(output, /Exact known total: 30 tokens\./);
+  assert.doesNotMatch(output, /\| unknown \||Unmatched exact token remainder/);
+});
+
 test("Codex stats hook fails open for non-trigger and malformed input", () => {
   const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
   for (const input of ["{", JSON.stringify({ prompt: "stats" })]) {

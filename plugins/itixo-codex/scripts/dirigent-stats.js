@@ -78,21 +78,19 @@ function parseRollout(file) {
   if (!id) return null;
   const session = metadata.payload || {};
   const turns = new Map();
+  const usageEvents = new Map();
   const warnings = new Set();
   let activeTurn = null;
   let total = null;
 
-  items.forEach((item, index) => {
+  items.forEach((item) => {
     const payload = item && item.payload && typeof item.payload === "object" ? item.payload : {};
     if (item.type === "turn_context") {
       const id = payload.turn_id || payload.id || item.turn_id;
       if (typeof id === "string" && id) {
         activeTurn = id;
-        const previous = turns.get(id);
         turns.set(id, {
           model: typeof payload.model === "string" && payload.model ? payload.model : "unknown",
-          tokens: previous ? previous.tokens : null,
-          index,
         });
       } else {
         activeTurn = null;
@@ -105,14 +103,21 @@ function parseRollout(file) {
     if (latest !== null) {
       const turnId = payload.turn_id || at(payload, ["info", "turn_id"]) || item.turn_id || activeTurn;
       const turn = typeof turnId === "string" ? turns.get(turnId) : null;
-      if (turn) turn.tokens = latest; // latest occurrence wins for this turn ID
-      else warnings.add("A token event has no matching turn; model usage is unavailable.");
+      if (!turn) {
+        warnings.add("A token event has no matching turn; model usage is unavailable.");
+      } else if (cumulative === null) {
+        warnings.add("A token event has no cumulative identity; model usage is unavailable.");
+      } else {
+        // Cumulative total identifies the snapshot in Codex JSONL. Re-emitted
+        // snapshots overwrite; distinct increments within one turn remain.
+        usageEvents.set(cumulative, { model: turn.model, tokens: latest });
+      }
     }
   });
 
   const models = new Map();
-  for (const turn of turns.values()) {
-    if (turn.tokens !== null) models.set(turn.model, (models.get(turn.model) || 0) + turn.tokens);
+  for (const usage of usageEvents.values()) {
+    models.set(usage.model, (models.get(usage.model) || 0) + usage.tokens);
   }
   if (total !== null) {
     const attributed = [...models.values()].reduce((sum, tokens) => sum + tokens, 0);
