@@ -401,6 +401,145 @@ test("Codex resume and compact without transcript_path preserve cached report", 
   }
 });
 
+test("Claude startup and clear reset cache while resume and compact preserve it", () => {
+  const fixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
+  const script = path.join(root, "plugins", "itixo-claude", "scripts", "dirigent-stats.js");
+  const cases = [
+    { source: "startup", transcriptPath: undefined, preserved: false },
+    { source: "clear", transcriptPath: null, preserved: false },
+    { source: "resume", transcriptPath: undefined, preserved: true },
+    { source: "compact", transcriptPath: null, preserved: true },
+  ];
+  for (const current of cases) {
+    const storageRoot = temporaryDirectory();
+    const copiedFixture = path.join(storageRoot, "claude");
+    fs.cpSync(fixture, copiedFixture, { recursive: true });
+    const projects = path.join(copiedFixture, "projects");
+    const ledger = path.join(copiedFixture, "ledger");
+    const transcript = path.join(projects, "synthetic-project", "root-run.jsonl");
+    const env = { DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger };
+    const stateDir = temporaryDirectory();
+    startSession("itixo-claude", { source: "startup", session_id: "root-run", transcript_path: transcript }, stateDir);
+    const stopped = stopSession("itixo-claude", {
+      hook_event_name: "Stop", session_id: "root-run", transcript_path: transcript,
+      cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+    }, stateDir, env);
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const cached = context(run(script, { prompt: "$dirigent-stats", session_id: "root-run" }, {
+      ...env, DIRIGENT_STATS_STATE_DIR: stateDir,
+    }));
+    assert.match(cached, /\| orchestrator \| root-model \|/);
+
+    const refresh = { source: current.source, session_id: "root-run", cwd: "/tmp/refreshed" };
+    if (current.transcriptPath === null) refresh.transcript_path = null;
+    const refreshed = startSession("itixo-claude", refresh, stateDir);
+    assert.equal(refreshed.status, 0, refreshed.stderr);
+    fs.rmSync(storageRoot, { recursive: true, force: true });
+    const afterRefresh = context(run(script, { prompt: "/dirigent-stats", session_id: "root-run" }, {
+      ...env, DIRIGENT_STATS_STATE_DIR: stateDir,
+    }));
+    const state = JSON.parse(fs.readFileSync(statePath(stateDir, "root-run"), "utf8"));
+    if (current.preserved) {
+      assert.equal(afterRefresh, cached);
+      assert.equal(state.transcriptPath, path.resolve(transcript));
+      assert.equal(state.cache.report, cached);
+    } else {
+      assert.notEqual(afterRefresh, cached);
+      assert.doesNotMatch(afterRefresh, /\| orchestrator \| root-model \|/);
+      assert.match(afterRefresh, /No exact assistant usage records were available/);
+      assert.equal(state.transcriptPath, null);
+      assert.equal(state.cache.report, afterRefresh);
+    }
+  }
+});
+
+test("Codex timed-out Stop invalidates prior cached totals", () => {
+  const fixture = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const storageRoot = temporaryDirectory();
+  const sessions = path.join(storageRoot, "sessions");
+  fs.cpSync(fixture, sessions, { recursive: true });
+  const transcript = path.join(sessions, "root.jsonl");
+  const stateDir = temporaryDirectory();
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  startSession("itixo-codex", { source: "startup", session_id: "root-rollout", transcript_path: transcript }, stateDir);
+  const initialStop = stopSession("itixo-codex", {
+    hook_event_name: "Stop", session_id: "root-rollout", transcript_path: transcript,
+    cwd: "/tmp", model: "root-model", turn_id: "initial-turn",
+  }, stateDir, { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions });
+  assert.equal(initialStop.status, 0, initialStop.stderr);
+  const prior = context(run(script, { prompt: "$dirigent-stats", session_id: "root-rollout" }, {
+    DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir,
+  }));
+  assert.match(prior, /Exact known total: 65 tokens\./);
+
+  const clock = preload(["let now = 0;", "Date.now = () => (now += 1000);"].join("\n"));
+  try {
+    const timedOut = stopSession("itixo-codex", {
+      hook_event_name: "Stop", session_id: "root-rollout", transcript_path: transcript,
+      cwd: "/tmp", model: "root-model", turn_id: "timed-out-turn",
+    }, stateDir, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+      DIRIGENT_STATS_STOP_BUDGET_MS: "100",
+      NODE_OPTIONS: clock.option,
+    });
+    assert.equal(timedOut.status, 0, timedOut.stderr);
+    assert.equal(timedOut.stderr, "");
+    assert.equal(timedOut.stdout, "");
+  } finally {
+    fs.rmSync(clock.directory, { recursive: true, force: true });
+  }
+  fs.rmSync(storageRoot, { recursive: true, force: true });
+
+  const current = context(run(script, { prompt: "/dirigent-stats", session_id: "root-rollout" }, {
+    DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir,
+  }));
+  assert.notEqual(current, prior);
+  assert.doesNotMatch(current, /Exact known total: 65 tokens|root-model|worker-model/);
+  assert.match(current, /No completed token usage available yet/);
+  assert.match(current, /Exact known total: 0 tokens\./);
+  const persisted = JSON.parse(fs.readFileSync(statePath(stateDir, "root-rollout"), "utf8"));
+  if (persisted.cache) {
+    assert.notEqual(persisted.cache.report, prior);
+    assert.equal(persisted.cache.report, current);
+    assert.equal(persisted.cache.turnId, "timed-out-turn");
+  }
+});
+
+test("Codex rejects malformed tagged cached reports instead of emitting them", () => {
+  const sessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const transcript = path.join(sessions, "root.jsonl");
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  const malformedReports = [
+    [
+      "<!-- dirigent-stats:begin -->",
+      "## Dirigent Stats",
+      "",
+      "Unavailable: current session stats context is missing or invalid.",
+      "<!-- dirigent-stats:end -->",
+    ].join("\n"),
+    "<!-- dirigent-stats:begin -->arbitrary marker string<!-- dirigent-stats:end -->",
+  ];
+  for (const malformed of malformedReports) {
+    const stateDir = temporaryDirectory();
+    const file = statePath(stateDir, "root-rollout");
+    fs.writeFileSync(file, JSON.stringify({
+      schema: 2,
+      sessionId: "root-rollout",
+      transcriptPath: transcript,
+      cwd: "/tmp",
+      source: "startup",
+      cache: { sessionId: "root-rollout", transcriptPath: transcript, report: malformed, turnId: "stale-turn" },
+    }));
+    const recovered = context(run(script, { prompt: "$dirigent-stats", session_id: "root-rollout" }, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir,
+    }));
+    assert.notEqual(recovered, malformed);
+    assert.doesNotMatch(recovered, /Unavailable: current session stats context is missing or invalid|arbitrary marker string/);
+    assert.match(recovered, /\| orchestrator \| root-model \| 1 \| 30 \| 46\.2% \|/);
+    assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).cache.report, recovered);
+  }
+});
+
 test("Claude corrupt-state Stop persists a valid cached report from event transcript", () => {
   const fixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
   const storageRoot = temporaryDirectory();
