@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const { spawnSync } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const os = require("node:os");
 
@@ -41,6 +41,29 @@ function startSession(plugin, event, stateDir) {
 
 function statePath(stateDir, sessionId) {
   return path.join(stateDir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
+}
+
+function startSessionConcurrently(plugin, event, stateDir) {
+  const child = spawn(process.execPath, [path.join(root, "plugins", plugin, "scripts", "dirigent-stats-session-start.js")], {
+    env: { ...process.env, DIRIGENT_STATS_STATE_DIR: stateDir },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  child.stdin.end(JSON.stringify(event));
+  return new Promise((resolve, reject) => {
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (status) => {
+      if (status === 0 && !stderr) resolve();
+      else reject(new Error(`SessionStart exited ${status}: ${stderr}`));
+    });
+  });
+}
+
+function assertCompleteMarker(file, sessionId) {
+  const marker = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(marker.schema, 1);
+  assert.equal(marker.sessionId, sessionId);
 }
 
 test("SessionStart persists isolated, atomically refreshed provider session markers", () => {
@@ -84,6 +107,71 @@ test("SessionStart persists isolated, atomically refreshed provider session mark
       assert.equal(result.stdout, "");
     }
     assert.deepEqual(fs.readdirSync(stateDir).sort(), before);
+  }
+});
+
+test("concurrent SessionStart writes keep every marker complete and isolated", async () => {
+  for (const plugin of plugins) {
+    const stateDir = temporaryDirectory();
+    const sameId = `${plugin}-concurrent-same`;
+    const distinctIds = Array.from({ length: 6 }, (_, index) => `${plugin}-concurrent-${index}`);
+    const sessionIds = [sameId, ...distinctIds];
+    for (const sessionId of sessionIds) {
+      startSession(plugin, { source: "startup", session_id: sessionId, transcript_path: "/tmp/seed.jsonl" }, stateDir);
+    }
+    const writes = [
+      ...Array.from({ length: 12 }, (_, index) => startSessionConcurrently(plugin, {
+        source: index % 2 ? "compact" : "resume", session_id: sameId, transcript_path: `/tmp/same-${index}.jsonl`,
+      }, stateDir)),
+      ...distinctIds.map((sessionId, index) => startSessionConcurrently(plugin, {
+        source: "clear", session_id: sessionId, transcript_path: `/tmp/distinct-${index}.jsonl`,
+      }, stateDir)),
+    ];
+    let settled = false;
+    const completion = Promise.all(writes).then(() => { settled = true; });
+    for (let poll = 0; !settled && poll < 500; poll++) {
+      for (const sessionId of sessionIds) assertCompleteMarker(statePath(stateDir, sessionId), sessionId);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    await completion;
+    for (const sessionId of sessionIds) assertCompleteMarker(statePath(stateDir, sessionId), sessionId);
+    assert.equal(fs.readdirSync(stateDir).filter((name) => name.endsWith(".json")).length, sessionIds.length);
+  }
+});
+
+test("hashed marker paths contain traversal IDs and corrupt state is unavailable", () => {
+  const claudeFixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
+  const claudeProjects = path.join(claudeFixture, "projects");
+  const codexSessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const cases = [
+    {
+      plugin: "itixo-claude", sessionId: "root-run", root: path.join(claudeProjects, "synthetic-project", "root-run.jsonl"),
+      script: path.join(root, "plugins", "itixo-claude", "scripts", "dirigent-stats.js"),
+      env: { DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: claudeProjects, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: path.join(claudeFixture, "ledger") },
+    },
+    {
+      plugin: "itixo-codex", sessionId: "root-rollout", root: path.join(codexSessions, "root.jsonl"),
+      script: path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js"),
+      env: { DIRIGENT_STATS_CODEX_SESSIONS_DIR: codexSessions },
+    },
+  ];
+  for (const current of cases) {
+    const stateDir = temporaryDirectory();
+    const traversalId = "../other/..\\session-id";
+    startSession(current.plugin, { source: "startup", session_id: traversalId }, stateDir);
+    const traversalMarker = statePath(stateDir, traversalId);
+    assert.equal(path.dirname(traversalMarker), stateDir);
+    assertCompleteMarker(traversalMarker, traversalId);
+
+    startSession(current.plugin, { source: "startup", session_id: current.sessionId, transcript_path: current.root }, stateDir);
+    for (const persisted of ["{\"schema\":1", JSON.stringify({ schema: 1, sessionId: "another-session", transcriptPath: current.root })]) {
+      fs.writeFileSync(statePath(stateDir, current.sessionId), persisted);
+      const output = context(run(current.script, { prompt: "/dirigent-stats", session_id: current.sessionId }, {
+        ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
+      }));
+      assert.match(output, /Unavailable: current session stats context is missing or invalid\./);
+      assert.doesNotMatch(output, /root-model|Exact known total/);
+    }
   }
 });
 

@@ -211,6 +211,11 @@ const parallelContractChecks = [
   ["report only non-runtime shortfalls", /\bfewer\s+than\s+three[\s\S]{0,240}\bdependency\s*,\s*ambiguity\s*,\s*or\s+agent\s+availability\b[\s\S]{0,160}\breport\s+(?:those\s+)?non-runtime\s+reasons\b/i],
   ["not report runtime-cap reductions", /\bruntime\s+capacity[\s\S]{0,100}\bdo\s+not\s+report\s+runtime-cap\s+reductions\s+or\s+shortfalls\s+to\s+(?:the\s+)?user\b/i],
 ];
+const legacyParallelContractChecks = [
+  ["four-worker directives", /\b(?:at\s+least|exactly|up\s+to)\s+four\b[\s\S]{0,100}\b(?:direct\s+)?(?:workers?|agents?|calls?)\b/i],
+  ["Codex agents.max_threads >= 5", /`?agents\.max_threads\s*>=\s*5`?/i],
+  ["runtime-cap shortfall reporting", /(?<!do not )\breport\s+(?:the\s+)?runtime(?:-|\s)cap(?:\s+(?:reductions?|shortfalls?))?/i],
+];
 for (const rel of parallelContractFiles) {
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) {
@@ -220,6 +225,9 @@ for (const rel of parallelContractFiles) {
   const text = fs.readFileSync(p, "utf8");
   for (const [message, pattern] of parallelContractChecks) {
     if (!pattern.test(text)) fail(`${rel}: parallel-worker contract must ${message}`);
+  }
+  for (const [legacy, pattern] of legacyParallelContractChecks) {
+    if (pattern.test(text)) fail(`${rel}: must not retain ${legacy}`);
   }
 }
 const providerParallelContracts = [
