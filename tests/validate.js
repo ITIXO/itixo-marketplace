@@ -646,7 +646,7 @@ if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claud
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  if (manifest && manifest.version !== "0.2.6") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.6'`);
+  if (manifest && manifest.version !== "0.2.7") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.7'`);
 }
 
 const claudeHooksRel = "plugins/itixo-claude/hooks/hooks.json";
