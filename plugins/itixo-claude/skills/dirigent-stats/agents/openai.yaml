@@ -1,0 +1,6 @@
+interface:
+  display_name: "Dirigent Stats"
+  short_description: "Show exact task token usage by agent"
+  default_prompt: "Use $dirigent-stats to show exact token usage for this task."
+policy:
+  allow_implicit_invocation: false

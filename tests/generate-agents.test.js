@@ -32,6 +32,46 @@ const ROLE_NAMES = [
   "itixo-tester",
 ];
 
+const CAPABILITIES_BY_ROLE = {
+  "itixo-builder": ["read", "edit", "write", "grep", "glob", "bash", "skill"],
+  "itixo-docs-updater": ["read", "edit", "write", "grep", "glob", "bash", "skill"],
+  "itixo-github-issues": ["read", "grep", "glob", "bash", "skill", "github"],
+  "itixo-investigator": ["read", "grep", "glob", "bash"],
+  "itixo-planner": ["read", "grep", "glob"],
+  "itixo-reviewer": ["read", "grep", "bash"],
+  "itixo-tester": ["read", "edit", "write", "grep", "glob", "bash", "skill"],
+};
+
+const CONTRACT_HEADINGS = [
+  "Role",
+  "Required input",
+  "Responsibilities",
+  "Workflow",
+  "Tool boundaries",
+  "Refusals and escalation",
+  "Output contract",
+];
+
+const ROLE_SENTINELS = {
+  "itixo-builder": ["Refuse vague scope", "destructive Git actions", "push or release actions"],
+  "itixo-docs-updater": ["Refuse code, configuration, or test edits", "unsupported claims"],
+  "itixo-github-issues": ["Use GitHub connector or MCP first", "Never implement work or mutate repository files", "unverifiable type, label, or hierarchy evidence"],
+  "itixo-investigator": ["Never edit or write files", "mutating shell commands", "Refuse edits, fixes, design, test work"],
+  "itixo-planner": ["Never run commands, edit or write files", "Refuse implementation, edits, commands, and assumptions"],
+  "itixo-reviewer": ["Never edit files, execute tests, run mutating Git commands", "Refuse edits, test execution, mutating Git operations"],
+  "itixo-tester": ["without changing production behavior", "Refuse production edits", "never change production code to make tests pass"],
+};
+
+const MODEL_FOOTER = "- Last line of every final report: `model: <exact model identifier you run on, from your environment context>`. If identifier is not available, write `model: unknown`.";
+
+function contractBody(text) {
+  return text.replace(/^---\n[\s\S]*?\n---\n(?:\n)?/, "").replace(/\n<!-- Generated[\s\S]*?-->\n?$/, "").replace(/^# Itixo-managed[\s\S]*?developer_instructions = \"\"\"\n/, "").replace(/\n\"\"\"\n?$/, "");
+}
+
+function capabilityBoundaryPattern(capability) {
+  return capability === "skill" ? /caveman:caveman-commit|prescribed skills/i : new RegExp(`\\b${capability}\\b`, "i");
+}
+
 function withTemporaryDirectory(callback) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "itixo-agents-"));
   try {
@@ -133,6 +173,48 @@ test("renders every canonical role into Claude agents, Codex TOML templates, and
   for (const { provider, name, path: outputPath, content } of outputs) {
     assert.ok(fs.existsSync(outputPath), `${provider}/${name} output is missing`);
     assert.equal(fs.readFileSync(outputPath, "utf8"), content, `${provider}/${name} output is stale`);
+  }
+});
+
+test("canonical roles keep structured, capability-scoped contracts", () => {
+  const agents = readBaseAgents(ROOT);
+  assert.deepEqual(agents.map(({ name }) => name), ROLE_NAMES);
+
+  for (const { name, agent } of agents) {
+    assert.deepEqual(agent.capabilities, CAPABILITIES_BY_ROLE[name], `${name}: capability order changed`);
+
+    let previousHeading = -1;
+    for (const heading of CONTRACT_HEADINGS) {
+      const position = agent.body.indexOf(`## ${heading}`);
+      assert.ok(position > previousHeading, `${name}: '${heading}' heading missing or out of order`);
+      previousHeading = position;
+    }
+
+    const boundaries = agent.body.slice(
+      agent.body.indexOf("## Tool boundaries"),
+      agent.body.indexOf("## Refusals and escalation"),
+    );
+    for (const capability of agent.capabilities) {
+      assert.match(boundaries, capabilityBoundaryPattern(capability), `${name}: '${capability}' missing from tool boundaries`);
+    }
+    for (const sentinel of ROLE_SENTINELS[name]) {
+      assert.ok(agent.body.includes(sentinel), `${name}: missing contract sentinel '${sentinel}'`);
+    }
+    assert.equal(agent.body.trimEnd().split("\n").at(-1), MODEL_FOOTER, `${name}: model footer must be final nonblank line`);
+  }
+
+  const builder = agents.find(({ name }) => name === "itixo-builder").agent;
+  assert.ok(builder.capabilities.includes("bash"));
+  assert.doesNotMatch(builder.body, /\b(?:one|1)\s*(?:-|to)?\s*2\s*files?\b/i);
+});
+
+test("generated provider bodies retain canonical structured contracts", () => {
+  for (const { name, agent } of readBaseAgents(ROOT)) {
+    for (const rendered of [renderClaude(name, agent), renderCodex(name, agent)]) {
+      const body = contractBody(rendered);
+      for (const heading of CONTRACT_HEADINGS) assert.ok(body.includes(`## ${heading}`), `${name}: provider body missing '${heading}'`);
+      assert.equal(body.trimEnd().split("\n").at(-1), MODEL_FOOTER, `${name}: provider model footer must be final nonblank line`);
+    }
   }
 });
 

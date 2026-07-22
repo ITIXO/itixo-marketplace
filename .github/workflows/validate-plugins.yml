@@ -1,0 +1,85 @@
+name: Validate plugins
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Branch to compare when running manually
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Validate generated agents
+        run: node scripts/generate-agents.js --check
+
+      - name: Run tests
+        run: node --test tests/*.test.js
+
+      - name: Validate repository
+        run: node tests/validate.js
+
+      - name: Resolve comparison base
+        id: base
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ inputs.base_ref || 'main' }}
+        run: |
+          if [ -n "$PR_BASE_SHA" ]; then
+            BASE_SHA="$PR_BASE_SHA"
+          else
+            git check-ref-format --branch "$BASE_REF"
+            git fetch --no-tags origin "refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+            BASE_SHA="$(git rev-parse "origin/$BASE_REF")"
+          fi
+          git cat-file -e "$BASE_SHA^{commit}"
+          echo "sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Clone published changelog
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WIKI_DIRECTORY: ${{ runner.temp }}/itixo-marketplace.wiki
+        run: |
+          AUTH_CONFIG="$(mktemp "$RUNNER_TEMP/wiki-auth.XXXXXX")"
+          trap 'rm -f "$AUTH_CONFIG"' EXIT
+          AUTH_CONFIG="$AUTH_CONFIG" node <<'NODE'
+          const fs = require('node:fs');
+
+          const token = process.env.GITHUB_TOKEN;
+          const authConfig = process.env.AUTH_CONFIG;
+          if (!token || !authConfig) {
+            throw new Error('GitHub token and temporary auth config are required.');
+          }
+
+          const credential = Buffer.from(`x-access-token:${token}`).toString('base64');
+          process.stdout.write(`::add-mask::${credential}\n`);
+          fs.writeFileSync(
+            authConfig,
+            `[http "https://github.com/"]\n\textraheader = AUTHORIZATION: basic ${credential}\n`,
+            { mode: 0o600 },
+          );
+          fs.chmodSync(authConfig, 0o600);
+          NODE
+          git -c include.path="$AUTH_CONFIG" clone --depth 1 \
+            "https://github.com/${GITHUB_REPOSITORY}.wiki.git" "$WIKI_DIRECTORY"
+
+      - name: Validate plugin release policy
+        env:
+          WIKI_DIRECTORY: ${{ runner.temp }}/itixo-marketplace.wiki
+        run: node scripts/validate-plugin-changes.js --base "${{ steps.base.outputs.sha }}" --changelog "$WIKI_DIRECTORY/Changelog.md"

@@ -126,6 +126,46 @@ try {
 }
 if (failures === 0) ok("generated provider agent files are byte-for-byte current");
 
+// --- 3aa. canonical structured contracts survive provider generation ---
+const CONTRACT_HEADINGS = [
+  "Role",
+  "Required input",
+  "Responsibilities",
+  "Workflow",
+  "Tool boundaries",
+  "Refusals and escalation",
+  "Output contract",
+];
+const MODEL_FOOTER = "- Last line of every final report: `model: <exact model identifier you run on, from your environment context>`. If identifier is not available, write `model: unknown`.";
+
+function providerBody(text, provider) {
+  if (provider === "claude") {
+    return text.replace(/^---\n[\s\S]*?\n---\n(?:\n)?/, "").replace(/\n<!-- Generated[\s\S]*?-->\n?$/, "");
+  }
+  return text.replace(/^#[\s\S]*?developer_instructions = \"\"\"\n/, "").replace(/\n\"\"\"\n?$/, "");
+}
+
+for (const agent of expectedRoles) {
+  for (const [provider, extension] of [["claude", "md"], ["codex", "toml"]]) {
+    const rel = provider === "claude"
+      ? `plugins/itixo-claude/agents/${agent}.${extension}`
+      : `plugins/itixo-codex/templates/agents/${agent}.${extension}`;
+    const p = path.join(ROOT, rel);
+    if (!fs.existsSync(p)) continue;
+    const body = providerBody(fs.readFileSync(p, "utf8"), provider);
+    let previousHeading = -1;
+    for (const heading of CONTRACT_HEADINGS) {
+      const position = body.indexOf(`## ${heading}`);
+      if (position <= previousHeading) fail(`${rel}: '${heading}' heading missing or out of order`);
+      previousHeading = position;
+    }
+    if (body.trimEnd().split("\n").at(-1) !== MODEL_FOOTER) {
+      fail(`${rel}: model footer must be final nonblank instruction line`);
+    }
+  }
+}
+if (failures === 0) ok("generated provider bodies retain structured contracts");
+
 // --- 3b. provider dispatch uses canonical Itixo IDs ---
 const dirigentContents = new Map();
 for (const plugin of ORCHESTRATION_PLUGINS) {
@@ -165,6 +205,82 @@ if (!copilotDirigent.includes("native Copilot plugin agent")) {
   fail("plugins/itixo-copilot/skills/dirigent/SKILL.md: must retain native Copilot dispatch");
 }
 if (failures === 0) ok("dirigent skills use provider-specific canonical dispatch");
+
+// --- 3ba. parallel-worker contract stays explicit in every rule and skill copy ---
+const parallelContractFiles = [
+  "base/rules/agents.md",
+  "plugins/itixo-claude/rules/agents.md",
+  "plugins/itixo-codex/rules/agents.md",
+  "plugins/itixo-claude/skills/dirigent/SKILL.md",
+  "plugins/itixo-codex/skills/dirigent/SKILL.md",
+];
+const parallelContractChecks = [
+  ["decompose upfront", /\bdecompose\s+upfront\b/i],
+  ["require three safe units", /\bat\s+least\s+three\b[\s\S]{0,100}\bsafe\s+independent\s+executable\s+units\b/i],
+  ["launch three direct workers before awaiting", /\b(?:launch|issue)\s+exactly\s+three\s+direct[\s\S]{0,100}\bbefore\s+awaiting\s+any\s+result\b/i],
+  ["exclude orchestrator from worker count", /\borchestrator\s+is\s+not\s+a\s+worker\b/i],
+  ["keep rolling window full", /\brolling\s+window\b[\s\S]{0,180}\b(?:as\s+(?:a\s+)?(?:worker\s+)?slot\s+opens|as\s+a\s+slot\s+opens)\b/i],
+  ["forbid serial waits with ready work", /\bnever\s+wait\s+serially\s+while\s+ready\s+independent\s+work\s+exists\b/i],
+  ["forbid redundant slot filling", /\bnever\s+invent\s+redundant\s+work\s+or\s+violate\s+dependencies\s+or\s+role\s+ownership\s+to\s+fill\s+(?:a\s+)?slot\b/i],
+  ["report only non-runtime shortfalls", /\bfewer\s+than\s+three[\s\S]{0,240}\bdependency\s*,\s*ambiguity\s*,\s*or\s+agent\s+availability\b[\s\S]{0,160}\breport\s+(?:those\s+)?non-runtime\s+reasons\b/i],
+  ["not report runtime-cap reductions", /\bruntime\s+capacity[\s\S]{0,100}\bdo\s+not\s+report\s+runtime-cap\s+reductions\s+or\s+shortfalls\s+to\s+(?:the\s+)?user\b/i],
+];
+const legacyParallelContractChecks = [
+  ["four-worker directives", /\b(?:launch|issue|dispatch|run|use|allow|permit|start|spawn|require|when)\b[\s\S]{0,80}\bfour\b[\s\S]{0,80}\b(?:direct\s+)?(?:workers?|agents?|calls?)\b|\bmaximum\s+parallel\s+workers?\s*:\s*four\b/i],
+  ["Codex agents.max_threads >= 5", /`?agents\.max_threads\s*>=\s*5`?/i],
+  ["runtime-cap shortfall reporting", /(?<!do not )\breport\s+(?:the\s+)?runtime(?:-|\s)cap(?:\s+(?:reductions?|shortfalls?))?/i],
+];
+for (const rel of parallelContractFiles) {
+  const p = path.join(ROOT, rel);
+  if (!fs.existsSync(p)) {
+    fail(`${rel} missing`);
+    continue;
+  }
+  const text = fs.readFileSync(p, "utf8");
+  for (const [message, pattern] of parallelContractChecks) {
+    if (!pattern.test(text)) fail(`${rel}: parallel-worker contract must ${message}`);
+  }
+  for (const [legacy, pattern] of legacyParallelContractChecks) {
+    if (pattern.test(text)) fail(`${rel}: must not retain ${legacy}`);
+  }
+}
+const providerParallelContracts = [
+  {
+    provider: "Claude",
+    files: [
+      "base/rules/agents.md",
+      "plugins/itixo-claude/rules/agents.md",
+      "plugins/itixo-claude/skills/dirigent/SKILL.md",
+    ],
+    checks: [
+      ["use ordinary Agent subagents", /\bordinary\s+`?agent`?\s+subagents\b/i],
+      ["issue up to three ordinary Agent calls together", /\b(?:issue\s+)?up\s+to\s+three\s+calls\s+together\b/i],
+      ["forbid experimental Agent Teams", /\bdo\s+not\s+use\s+experimental\s+agent\s+teams\b/i],
+    ],
+  },
+  {
+    provider: "Codex",
+    files: [
+      "base/rules/agents.md",
+      "plugins/itixo-codex/rules/agents.md",
+      "plugins/itixo-codex/skills/dirigent/SKILL.md",
+    ],
+    checks: [
+      ["require agents.max_threads >= 4", /`?agents\.max_threads\s*>=\s*4`?/i],
+      ["recommend agents.max_depth = 1", /\brecommend\s+`?agents\.max_depth\s*=\s*1`?/i],
+      ["state that skill cannot raise runtime cap", /\b(?:a|this)\s+skill\s+cannot\s+raise\s+a\s+runtime\s+cap\b/i],
+    ],
+  },
+];
+for (const { provider, files, checks } of providerParallelContracts) {
+  for (const rel of files) {
+    const text = fs.readFileSync(path.join(ROOT, rel), "utf8");
+    for (const [message, pattern] of checks) {
+      if (!pattern.test(text)) fail(`${rel}: ${provider} parallel-worker contract must ${message}`);
+    }
+  }
+}
+if (failures === 0) ok("parallel-worker contract synchronized across rules and dirigent skills");
 
 // --- 3c. GitHub issue classification safeguards stay synchronized ---
 const githubIssuesAgentRel = "base/agents/itixo-github-issues.md";
@@ -564,6 +680,90 @@ if (runtimeModelHook?.hooks?.SubagentStart?.some((entry) => entry.matcher !== "*
   fail(`${runtimeModelHookRel}: SubagentStart hook must apply to all agents`);
 }
 if (failures === 0) ok("itixo-codex runtime-model hook configured");
+
+// --- 9. Dirigent Stats remains a shared, safe, exact-accounting skill ---
+const statsPlugins = ["itixo-claude", "itixo-codex"];
+const statsSkillRel = "skills/dirigent-stats/SKILL.md";
+const statsMetadataRel = "skills/dirigent-stats/agents/openai.yaml";
+const statsSkills = new Map();
+const statsMetadata = new Map();
+for (const plugin of statsPlugins) {
+  const skillRel = `plugins/${plugin}/${statsSkillRel}`;
+  const metadataRel = `plugins/${plugin}/${statsMetadataRel}`;
+  const skillPath = path.join(ROOT, skillRel);
+  const metadataPath = path.join(ROOT, metadataRel);
+  if (!fs.existsSync(skillPath)) {
+    fail(`${skillRel} missing`);
+  } else {
+    const skill = fs.readFileSync(skillPath, "utf8");
+    statsSkills.set(plugin, skill);
+    if (!/^---\nname: dirigent-stats\n/m.test(skill)) fail(`${skillRel}: invalid dirigent-stats frontmatter`);
+    for (const [description, pattern] of [
+      ["explicit slash invocation", /`\/dirigent-stats`/],
+      ["explicit dollar invocation", /`\$dirigent-stats`/],
+      ["hook-provided report only", /hook-provided report/i],
+      ["verbatim reporting", /verbatim/i],
+      ["no estimates", /never estimate/i],
+      ["unknown-value preservation", /unknown values and warnings/i],
+      ["unavailable fallback", /unavailable rather than estimating/i],
+    ]) {
+      if (!pattern.test(skill)) fail(`${skillRel}: must state ${description}`);
+    }
+  }
+  if (!fs.existsSync(metadataPath)) {
+    fail(`${metadataRel} missing`);
+  } else {
+    const metadata = fs.readFileSync(metadataPath, "utf8");
+    statsMetadata.set(plugin, metadata);
+    if (!/^interface:\n/m.test(metadata)) fail(`${metadataRel}: missing interface metadata`);
+    if (!/^  display_name: "Dirigent Stats"$/m.test(metadata)) fail(`${metadataRel}: incorrect display name`);
+    if (!/^  short_description: "[^"\n]+"$/m.test(metadata)) fail(`${metadataRel}: missing short description`);
+    if (!/^  default_prompt: "Use \$dirigent-stats[^"\n]*"$/m.test(metadata)) fail(`${metadataRel}: default prompt must invoke $dirigent-stats`);
+    if (/implicit_invocation:\s*true/.test(metadata)) fail(`${metadataRel}: implicit invocation must be false`);
+  }
+}
+if (statsSkills.size === statsPlugins.length && statsSkills.get("itixo-claude") !== statsSkills.get("itixo-codex")) {
+  fail("dirigent-stats SKILL.md must be byte-identical across providers");
+}
+if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claude") !== statsMetadata.get("itixo-codex")) {
+  fail("dirigent-stats openai.yaml must be byte-identical across providers");
+}
+for (const plugin of statsPlugins) {
+  const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
+  const manifest = readJson(manifestRel);
+  if (manifest && manifest.version !== "0.2.7") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.7'`);
+}
+
+const claudeHooksRel = "plugins/itixo-claude/hooks/hooks.json";
+const codexHooksRel = "plugins/itixo-codex/hooks/hooks.json";
+for (const [rel, rootVariable, preservedEvents] of [
+  [claudeHooksRel, "CLAUDE_PLUGIN_ROOT", ["PreToolUse", "PostToolUse", "Stop"]],
+  [codexHooksRel, "PLUGIN_ROOT", ["SubagentStart"]],
+]) {
+  const hooks = readJson(rel);
+  if (!hooks?.hooks || typeof hooks.hooks !== "object") continue;
+  for (const event of preservedEvents) {
+    if (!Array.isArray(hooks.hooks[event]) || hooks.hooks[event].length === 0) {
+      fail(`${rel}: must preserve existing ${event} hooks`);
+    }
+  }
+  const commands = Object.values(hooks.hooks).flatMap((entries) => Array.isArray(entries)
+    ? entries.flatMap((entry) => entry?.hooks || []).map((hook) => hook?.command)
+    : []);
+  if (!commands.some((command) => typeof command === "string" && command.includes("dirigent-stats"))) {
+    fail(`${rel}: must add a dirigent-stats command without removing existing hooks`);
+  }
+  const sessionStart = hooks.hooks.SessionStart;
+  if (!Array.isArray(sessionStart) || sessionStart.length !== 1 || sessionStart[0]?.matcher !== "startup|resume|clear|compact") {
+    fail(`${rel}: must register SessionStart for startup|resume|clear|compact`);
+  }
+  const sessionStartCommands = sessionStart?.[0]?.hooks || [];
+  const expectedSessionStart = `node "\${${rootVariable}}/scripts/dirigent-stats-session-start.js"`;
+  if (!sessionStartCommands.some((hook) => hook?.type === "command" && hook.command === expectedSessionStart)) {
+    fail(`${rel}: must use provider SessionStart state script`);
+  }
+}
+if (failures === 0) ok("dirigent-stats provider parity, metadata, hooks, and accounting contract valid");
 
 // --- result ---
 if (failures > 0) {
