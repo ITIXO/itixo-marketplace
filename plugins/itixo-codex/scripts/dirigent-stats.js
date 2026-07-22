@@ -204,7 +204,7 @@ function currentReport(event, state, deadline = Infinity) {
   const sessionsDir = process.env.DIRIGENT_STATS_CODEX_SESSIONS_DIR || path.join(process.env.HOME || "", ".codex", "sessions");
   const sessionId = event.session_id || event.thread_id;
   if (typeof sessionId !== "string" || !sessionId || Date.now() > deadline) return null;
-  const transcript = state && state.transcriptPath !== null ? state.transcriptPath : resolveTranscript({ session_id: sessionId }, sessionsDir, deadline);
+  const transcript = state && state.transcriptPath !== null ? state.transcriptPath : resolveTranscript(event, sessionsDir, deadline);
   const selected = transcript && parseRollout(transcript, deadline);
   if (!selected || selected.id !== sessionId || Date.now() > deadline) return null;
   const children = new Map();
@@ -286,7 +286,9 @@ async function main() {
   let event;
   try { event = JSON.parse(await stdin()); } catch { return; }
   const sessionId = event && (event.session_id || event.thread_id);
-  if (event && event.hook_event_name === "Stop") {
+  const stop = event && (event.hook_event_name === "Stop" || event.hookEventName === "Stop"
+    || (typeof event.turn_id === "string" && !(event.prompt || event.user_prompt || event.message)));
+  if (stop) {
     if (typeof sessionId !== "string" || !sessionId) return;
     const state = sessionState(sessionId);
     const reportText = currentReport(event, state, Date.now() + Math.max(100, STOP_BUDGET_MS));
