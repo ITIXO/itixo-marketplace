@@ -8,6 +8,7 @@ const os = require("os");
 const path = require("path");
 
 const SOURCES = new Set(["startup", "resume", "clear", "compact"]);
+const OMITTED_PATH_REUSE_SOURCES = new Set(["resume", "compact"]);
 const SCHEMA = 2;
 
 function safeId(value) {
@@ -28,6 +29,12 @@ function existingState(file, sessionId) {
     const state = JSON.parse(fs.readFileSync(file, "utf8"));
     return state && (state.schema === 1 || state.schema === SCHEMA) && state.sessionId === sessionId ? state : null;
   } catch { return null; }
+}
+
+function validAnchor(state, sessionId) {
+  return Boolean(state) && (state.transcriptPath === null
+    || (typeof state.transcriptPath === "string"
+      && path.basename(path.resolve(state.transcriptPath), ".jsonl") === sessionId));
 }
 
 function atomicWrite(file, state) {
@@ -63,15 +70,19 @@ async function main() {
     fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
     const file = stateFile(stateDir, sessionId);
     const previous = existingState(file, sessionId);
-    // Resume/compact events can omit a path. Keep their original anchor rather
-    // than widening scope to an unrelated transcript lookup.
-    const transcriptPath = requestedTranscriptPath || (previous && typeof previous.transcriptPath === "string" ? previous.transcriptPath : null);
-    const cache = previous && validCache(previous.cache, sessionId, transcriptPath) ? previous.cache : undefined;
+    // Only continuity events may inherit an omitted anchor. Startup/clear must
+    // discard pre-boundary totals when Claude supplies no fresh transcript.
+    const reusePrevious = validAnchor(previous, sessionId)
+      && (requestedTranscriptPath !== null || OMITTED_PATH_REUSE_SOURCES.has(event.source));
+    const transcriptPath = requestedTranscriptPath !== null
+      ? requestedTranscriptPath
+      : reusePrevious && typeof previous.transcriptPath === "string" ? previous.transcriptPath : null;
+    const cache = reusePrevious && validCache(previous.cache, sessionId, transcriptPath) ? previous.cache : undefined;
     const state = {
       schema: SCHEMA,
       sessionId,
       transcriptPath,
-      cwd: typeof event.cwd === "string" ? event.cwd : previous?.cwd || null,
+      cwd: typeof event.cwd === "string" ? event.cwd : reusePrevious ? previous.cwd || null : null,
       source: event.source,
       ...(cache ? { cache } : {}),
     };
