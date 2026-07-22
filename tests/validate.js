@@ -212,7 +212,7 @@ const parallelContractChecks = [
   ["not report runtime-cap reductions", /\bruntime\s+capacity[\s\S]{0,100}\bdo\s+not\s+report\s+runtime-cap\s+reductions\s+or\s+shortfalls\s+to\s+(?:the\s+)?user\b/i],
 ];
 const legacyParallelContractChecks = [
-  ["four-worker directives", /\b(?:at\s+least|exactly|up\s+to)\s+four\b[\s\S]{0,100}\b(?:direct\s+)?(?:workers?|agents?|calls?)\b/i],
+  ["four-worker directives", /\b(?:launch|issue|dispatch|run|use|allow|permit|start|spawn|require|when)\b[\s\S]{0,80}\bfour\b[\s\S]{0,80}\b(?:direct\s+)?(?:workers?|agents?|calls?)\b|\bmaximum\s+parallel\s+workers?\s*:\s*four\b/i],
   ["Codex agents.max_threads >= 5", /`?agents\.max_threads\s*>=\s*5`?/i],
   ["runtime-cap shortfall reporting", /(?<!do not )\breport\s+(?:the\s+)?runtime(?:-|\s)cap(?:\s+(?:reductions?|shortfalls?))?/i],
 ];
