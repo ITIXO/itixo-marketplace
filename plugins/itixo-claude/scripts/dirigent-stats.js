@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// UserPromptSubmit hook: exact cumulative token report for an explicit stats request.
-// Deliberately fail-open: malformed or unavailable local data emits nothing.
+// UserPromptSubmit/Stop hooks: exact cumulative token report for explicit stats.
+// Stop refreshes a compact per-session cache; prompt handling normally reads it.
 "use strict";
 
 const fs = require("fs");
@@ -10,23 +10,55 @@ const path = require("path");
 
 const REQUEST = /(?:^|\s)[/$]dirigent-stats(?=$|\s|[.,!?;:])/;
 const USAGE_FIELDS = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"];
-const STATE_SCHEMA = 1;
+const STATE_SCHEMA = 2;
+const CACHE_SCHEMA = 1;
+const DEFAULT_TIMEOUT_MS = 1500;
+
+function stateDir() {
+  return process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), ".claude"), "dirigent-stats");
+}
 
 function stateFile(sessionId) {
-  const stateDir = process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), ".claude"), "dirigent-stats");
-  return path.join(stateDir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
+  const directory = stateDir();
+  return path.join(directory, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
 }
 
 function sessionState(sessionId) {
   try {
     const state = JSON.parse(fs.readFileSync(stateFile(sessionId), "utf8"));
-    return state && state.schema === STATE_SCHEMA && state.sessionId === sessionId
+    return state && (state.schema === 1 || state.schema === STATE_SCHEMA) && state.sessionId === sessionId
       && (state.transcriptPath === null || typeof state.transcriptPath === "string") ? state : null;
   } catch { return null; }
 }
 
-function unavailable() {
-  return ["<!-- itixo-dirigent-stats-report:start -->", "## Dirigent Stats", "", "Unavailable: current session stats context is missing or invalid.", "<!-- itixo-dirigent-stats-report:end -->"].join("\n");
+function validCache(cache, state, sessionId) {
+  return state && state.schema === STATE_SCHEMA && cache && cache.schema === CACHE_SCHEMA
+    && cache.sessionId === sessionId && cache.transcriptPath === state.transcriptPath
+    && typeof cache.report === "string" && cache.report.includes("<!-- itixo-dirigent-stats-report:start -->")
+    && cache.report.includes("## Dirigent Stats") && cache.report.includes("### Agents")
+    && cache.report.includes("### Models") && cache.report.includes("<!-- itixo-dirigent-stats-report:end -->");
+}
+
+function timeoutMs() {
+  const value = Number(process.env.DIRIGENT_STATS_TIMEOUT_MS);
+  return Number.isFinite(value) ? Math.max(100, Math.min(Math.floor(value), 5000)) : DEFAULT_TIMEOUT_MS;
+}
+
+function expired(deadline) {
+  return Date.now() > deadline;
+}
+
+function atomicStateWrite(file, state) {
+  const directory = path.dirname(file);
+  const temporary = path.join(directory, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`);
+  try {
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
+    fs.renameSync(temporary, file);
+    fs.chmodSync(file, 0o600);
+  } finally {
+    try { fs.unlinkSync(temporary); } catch { /* Renamed or never created. */ }
+  }
 }
 
 function readJsonLines(file) {
@@ -38,9 +70,10 @@ function readJsonLines(file) {
   } catch { return []; }
 }
 
-function walkJsonl(dir) {
+function walkJsonl(dir, deadline) {
   const files = [];
   const visit = (current) => {
+    if (expired(deadline)) return;
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const candidate = path.join(current, entry.name);
       if (entry.isDirectory()) visit(candidate);
@@ -66,7 +99,7 @@ function validTranscriptSession(records, sessionId) {
   return present;
 }
 
-function sessionFiles(transcript, rootSessionId) {
+function sessionFiles(transcript, rootSessionId, deadline) {
   const root = path.resolve(transcript);
   if (path.basename(root, ".jsonl") !== rootSessionId) return [];
   const rootRecords = readJsonLines(root);
@@ -74,7 +107,7 @@ function sessionFiles(transcript, rootSessionId) {
 
   // Claude stores descendants only below <project>/<root-session>/subagents/.
   // Do not scan sibling root sessions, choose newest files, or infer a parent from mtime.
-  const descendants = walkJsonl(path.join(path.dirname(root), rootSessionId, "subagents"));
+  const descendants = walkJsonl(path.join(path.dirname(root), rootSessionId, "subagents"), deadline);
   return [root, ...descendants.filter((file) => {
     const records = readJsonLines(file);
     const sessionId = records.map(recordSessionId).find((id) => typeof id === "string" && id);
@@ -82,9 +115,10 @@ function sessionFiles(transcript, rootSessionId) {
   })].sort();
 }
 
-function findExactTranscript(projectsDir, sessionId) {
+function findExactTranscript(projectsDir, sessionId, deadline) {
   const matches = [];
   const visit = (current) => {
+    if (expired(deadline)) return;
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const candidate = path.join(current, entry.name);
       if (entry.isDirectory()) visit(candidate);
@@ -159,76 +193,103 @@ function markdown(rows, total) {
   ].join("\n");
 }
 
+function noDataReport() {
+  return markdown({ agents: new Map(), models: new Map(), warnings: ["No exact assistant usage records were available."] }, 0);
+}
+
+function transcriptFor(state, projects, sessionId, deadline) {
+  return state && state.transcriptPath === null ? findExactTranscript(projects, sessionId, deadline) : state && state.transcriptPath;
+}
+
+function buildReport(state, sessionId, deadline) {
+  if (!state || expired(deadline)) return noDataReport();
+  const projects = process.env.DIRIGENT_STATS_CLAUDE_PROJECTS_DIR || path.join(os.homedir(), ".claude", "projects");
+  const transcript = transcriptFor(state, projects, sessionId, deadline);
+  if (!transcript || !fs.existsSync(transcript) || expired(deadline)) return noDataReport();
+  const files = sessionFiles(transcript, sessionId, deadline);
+  if (!files.length || expired(deadline)) return noDataReport();
+
+  const warnings = [];
+  const entries = [];
+  for (const file of files) {
+    if (expired(deadline)) return noDataReport();
+    const records = readJsonLines(file);
+    const transcriptAgentId = records.map(agentId).find(Boolean);
+    const latestByMessageId = new Map();
+    for (const record of records) {
+      if (expired(deadline)) return noDataReport();
+      if (record.type !== "assistant" || !record.message || typeof record.message !== "object" || isDisplaySummary(record)) continue;
+      const usage = exactUsage(record);
+      if (usage === null) { warnings.push("Some assistant usage records were unavailable and excluded."); continue; }
+      const messageId = record.message.id;
+      if (typeof messageId !== "string" || !messageId) {
+        warnings.push("Some assistant usage records lacked stable message IDs and were excluded.");
+        continue;
+      }
+      latestByMessageId.set(messageId, { file, id: agentId(record) || transcriptAgentId, model: modelName(record), tokens: usage });
+    }
+    entries.push(...latestByMessageId.values());
+  }
+  if (!entries.length) warnings.push("No exact assistant usage records were available.");
+
+  const childIds = new Set(entries.map((entry) => entry.id).filter(Boolean));
+  const ledgerDir = process.env.DIRIGENT_STATS_CLAUDE_LEDGER_DIR || os.tmpdir();
+  const identities = ledgerIdentity(path.join(ledgerDir, `itixo-delegation-${sessionId}.jsonl`), childIds);
+  const rows = { agents: new Map(), models: new Map(), warnings: [...new Set(warnings)] };
+  const rootFile = path.resolve(transcript);
+  for (const entry of entries) {
+    const child = path.resolve(entry.file) !== rootFile;
+    const role = child && entry.id && identities.get(entry.id) ? identities.get(entry.id) : child ? "unknown" : "orchestrator";
+    if (child && role === "unknown") rows.warnings.push("One or more child transcript identities were unavailable and shown as unknown.");
+    if (!rows.agents.has(role)) rows.agents.set(role, { role, models: new Set(), runs: new Set(), tokens: 0 });
+    const agent = rows.agents.get(role);
+    agent.models.add(entry.model); agent.runs.add(entry.file); agent.tokens += entry.tokens;
+    if (!rows.models.has(entry.model)) rows.models.set(entry.model, { model: entry.model, runs: new Set(), tokens: 0 });
+    const model = rows.models.get(entry.model);
+    model.runs.add(entry.file); model.tokens += entry.tokens;
+  }
+  rows.warnings = [...new Set(rows.warnings)];
+  return markdown(rows, [...rows.agents.values()].reduce((sum, row) => sum + row.tokens, 0));
+}
+
+function cacheReport(state, sessionId, report) {
+  if (!state) return;
+  const next = {
+    schema: STATE_SCHEMA,
+    sessionId,
+    transcriptPath: state.transcriptPath,
+    cwd: typeof state.cwd === "string" ? state.cwd : null,
+    source: typeof state.source === "string" ? state.source : "unknown",
+    cache: { schema: CACHE_SCHEMA, sessionId, transcriptPath: state.transcriptPath, report, createdAt: new Date().toISOString() },
+  };
+  atomicStateWrite(stateFile(sessionId), next);
+}
+
 let input = "";
 process.stdin.on("data", (chunk) => { input += chunk; });
 process.stdin.on("end", () => {
   try {
     const event = JSON.parse(input);
-    const prompt = typeof event.prompt === "string" ? event.prompt : typeof event.user_prompt === "string" ? event.user_prompt : "";
-    if (!REQUEST.test(prompt)) return;
+    const stop = process.argv.includes("--cache");
     const sessionId = event.session_id;
     if (typeof sessionId !== "string" || !sessionId) return;
     const state = sessionState(sessionId);
-    if (!state) {
-      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }) + "\n");
+    const deadline = Date.now() + timeoutMs();
+    if (stop) {
+      // Stop has no user-facing output. A timeout or malformed transcript still
+      // writes a deterministic no-data cache and never blocks session shutdown.
+      cacheReport(state, sessionId, buildReport(state, sessionId, deadline));
       return;
     }
-    const projects = process.env.DIRIGENT_STATS_CLAUDE_PROJECTS_DIR || path.join(os.homedir(), ".claude", "projects");
-    // State transcript is report anchor. Only a SessionStart with no path may use
-    // the exact same-session lookup; event paths must never change report scope.
-    const transcript = state.transcriptPath === null ? findExactTranscript(projects, sessionId) : state.transcriptPath;
-    if (!transcript || !fs.existsSync(transcript)) {
-      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }) + "\n");
-      return;
-    }
-
-    const files = sessionFiles(transcript, sessionId);
-    if (!files.length) {
-      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }) + "\n");
-      return;
-    }
-    const warnings = [];
-    const entries = [];
-    for (const file of files) {
-      const records = readJsonLines(file);
-      const transcriptAgentId = records.map(agentId).find(Boolean);
-      const latestByMessageId = new Map();
-      for (const record of records) {
-        if (record.type !== "assistant" || !record.message || typeof record.message !== "object" || isDisplaySummary(record)) continue;
-        const usage = exactUsage(record);
-        if (usage === null) { warnings.push("Some assistant usage records were unavailable and excluded."); continue; }
-        const messageId = record.message.id;
-        if (typeof messageId !== "string" || !messageId) {
-          warnings.push("Some assistant usage records lacked stable message IDs and were excluded.");
-          continue;
-        }
-        // Claude streams repeat one message ID with cumulative input/cache and evolving
-        // output. The final complete usage snapshot replaces earlier chunks.
-        latestByMessageId.set(messageId, { file, id: agentId(record) || transcriptAgentId, model: modelName(record), tokens: usage });
-      }
-      entries.push(...latestByMessageId.values());
-    }
-    if (!entries.length) warnings.push("No exact assistant usage records were available.");
-
-    const childIds = new Set(entries.map((entry) => entry.id).filter(Boolean));
-    const ledgerDir = process.env.DIRIGENT_STATS_CLAUDE_LEDGER_DIR || os.tmpdir();
-    const identities = ledgerIdentity(path.join(ledgerDir, `itixo-delegation-${sessionId}.jsonl`), childIds);
-    const rows = { agents: new Map(), models: new Map(), warnings: [...new Set(warnings)] };
-    const rootFile = path.resolve(transcript);
-    for (const entry of entries) {
-      const child = path.resolve(entry.file) !== rootFile;
-      const role = child && entry.id && identities.get(entry.id) ? identities.get(entry.id) : child ? "unknown" : "orchestrator";
-      if (child && role === "unknown") rows.warnings.push("One or more child transcript identities were unavailable and shown as unknown.");
-      if (!rows.agents.has(role)) rows.agents.set(role, { role, models: new Set(), runs: new Set(), tokens: 0 });
-      const agent = rows.agents.get(role);
-      agent.models.add(entry.model); agent.runs.add(entry.file); agent.tokens += entry.tokens;
-      if (!rows.models.has(entry.model)) rows.models.set(entry.model, { model: entry.model, runs: new Set(), tokens: 0 });
-      const model = rows.models.get(entry.model);
-      model.runs.add(entry.file); model.tokens += entry.tokens;
-    }
-    rows.warnings = [...new Set(rows.warnings)];
-    const total = [...rows.agents.values()].reduce((sum, row) => sum + row.tokens, 0);
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: markdown(rows, total) } }) + "\n");
+    const prompt = typeof event.prompt === "string" ? event.prompt : typeof event.user_prompt === "string" ? event.user_prompt : "";
+    if (!REQUEST.test(prompt)) return;
+    const report = validCache(state && state.cache, state, sessionId)
+      ? state.cache.report
+      : buildReport(state, sessionId, deadline);
+    // Legacy, missing, and corrupt cache recover once from anchored data. Keep
+    // prompt response deterministic even when no completed transcript exists.
+    if (!validCache(state && state.cache, state, sessionId)) cacheReport(state, sessionId, report);
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: report } }) + "\n");
   } catch {
     // Never block prompt submission.
   }
