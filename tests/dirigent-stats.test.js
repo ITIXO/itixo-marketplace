@@ -528,7 +528,14 @@ test("Codex rejects malformed tagged cached reports instead of emitting them", (
       transcriptPath: transcript,
       cwd: "/tmp",
       source: "startup",
-      cache: { sessionId: "root-rollout", transcriptPath: transcript, report: malformed, turnId: "stale-turn" },
+      cache: {
+        schema: 1,
+        sessionId: "root-rollout",
+        transcriptPath: transcript,
+        report: malformed,
+        updatedAt: 1_750_000_000_000,
+        turnId: "stale-turn",
+      },
     }));
     const recovered = context(run(script, { prompt: "$dirigent-stats", session_id: "root-rollout" }, {
       DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir,
