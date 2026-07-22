@@ -31,6 +31,34 @@ function sessionState(sessionId) {
   } catch { return null; }
 }
 
+function eventState(event, sessionId) {
+  const transcriptPath = typeof event.transcript_path === "string" && event.transcript_path
+    ? path.resolve(event.transcript_path)
+    : null;
+  return {
+    schema: STATE_SCHEMA,
+    sessionId,
+    transcriptPath,
+    cwd: typeof event.cwd === "string" ? event.cwd : null,
+    source: "stop",
+  };
+}
+
+function legacyAnchorUsable(state, sessionId) {
+  if (!state || state.schema !== 1 || typeof state.transcriptPath !== "string") return false;
+  const transcript = path.resolve(state.transcriptPath);
+  return path.basename(transcript, ".jsonl") === sessionId
+    && validTranscriptSession(readJsonLines(transcript), sessionId);
+}
+
+function stopState(state, event, sessionId) {
+  if (state && state.schema === STATE_SCHEMA) return state;
+  if (legacyAnchorUsable(state, sessionId)) return state;
+  // Stop payload belongs to this hook's session. Transcript validation later
+  // prevents an event path from widening scope to another session.
+  return eventState(event, sessionId);
+}
+
 function validCache(cache, state, sessionId) {
   return state && state.schema === STATE_SCHEMA && cache && cache.schema === CACHE_SCHEMA
     && cache.sessionId === sessionId && cache.transcriptPath === state.transcriptPath
@@ -278,7 +306,8 @@ process.stdin.on("end", () => {
     if (stop) {
       // Stop has no user-facing output. A timeout or malformed transcript still
       // writes a deterministic no-data cache and never blocks session shutdown.
-      cacheReport(state, sessionId, buildReport(state, sessionId, deadline));
+      const anchor = stopState(state, event, sessionId);
+      cacheReport(anchor, sessionId, buildReport(anchor, sessionId, deadline));
       return;
     }
     const prompt = typeof event.prompt === "string" ? event.prompt : typeof event.user_prompt === "string" ? event.user_prompt : "";
