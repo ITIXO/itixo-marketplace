@@ -224,3 +224,18 @@ test("validation workflow runs required checks for PR and manual dispatch", () =
   assert.match(workflow, /\.wiki\.git/);
   assert.match(workflow, /node scripts\/validate-plugin-changes\.js --base/);
 });
+
+test("validation workflow authenticates the Wiki clone without persisting credentials", () => {
+  const workflow = fs.readFileSync(path.join(ROOT, ".github/workflows/validate-plugins.yml"), "utf8");
+
+  assert.match(workflow, /GITHUB_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/);
+  assert.match(workflow, /x-access-token/);
+  assert.match(workflow, /AUTHORIZATION:\s*basic/i);
+  assert.match(workflow, /::add-mask::/);
+  assert.match(workflow, /fs\.writeFileSync\([\s\S]*?\{\s*mode:\s*0o600\s*\}/);
+  assert.match(workflow, /fs\.chmodSync\(\s*authConfig\s*,\s*0o600\s*\)/);
+  assert.match(workflow, /trap\s+['"][^'"]*(?:rm|unset)[^'"]*['"]/i);
+  assert.match(workflow, /git(?:\s+-c)?[^\n]*include\.path/);
+  assert.doesNotMatch(workflow, /https:\/\/x-access-token:\s*\$\{\{?\s*(?:env\.)?GITHUB_TOKEN\s*\}?\}@github\.com/i);
+  assert.doesNotMatch(workflow, /git config(?:\s+--global)?\s+http\.[^\s]+\.extraheader=\s*(?:#.*)?$/im);
+});
