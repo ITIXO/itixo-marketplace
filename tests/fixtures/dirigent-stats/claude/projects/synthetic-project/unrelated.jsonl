@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"unrelated-run","agentId":"unrelated-agent","message":{"role":"user","content":"Synthetic unrelated request"}}
+{"type":"assistant","sessionId":"unrelated-run","agentId":"unrelated-agent","message":{"id":"unrelated-message","model":"unrelated-model","usage":{"input_tokens":900,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":99}}}

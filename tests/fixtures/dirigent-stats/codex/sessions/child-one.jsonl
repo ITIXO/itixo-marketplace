@@ -1,0 +1,3 @@
+{"type":"session_meta","payload":{"id":"child-one","parent_thread_id":"root-rollout","agent_role":"builder"}}
+{"type":"turn_context","payload":{"turn_id":"child-one-turn","model":"worker-model-a"}}
+{"type":"response_item","payload":{"info":{"total_token_usage":{"total_tokens":20},"last_token_usage":{"total_tokens":20}}}}
