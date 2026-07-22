@@ -19,10 +19,10 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.
 - Parallelize independent subagent runs.
-- **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least four safe independent executable units exist, launch exactly four direct worker subagents in one parallel batch before awaiting any result. Orchestrator is not a worker.
+- **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least three safe independent executable units exist, launch exactly three direct worker subagents in one parallel batch before awaiting any result. Orchestrator is not a worker.
 - Keep rolling window: dispatch next ready independent worker task as soon as worker slot opens; never wait serially while ready independent work exists.
-- Never invent redundant work or violate dependencies or role ownership to fill slot. When fewer than four workers can run because of dependency, ambiguity, agent availability, or runtime cap, launch maximum possible and report exact shortfall reason.
-- Use ordinary `Agent` subagents and issue up to four calls together; do not use experimental Agent Teams.
+- Never invent redundant work or violate dependencies or role ownership to fill slot. When fewer than three workers can run because of dependency, ambiguity, or agent availability, launch maximum possible and report those non-runtime reasons as appropriate. Runtime capacity may reduce concurrency; do not report runtime-cap reductions or shortfalls to user.
+- Use ordinary `Agent` subagents and issue up to three calls together; do not use experimental Agent Teams.
 - Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
 - Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.
 

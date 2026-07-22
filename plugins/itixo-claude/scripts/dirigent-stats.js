@@ -4,11 +4,30 @@
 "use strict";
 
 const fs = require("fs");
+const crypto = require("crypto");
 const os = require("os");
 const path = require("path");
 
 const REQUEST = /(?:^|\s)[/$]dirigent-stats(?=$|\s|[.,!?;:])/;
 const USAGE_FIELDS = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"];
+const STATE_SCHEMA = 1;
+
+function stateFile(sessionId) {
+  const stateDir = process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), ".claude"), "dirigent-stats");
+  return path.join(stateDir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
+}
+
+function sessionState(sessionId) {
+  try {
+    const state = JSON.parse(fs.readFileSync(stateFile(sessionId), "utf8"));
+    return state && state.schema === STATE_SCHEMA && state.sessionId === sessionId
+      && (state.transcriptPath === null || typeof state.transcriptPath === "string") ? state : null;
+  } catch { return null; }
+}
+
+function unavailable() {
+  return ["<!-- itixo-dirigent-stats-report:start -->", "## Dirigent Stats", "", "Unavailable: current session stats context is missing or invalid.", "<!-- itixo-dirigent-stats-report:end -->"].join("\n");
+}
 
 function readJsonLines(file) {
   try {
@@ -149,14 +168,25 @@ process.stdin.on("end", () => {
     if (!REQUEST.test(prompt)) return;
     const sessionId = event.session_id;
     if (typeof sessionId !== "string" || !sessionId) return;
+    const state = sessionState(sessionId);
+    if (!state) {
+      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }) + "\n");
+      return;
+    }
     const projects = process.env.DIRIGENT_STATS_CLAUDE_PROJECTS_DIR || path.join(os.homedir(), ".claude", "projects");
-    const transcript = typeof event.transcript_path === "string" && event.transcript_path
-      ? event.transcript_path
-      : findExactTranscript(projects, sessionId);
-    if (!transcript || !fs.existsSync(transcript)) return;
+    // State transcript is report anchor. Only a SessionStart with no path may use
+    // the exact same-session lookup; event paths must never change report scope.
+    const transcript = state.transcriptPath === null ? findExactTranscript(projects, sessionId) : state.transcriptPath;
+    if (!transcript || !fs.existsSync(transcript)) {
+      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }) + "\n");
+      return;
+    }
 
     const files = sessionFiles(transcript, sessionId);
-    if (!files.length) return;
+    if (!files.length) {
+      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: unavailable() } }) + "\n");
+      return;
+    }
     const warnings = [];
     const entries = [];
     for (const file of files) {

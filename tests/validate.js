@@ -202,13 +202,19 @@ const parallelContractFiles = [
 ];
 const parallelContractChecks = [
   ["decompose upfront", /\bdecompose\s+upfront\b/i],
-  ["require four safe units", /\bat\s+least\s+four\b[\s\S]{0,100}\bsafe\s+independent\s+executable\s+units\b/i],
-  ["launch four direct workers before awaiting", /\b(?:launch|issue)\s+exactly\s+four\s+direct[\s\S]{0,100}\bbefore\s+awaiting\s+any\s+result\b/i],
+  ["require three safe units", /\bat\s+least\s+three\b[\s\S]{0,100}\bsafe\s+independent\s+executable\s+units\b/i],
+  ["launch three direct workers before awaiting", /\b(?:launch|issue)\s+exactly\s+three\s+direct[\s\S]{0,100}\bbefore\s+awaiting\s+any\s+result\b/i],
   ["exclude orchestrator from worker count", /\borchestrator\s+is\s+not\s+a\s+worker\b/i],
   ["keep rolling window full", /\brolling\s+window\b[\s\S]{0,180}\b(?:as\s+(?:a\s+)?(?:worker\s+)?slot\s+opens|as\s+a\s+slot\s+opens)\b/i],
   ["forbid serial waits with ready work", /\bnever\s+wait\s+serially\s+while\s+ready\s+independent\s+work\s+exists\b/i],
   ["forbid redundant slot filling", /\bnever\s+invent\s+redundant\s+work\s+or\s+violate\s+dependencies\s+or\s+role\s+ownership\s+to\s+fill\s+(?:a\s+)?slot\b/i],
-  ["report exact shortfall", /\bfewer\s+than\s+four[\s\S]{0,240}\bdependency\s*,\s*ambiguity\s*,\s*agent\s+availability\s*,\s*or\s+runtime\s+cap\b[\s\S]{0,160}\breport\s+(?:the\s+)?exact\s+shortfall\s+reason\b/i],
+  ["report only non-runtime shortfalls", /\bfewer\s+than\s+three[\s\S]{0,240}\bdependency\s*,\s*ambiguity\s*,\s*or\s+agent\s+availability\b[\s\S]{0,160}\breport\s+(?:those\s+)?non-runtime\s+reasons\b/i],
+  ["not report runtime-cap reductions", /\bruntime\s+capacity[\s\S]{0,100}\bdo\s+not\s+report\s+runtime-cap\s+reductions\s+or\s+shortfalls\s+to\s+(?:the\s+)?user\b/i],
+];
+const legacyParallelContractChecks = [
+  ["four-worker directives", /\b(?:launch|issue|dispatch|run|use|allow|permit|start|spawn|require|when)\b[\s\S]{0,80}\bfour\b[\s\S]{0,80}\b(?:direct\s+)?(?:workers?|agents?|calls?)\b|\bmaximum\s+parallel\s+workers?\s*:\s*four\b/i],
+  ["Codex agents.max_threads >= 5", /`?agents\.max_threads\s*>=\s*5`?/i],
+  ["runtime-cap shortfall reporting", /(?<!do not )\breport\s+(?:the\s+)?runtime(?:-|\s)cap(?:\s+(?:reductions?|shortfalls?))?/i],
 ];
 for (const rel of parallelContractFiles) {
   const p = path.join(ROOT, rel);
@@ -219,6 +225,9 @@ for (const rel of parallelContractFiles) {
   const text = fs.readFileSync(p, "utf8");
   for (const [message, pattern] of parallelContractChecks) {
     if (!pattern.test(text)) fail(`${rel}: parallel-worker contract must ${message}`);
+  }
+  for (const [legacy, pattern] of legacyParallelContractChecks) {
+    if (pattern.test(text)) fail(`${rel}: must not retain ${legacy}`);
   }
 }
 const providerParallelContracts = [
@@ -231,7 +240,7 @@ const providerParallelContracts = [
     ],
     checks: [
       ["use ordinary Agent subagents", /\bordinary\s+`?agent`?\s+subagents\b/i],
-      ["issue up to four calls together", /\b(?:issue\s+)?up\s+to\s+four\s+calls\s+together\b/i],
+      ["issue up to three ordinary Agent calls together", /\b(?:issue\s+)?up\s+to\s+three\s+calls\s+together\b/i],
       ["forbid experimental Agent Teams", /\bdo\s+not\s+use\s+experimental\s+agent\s+teams\b/i],
     ],
   },
@@ -243,7 +252,7 @@ const providerParallelContracts = [
       "plugins/itixo-codex/skills/dirigent/SKILL.md",
     ],
     checks: [
-      ["require agents.max_threads >= 5", /`?agents\.max_threads\s*>=\s*5`?/i],
+      ["require agents.max_threads >= 4", /`?agents\.max_threads\s*>=\s*4`?/i],
       ["recommend agents.max_depth = 1", /\brecommend\s+`?agents\.max_depth\s*=\s*1`?/i],
       ["state that skill cannot raise runtime cap", /\b(?:a|this)\s+skill\s+cannot\s+raise\s+a\s+runtime\s+cap\b/i],
     ],
@@ -637,14 +646,14 @@ if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claud
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  if (manifest && manifest.version !== "0.2.4") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.4'`);
+  if (manifest && manifest.version !== "0.2.5") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.5'`);
 }
 
 const claudeHooksRel = "plugins/itixo-claude/hooks/hooks.json";
 const codexHooksRel = "plugins/itixo-codex/hooks/hooks.json";
-for (const [rel, preservedEvents] of [
-  [claudeHooksRel, ["PreToolUse", "PostToolUse", "Stop"]],
-  [codexHooksRel, ["SubagentStart"]],
+for (const [rel, rootVariable, preservedEvents] of [
+  [claudeHooksRel, "CLAUDE_PLUGIN_ROOT", ["PreToolUse", "PostToolUse", "Stop"]],
+  [codexHooksRel, "PLUGIN_ROOT", ["SubagentStart"]],
 ]) {
   const hooks = readJson(rel);
   if (!hooks?.hooks || typeof hooks.hooks !== "object") continue;
@@ -658,6 +667,15 @@ for (const [rel, preservedEvents] of [
     : []);
   if (!commands.some((command) => typeof command === "string" && command.includes("dirigent-stats"))) {
     fail(`${rel}: must add a dirigent-stats command without removing existing hooks`);
+  }
+  const sessionStart = hooks.hooks.SessionStart;
+  if (!Array.isArray(sessionStart) || sessionStart.length !== 1 || sessionStart[0]?.matcher !== "startup|resume|clear|compact") {
+    fail(`${rel}: must register SessionStart for startup|resume|clear|compact`);
+  }
+  const sessionStartCommands = sessionStart?.[0]?.hooks || [];
+  const expectedSessionStart = `node "\${${rootVariable}}/scripts/dirigent-stats-session-start.js"`;
+  if (!sessionStartCommands.some((hook) => hook?.type === "command" && hook.command === expectedSessionStart)) {
+    fail(`${rel}: must use provider SessionStart state script`);
   }
 }
 if (failures === 0) ok("dirigent-stats provider parity, metadata, hooks, and accounting contract valid");
