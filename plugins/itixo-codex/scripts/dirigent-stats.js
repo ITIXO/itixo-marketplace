@@ -113,7 +113,13 @@ function parseRollout(file) {
         }
       } else if (delta < 0) {
         models.clear();
+        if (latest === cumulative && turn) {
+          models.set(turn.model, cumulative);
+        } else if (latest === cumulative && !turn) {
+          warnings.add("A token event has no matching turn; model usage is unavailable.");
+        }
         warnings.add("Cumulative token usage reset; pre-reset model attribution is unavailable.");
+        warnings.add("Partial report: pre-reset epoch is not represented by latest total.");
       }
       previousCumulative = cumulative;
     } else if (latest !== null) {

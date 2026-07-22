@@ -140,8 +140,8 @@ test("Codex warns when cumulative usage resets", () => {
   assert.equal(result.stderr, "");
   const output = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
   assert.match(output, /Cumulative token usage reset; pre-reset model attribution is unavailable/);
-  assert.match(output, /\| post-reset-model \| 1 \| 7 \| 58\.3% \|/);
-  assert.match(output, /\| unknown \| 1 \| 5 \| 41\.7% \|/);
+  assert.match(output, /\| post-reset-model \| 1 \| 12 \| 100\.0% \|/);
+  assert.doesNotMatch(output, /\| unknown \||Unmatched exact token remainder/);
   assert.doesNotMatch(output, /\| pre-reset-model \|/);
 });
 
