@@ -2,4 +2,4 @@
 {"type":"turn_context","payload":{"turn_id":"incremental-turn","model":"incremental-model"}}
 {"type":"response_item","payload":{"info":{"total_token_usage":{"total_tokens":10},"last_token_usage":{"total_tokens":10}}}}
 {"type":"response_item","payload":{"info":{"total_token_usage":{"total_tokens":30},"last_token_usage":{"total_tokens":20}}}}
-{"type":"response_item","payload":{"info":{"total_token_usage":{"total_tokens":30},"last_token_usage":{"total_tokens":20}}}}
+{"type":"response_item","payload":{"info":{"total_token_usage":{"total_tokens":30},"last_token_usage":{"total_tokens":777}}}}

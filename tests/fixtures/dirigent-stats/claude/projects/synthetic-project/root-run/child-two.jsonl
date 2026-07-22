@@ -1,3 +1,0 @@
-{"type":"session_meta","session_id":"child-two","parent_session_id":"child-one"}
-{"type":"assistant","session_id":"child-two","agent_id":"synthetic-builder-b","message":{"model":"worker-model-b","usage":{"input_tokens":6,"cache_creation_input_tokens":0,"cache_read_input_tokens":2,"output_tokens":2}}}
-{"type":"assistant","session_id":"child-two","agent_id":"synthetic-builder-b","message":{"model":"worker-model-b"}}

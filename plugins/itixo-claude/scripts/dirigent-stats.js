@@ -32,29 +32,35 @@ function walkJsonl(dir) {
   return files.sort();
 }
 
+function recordSessionId(record) {
+  return record.sessionId || record.session_id;
+}
+
+function validTranscriptSession(records, sessionId) {
+  let present = false;
+  for (const record of records) {
+    const actual = recordSessionId(record);
+    if (actual === undefined) continue;
+    if (actual !== sessionId) return false;
+    present = true;
+  }
+  return present;
+}
+
 function sessionFiles(transcript, rootSessionId) {
   const root = path.resolve(transcript);
-  const candidates = walkJsonl(path.dirname(root));
-  const sessions = new Map();
-  for (const file of candidates) {
-    const meta = readJsonLines(file).find((record) => record.type === "session_meta") || {};
-    const id = meta.session_id || meta.sessionId;
-    if (typeof id === "string" && id) sessions.set(id, { file, parent: meta.parent_session_id || meta.parentSessionId });
-  }
-  const selected = new Set([root]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const [id, session] of sessions) {
-      if (id !== rootSessionId && selected.has(session.file)) continue;
-      const parentIsRoot = session.parent === rootSessionId;
-      const parent = sessions.get(session.parent);
-      if (parentIsRoot || (parent && selected.has(parent.file))) {
-        if (!selected.has(session.file)) { selected.add(session.file); changed = true; }
-      }
-    }
-  }
-  return [...selected].sort();
+  if (path.basename(root, ".jsonl") !== rootSessionId) return [];
+  const rootRecords = readJsonLines(root);
+  if (!validTranscriptSession(rootRecords, rootSessionId)) return [];
+
+  // Claude stores descendants only below <project>/<root-session>/subagents/.
+  // Do not scan sibling root sessions, choose newest files, or infer a parent from mtime.
+  const descendants = walkJsonl(path.join(path.dirname(root), rootSessionId, "subagents"));
+  return [root, ...descendants.filter((file) => {
+    const records = readJsonLines(file);
+    const sessionId = records.map(recordSessionId).find((id) => typeof id === "string" && id);
+    return typeof sessionId === "string" && validTranscriptSession(records, sessionId);
+  })].sort();
 }
 
 function findExactTranscript(projectsDir, sessionId) {
@@ -156,12 +162,21 @@ process.stdin.on("end", () => {
     for (const file of files) {
       const records = readJsonLines(file);
       const transcriptAgentId = records.map(agentId).find(Boolean);
+      const latestByMessageId = new Map();
       for (const record of records) {
         if (record.type !== "assistant" || !record.message || typeof record.message !== "object" || isDisplaySummary(record)) continue;
         const usage = exactUsage(record);
         if (usage === null) { warnings.push("Some assistant usage records were unavailable and excluded."); continue; }
-        entries.push({ file, id: agentId(record) || transcriptAgentId, model: modelName(record), tokens: usage });
+        const messageId = record.message.id;
+        if (typeof messageId !== "string" || !messageId) {
+          warnings.push("Some assistant usage records lacked stable message IDs and were excluded.");
+          continue;
+        }
+        // Claude streams repeat one message ID with cumulative input/cache and evolving
+        // output. The final complete usage snapshot replaces earlier chunks.
+        latestByMessageId.set(messageId, { file, id: agentId(record) || transcriptAgentId, model: modelName(record), tokens: usage });
       }
+      entries.push(...latestByMessageId.values());
     }
     if (!entries.length) warnings.push("No exact assistant usage records were available.");
 

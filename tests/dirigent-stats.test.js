@@ -72,7 +72,8 @@ test("Claude report aggregates recursive descendants without leaking unrelated d
   assert.match(output, /\| worker-model-c \| 1 \| 5 \| 11\.1% \|/);
   assert.match(output, /Warning: One or more child transcript identities were unavailable/);
   assert.match(output, /Warning: Some assistant usage records were unavailable/);
-  assert.doesNotMatch(output, /unrelated-model|999|100 \|/);
+  assert.match(output, /Warning: Some assistant usage records lacked stable message IDs/);
+  assert.doesNotMatch(output, /unrelated-model|999|100 \||77 \|/);
   assert.doesNotMatch(output, /\| root-model \| 2 \| 120 \|/);
 });
 
@@ -98,12 +99,12 @@ test("Codex report follows recursive parent_thread_id and final usage snapshots"
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, "");
   const output = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
-  assert.match(output, /\| orchestrator \| root-model, unknown \| 1 \| 30 \| 46\.2% \|/);
-  assert.match(output, /\| builder \| unknown, worker-model-a, worker-model-b \| 2 \| 35 \| 53\.8% \|/);
-  assert.match(output, /\| root-model \| 1 \| 25 \| 38\.5% \|/);
+  assert.match(output, /\| orchestrator \| root-model \| 1 \| 30 \| 46\.2% \|/);
+  assert.match(output, /\| builder \| worker-model-a, worker-model-b \| 2 \| 35 \| 53\.8% \|/);
+  assert.match(output, /\| root-model \| 1 \| 30 \| 46\.2% \|/);
   assert.match(output, /\| worker-model-a \| 1 \| 20 \| 30\.8% \|/);
-  assert.match(output, /\| worker-model-b \| 1 \| 10 \| 15\.4% \|/);
-  assert.match(output, /\| unknown \| 2 \| 10 \| 15\.4% \|/);
+  assert.match(output, /\| worker-model-b \| 1 \| 15 \| 23\.1% \|/);
+  assert.doesNotMatch(output, /\| unknown \||Unmatched exact token remainder/);
   assert.match(output, /Partial report: usage unavailable/);
   assert.doesNotMatch(output, /unrelated-model|999/);
 });
@@ -123,7 +124,25 @@ test("Codex sums distinct incremental usage events within one turn", () => {
   assert.match(output, /\| orchestrator \| incremental-model \| 1 \| 30 \| 100\.0% \|/);
   assert.match(output, /\| incremental-model \| 1 \| 30 \| 100\.0% \|/);
   assert.match(output, /Exact known total: 30 tokens\./);
-  assert.doesNotMatch(output, /\| unknown \||Unmatched exact token remainder/);
+  assert.doesNotMatch(output, /\| unknown \||Unmatched exact token remainder|777/);
+});
+
+test("Codex warns when cumulative usage resets", () => {
+  const sessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  const result = spawnSync(process.execPath, [script], {
+    encoding: "utf8",
+    input: JSON.stringify({ prompt: "/dirigent-stats", transcript_path: path.join(sessions, "reset.jsonl") }),
+    env: { ...process.env, DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  const output = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  assert.match(output, /Cumulative token usage reset; pre-reset model attribution is unavailable/);
+  assert.match(output, /\| post-reset-model \| 1 \| 7 \| 58\.3% \|/);
+  assert.match(output, /\| unknown \| 1 \| 5 \| 41\.7% \|/);
+  assert.doesNotMatch(output, /\| pre-reset-model \|/);
 });
 
 test("Codex stats hook fails open for non-trigger and malformed input", () => {

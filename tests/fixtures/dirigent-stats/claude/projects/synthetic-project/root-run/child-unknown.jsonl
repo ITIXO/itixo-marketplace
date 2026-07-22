@@ -1,2 +1,0 @@
-{"type":"session_meta","session_id":"child-unknown","parent_session_id":"root-run"}
-{"type":"assistant","session_id":"child-unknown","agent_id":"synthetic-unknown","message":{"model":"worker-model-c","usage":{"input_tokens":3,"cache_creation_input_tokens":0,"cache_read_input_tokens":1,"output_tokens":1}}}

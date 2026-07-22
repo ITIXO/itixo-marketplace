@@ -78,9 +78,10 @@ function parseRollout(file) {
   if (!id) return null;
   const session = metadata.payload || {};
   const turns = new Map();
-  const usageEvents = new Map();
+  const models = new Map();
   const warnings = new Set();
   let activeTurn = null;
+  let previousCumulative = 0;
   let total = null;
 
   items.forEach((item) => {
@@ -98,27 +99,28 @@ function parseRollout(file) {
       }
     }
     const cumulative = numeric(at(payload, ["info", "total_token_usage", "total_tokens"]));
-    if (cumulative !== null) total = cumulative;
     const latest = numeric(at(payload, ["info", "last_token_usage", "total_tokens"]));
-    if (latest !== null) {
+    if (cumulative !== null) {
+      total = cumulative;
+      const delta = cumulative - previousCumulative;
       const turnId = payload.turn_id || at(payload, ["info", "turn_id"]) || item.turn_id || activeTurn;
       const turn = typeof turnId === "string" ? turns.get(turnId) : null;
-      if (!turn) {
-        warnings.add("A token event has no matching turn; model usage is unavailable.");
-      } else if (cumulative === null) {
-        warnings.add("A token event has no cumulative identity; model usage is unavailable.");
-      } else {
-        // Cumulative total identifies the snapshot in Codex JSONL. Re-emitted
-        // snapshots overwrite; distinct increments within one turn remain.
-        usageEvents.set(cumulative, { model: turn.model, tokens: latest });
+      if (delta > 0) {
+        if (turn) models.set(turn.model, (models.get(turn.model) || 0) + delta);
+        else warnings.add("A token event has no matching turn; model usage is unavailable.");
+        if (latest !== null && latest !== delta) {
+          warnings.add("Incremental usage disagrees with cumulative delta; cumulative delta used.");
+        }
+      } else if (delta < 0) {
+        models.clear();
+        warnings.add("Cumulative token usage reset; pre-reset model attribution is unavailable.");
       }
+      previousCumulative = cumulative;
+    } else if (latest !== null) {
+      warnings.add("A token event has no cumulative identity; model usage is unavailable.");
     }
   });
 
-  const models = new Map();
-  for (const usage of usageEvents.values()) {
-    models.set(usage.model, (models.get(usage.model) || 0) + usage.tokens);
-  }
   if (total !== null) {
     const attributed = [...models.values()].reduce((sum, tokens) => sum + tokens, 0);
     if (attributed < total) {

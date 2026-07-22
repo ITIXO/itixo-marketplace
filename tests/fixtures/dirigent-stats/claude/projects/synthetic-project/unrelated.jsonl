@@ -1,2 +1,2 @@
-{"type":"session_meta","session_id":"unrelated-run","parent_session_id":"different-root"}
-{"type":"assistant","session_id":"unrelated-run","agent_id":"unrelated-agent","message":{"model":"unrelated-model","usage":{"input_tokens":900,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":99}}}
+{"type":"user","sessionId":"unrelated-run","agentId":"unrelated-agent","message":{"role":"user","content":"Synthetic unrelated request"}}
+{"type":"assistant","sessionId":"unrelated-run","agentId":"unrelated-agent","message":{"id":"unrelated-message","model":"unrelated-model","usage":{"input_tokens":900,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":99}}}
