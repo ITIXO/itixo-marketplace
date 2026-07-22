@@ -1,0 +1,3 @@
+{"type":"session_meta","session_id":"child-one","parent_session_id":"root-run"}
+{"type":"assistant","session_id":"child-one","agent_id":"synthetic-builder-a","message":{"model":"worker-model-a","usage":{"input_tokens":4,"cache_creation_input_tokens":1,"cache_read_input_tokens":1,"output_tokens":4}}}
+{ malformed json

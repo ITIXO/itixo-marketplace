@@ -587,6 +587,81 @@ if (runtimeModelHook?.hooks?.SubagentStart?.some((entry) => entry.matcher !== "*
 }
 if (failures === 0) ok("itixo-codex runtime-model hook configured");
 
+// --- 9. Dirigent Stats remains a shared, safe, exact-accounting skill ---
+const statsPlugins = ["itixo-claude", "itixo-codex"];
+const statsSkillRel = "skills/dirigent-stats/SKILL.md";
+const statsMetadataRel = "skills/dirigent-stats/agents/openai.yaml";
+const statsSkills = new Map();
+const statsMetadata = new Map();
+for (const plugin of statsPlugins) {
+  const skillRel = `plugins/${plugin}/${statsSkillRel}`;
+  const metadataRel = `plugins/${plugin}/${statsMetadataRel}`;
+  const skillPath = path.join(ROOT, skillRel);
+  const metadataPath = path.join(ROOT, metadataRel);
+  if (!fs.existsSync(skillPath)) {
+    fail(`${skillRel} missing`);
+  } else {
+    const skill = fs.readFileSync(skillPath, "utf8");
+    statsSkills.set(plugin, skill);
+    if (!/^---\nname: dirigent-stats\n/m.test(skill)) fail(`${skillRel}: invalid dirigent-stats frontmatter`);
+    for (const [description, pattern] of [
+      ["explicit slash invocation", /`\/dirigent-stats`/],
+      ["explicit dollar invocation", /`\$dirigent-stats`/],
+      ["hook-provided report only", /hook-provided report/i],
+      ["verbatim reporting", /verbatim/i],
+      ["no estimates", /never estimate/i],
+      ["unknown-value preservation", /unknown values and warnings/i],
+      ["unavailable fallback", /unavailable rather than estimating/i],
+    ]) {
+      if (!pattern.test(skill)) fail(`${skillRel}: must state ${description}`);
+    }
+  }
+  if (!fs.existsSync(metadataPath)) {
+    fail(`${metadataRel} missing`);
+  } else {
+    const metadata = fs.readFileSync(metadataPath, "utf8");
+    statsMetadata.set(plugin, metadata);
+    if (!/^interface:\n/m.test(metadata)) fail(`${metadataRel}: missing interface metadata`);
+    if (!/^  display_name: "Dirigent Stats"$/m.test(metadata)) fail(`${metadataRel}: incorrect display name`);
+    if (!/^  short_description: "[^"\n]+"$/m.test(metadata)) fail(`${metadataRel}: missing short description`);
+    if (!/^  default_prompt: "Use \$dirigent-stats[^"\n]*"$/m.test(metadata)) fail(`${metadataRel}: default prompt must invoke $dirigent-stats`);
+    if (/implicit_invocation:\s*true/.test(metadata)) fail(`${metadataRel}: implicit invocation must be false`);
+  }
+}
+if (statsSkills.size === statsPlugins.length && statsSkills.get("itixo-claude") !== statsSkills.get("itixo-codex")) {
+  fail("dirigent-stats SKILL.md must be byte-identical across providers");
+}
+if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claude") !== statsMetadata.get("itixo-codex")) {
+  fail("dirigent-stats openai.yaml must be byte-identical across providers");
+}
+for (const plugin of statsPlugins) {
+  const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
+  const manifest = readJson(manifestRel);
+  if (manifest && manifest.version !== "0.2.4") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.4'`);
+}
+
+const claudeHooksRel = "plugins/itixo-claude/hooks/hooks.json";
+const codexHooksRel = "plugins/itixo-codex/hooks/hooks.json";
+for (const [rel, preservedEvents] of [
+  [claudeHooksRel, ["PreToolUse", "PostToolUse", "Stop"]],
+  [codexHooksRel, ["SubagentStart"]],
+]) {
+  const hooks = readJson(rel);
+  if (!hooks?.hooks || typeof hooks.hooks !== "object") continue;
+  for (const event of preservedEvents) {
+    if (!Array.isArray(hooks.hooks[event]) || hooks.hooks[event].length === 0) {
+      fail(`${rel}: must preserve existing ${event} hooks`);
+    }
+  }
+  const commands = Object.values(hooks.hooks).flatMap((entries) => Array.isArray(entries)
+    ? entries.flatMap((entry) => entry?.hooks || []).map((hook) => hook?.command)
+    : []);
+  if (!commands.some((command) => typeof command === "string" && command.includes("dirigent-stats"))) {
+    fail(`${rel}: must add a dirigent-stats command without removing existing hooks`);
+  }
+}
+if (failures === 0) ok("dirigent-stats provider parity, metadata, hooks, and accounting contract valid");
+
 // --- result ---
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);

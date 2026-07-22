@@ -1,0 +1,4 @@
+{"type":"session_meta","session_id":"root-run"}
+{"type":"assistant","session_id":"root-run","message":{"model":"root-model","usage":{"input_tokens":10,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":5}}}
+{"type":"user","session_id":"root-run","message":{"content":"/dirigent-stats"}}
+{"type":"assistant","session_id":"root-run","isSummary":true,"message":{"model":"root-model","usage":{"input_tokens":99,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}}
