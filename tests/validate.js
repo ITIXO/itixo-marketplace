@@ -646,7 +646,7 @@ if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claud
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  if (manifest && manifest.version !== "0.2.7") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.7'`);
+  if (manifest && manifest.version !== "0.2.8") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.8'`);
 }
 
 const claudeHooksRel = "plugins/itixo-claude/hooks/hooks.json";
@@ -677,6 +677,22 @@ for (const [rel, rootVariable, preservedEvents] of [
   if (!sessionStartCommands.some((hook) => hook?.type === "command" && hook.command === expectedSessionStart)) {
     fail(`${rel}: must use provider SessionStart state script`);
   }
+}
+const claudeHooks = readJson(claudeHooksRel);
+const claudeStatsCommand = 'node "${CLAUDE_PLUGIN_ROOT}/scripts/dirigent-stats.js"';
+const claudeSubmit = claudeHooks?.hooks?.UserPromptSubmit;
+if (!Array.isArray(claudeSubmit) || !claudeSubmit.some((entry) => (entry?.hooks || [])
+  .some((hook) => hook?.type === "command" && hook.command === claudeStatsCommand))) {
+  fail(`${claudeHooksRel}: must retain UserPromptSubmit dirigent-stats handler`);
+}
+const claudeExpansion = claudeHooks?.hooks?.UserPromptExpansion;
+if (!Array.isArray(claudeExpansion) || claudeExpansion.length !== 1
+  || claudeExpansion[0]?.matcher !== "^(dirigent-stats|itixo-claude:dirigent-stats)$"
+  || !Array.isArray(claudeExpansion[0]?.hooks)
+  || claudeExpansion[0].hooks.length !== 1
+  || claudeExpansion[0].hooks[0]?.type !== "command"
+  || claudeExpansion[0].hooks[0]?.command !== claudeStatsCommand) {
+  fail(`${claudeHooksRel}: must register exact stats-command UserPromptExpansion handler`);
 }
 if (failures === 0) ok("dirigent-stats provider parity, metadata, hooks, and accounting contract valid");
 

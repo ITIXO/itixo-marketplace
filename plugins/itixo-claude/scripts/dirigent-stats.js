@@ -8,7 +8,9 @@ const crypto = require("crypto");
 const os = require("os");
 const path = require("path");
 
-const REQUEST = /(?:^|\s)[/$]dirigent-stats(?=$|\s|[.,!?;:])/;
+const REQUEST = /(?:^|\s)[/$](?:dirigent-stats|itixo-claude:dirigent-stats)(?=$|\s|[.,!?;:](?=$|\s))/;
+const DIRECT_SLASH_REQUEST = /^\/(?:dirigent-stats|itixo-claude:dirigent-stats)(?=$|\s)/;
+const EXPANSION_COMMANDS = new Set(["dirigent-stats", "itixo-claude:dirigent-stats"]);
 const USAGE_FIELDS = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"];
 const STATE_SCHEMA = 2;
 const CACHE_SCHEMA = 1;
@@ -293,6 +295,19 @@ function cacheReport(state, sessionId, report) {
   atomicStateWrite(stateFile(sessionId), next);
 }
 
+function requestedEvent(event) {
+  const eventName = typeof event.hook_event_name === "string" ? event.hook_event_name
+    : typeof event.hookEventName === "string" ? event.hookEventName : null;
+  if (eventName === "UserPromptExpansion") {
+    return event.expansion_type === "slash_command" && EXPANSION_COMMANDS.has(event.command_name)
+      ? eventName : null;
+  }
+  if (eventName && eventName !== "UserPromptSubmit") return null;
+  const prompt = typeof event.prompt === "string" ? event.prompt : typeof event.user_prompt === "string" ? event.user_prompt : "";
+  if (eventName === "UserPromptSubmit" && DIRECT_SLASH_REQUEST.test(prompt.trimStart())) return null;
+  return REQUEST.test(prompt) ? eventName || "UserPromptSubmit" : null;
+}
+
 let input = "";
 process.stdin.on("data", (chunk) => { input += chunk; });
 process.stdin.on("end", () => {
@@ -310,15 +325,15 @@ process.stdin.on("end", () => {
       cacheReport(anchor, sessionId, buildReport(anchor, sessionId, deadline));
       return;
     }
-    const prompt = typeof event.prompt === "string" ? event.prompt : typeof event.user_prompt === "string" ? event.user_prompt : "";
-    if (!REQUEST.test(prompt)) return;
+    const hookEventName = requestedEvent(event);
+    if (!hookEventName) return;
     const report = validCache(state && state.cache, state, sessionId)
       ? state.cache.report
       : buildReport(state, sessionId, deadline);
     // Legacy, missing, and corrupt cache recover once from anchored data. Keep
     // prompt response deterministic even when no completed transcript exists.
     if (!validCache(state && state.cache, state, sessionId)) cacheReport(state, sessionId, report);
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: report } }) + "\n");
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: report } }) + "\n");
   } catch {
     // Never block prompt submission.
   }

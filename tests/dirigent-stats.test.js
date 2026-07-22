@@ -263,13 +263,149 @@ test("Claude report aggregates recursive descendants without leaking unrelated d
   assert.doesNotMatch(output, /\| root-model \| 2 \| 120 \|/);
 });
 
-test("Claude stats hook fails open for non-trigger and malformed input", () => {
+test("stats hooks accept only their locked explicit invocation contracts", () => {
+  const claudeFixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
+  const claudeProjects = path.join(claudeFixture, "projects");
+  const codexSessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const cases = [
+    {
+      plugin: "itixo-claude", sessionId: "root-run", root: path.join(claudeProjects, "synthetic-project", "root-run.jsonl"),
+      script: path.join(root, "plugins", "itixo-claude", "scripts", "dirigent-stats.js"),
+      env: { DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: claudeProjects, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: path.join(claudeFixture, "ledger") },
+      accepted: ["/dirigent-stats", "$dirigent-stats", "/itixo-claude:dirigent-stats", "$itixo-claude:dirigent-stats"],
+      rejected: ["/itixo-codex:dirigent-stats", "$itixo-codex:dirigent-stats"],
+    },
+    {
+      plugin: "itixo-codex", sessionId: "root-rollout", root: path.join(codexSessions, "root.jsonl"),
+      script: path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js"),
+      env: { DIRIGENT_STATS_CODEX_SESSIONS_DIR: codexSessions },
+      accepted: ["/dirigent-stats", "$dirigent-stats", "/itixo-codex:dirigent-stats", "$itixo-codex:dirigent-stats"],
+      rejected: ["/itixo-claude:dirigent-stats", "$itixo-claude:dirigent-stats"],
+    },
+  ];
+  for (const current of cases) {
+    const namespace = current.plugin;
+    const otherNamespace = current.plugin === "itixo-claude" ? "itixo-codex" : "itixo-claude";
+    const punctuated = [".", ",", "!", "?", ";", ":"].flatMap((punctuation) => [
+      `/dirigent-stats${punctuation}`,
+      `$dirigent-stats${punctuation} trailing text`,
+      `/${namespace}:dirigent-stats${punctuation}`,
+      `$${namespace}:dirigent-stats${punctuation} trailing text`,
+    ]);
+    const accepted = [...current.accepted, "please /dirigent-stats now", ...punctuated];
+    const rejected = [
+      ...current.rejected,
+      "/:dirigent-stats",
+      "$:dirigent-stats",
+      `/${namespace}:`,
+      `$${namespace}:`,
+      `/${namespace}:${namespace}:dirigent-stats`,
+      `$${namespace}:${namespace}:dirigent-stats`,
+      "/dirigent-stats-extra",
+      "$dirigent-stats-extra",
+      `/${namespace}:dirigent-stats:extra`,
+      `$${namespace}:dirigent-stats:extra`,
+      `/${otherNamespace}:dirigent-stats:extra`,
+      `$${otherNamespace}:dirigent-stats:extra`,
+      "/dirigent-stats.foo",
+      "$dirigent-stats.foo",
+      `/${namespace}:dirigent-stats.foo`,
+      `$${namespace}:dirigent-stats.foo`,
+      `/${otherNamespace}:dirigent-stats.foo`,
+      `$${otherNamespace}:dirigent-stats.foo`,
+      "x/dirigent-stats",
+      "please/foo/dirigent-stats",
+      "show stats",
+    ];
+    const stateDir = temporaryDirectory();
+    startSession(current.plugin, { source: "startup", session_id: current.sessionId, transcript_path: current.root }, stateDir);
+    const stopped = stopSession(current.plugin, {
+      hook_event_name: "Stop", session_id: current.sessionId, transcript_path: current.root, cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+    }, stateDir, current.env);
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const before = JSON.parse(fs.readFileSync(statePath(stateDir, current.sessionId), "utf8"));
+    const baseline = before.cache.report;
+    assert.ok(baseline);
+
+    for (const prompt of accepted) {
+      assert.equal(context(run(current.script, { prompt, session_id: current.sessionId }, {
+        ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
+      })), baseline, `${current.plugin} must accept ${prompt}`);
+      assert.deepEqual(JSON.parse(fs.readFileSync(statePath(stateDir, current.sessionId), "utf8")), before);
+    }
+    for (const prompt of rejected) {
+      const result = run(current.script, { prompt, session_id: current.sessionId }, {
+        ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "", `${current.plugin} must ignore ${prompt}`);
+      assert.equal(result.stderr, "");
+      assert.deepEqual(JSON.parse(fs.readFileSync(statePath(stateDir, current.sessionId), "utf8")), before);
+    }
+    const malformed = spawnSync(process.execPath, [current.script], { encoding: "utf8", input: "{" });
+    assert.equal(malformed.status, 0, malformed.stderr);
+    assert.equal(malformed.stdout, "");
+    assert.equal(malformed.stderr, "");
+  }
+});
+
+test("Claude Submit and Expansion hooks emit exactly once through their intended lifecycle", () => {
+  const fixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
+  const projects = path.join(fixture, "projects");
+  const rootTranscript = path.join(projects, "synthetic-project", "root-run.jsonl");
   const script = path.join(root, "plugins", "itixo-claude", "scripts", "dirigent-stats.js");
-  for (const input of ["{", JSON.stringify({ prompt: "show stats", session_id: "root-run" })]) {
-    const result = spawnSync(process.execPath, [script], { encoding: "utf8", input });
-    assert.equal(result.status, 0);
+  const stateDir = temporaryDirectory();
+  const env = {
+    DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects,
+    DIRIGENT_STATS_CLAUDE_LEDGER_DIR: path.join(fixture, "ledger"),
+    DIRIGENT_STATS_STATE_DIR: stateDir,
+  };
+  startSession("itixo-claude", { source: "startup", session_id: "root-run", transcript_path: rootTranscript }, stateDir);
+  stopSession("itixo-claude", {
+    hook_event_name: "Stop", session_id: "root-run", transcript_path: rootTranscript, cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+  }, stateDir, env);
+  const before = JSON.parse(fs.readFileSync(statePath(stateDir, "root-run"), "utf8"));
+  const assertNoOutput = (event) => {
+    const result = run(script, event, env);
+    assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "");
     assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(fs.readFileSync(statePath(stateDir, "root-run"), "utf8")), before);
+  };
+  const assertSingleReport = (event, hookEventName) => {
+    const result = run(script, event, env);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.hookSpecificOutput.hookEventName, hookEventName);
+    assert.equal(output.hookSpecificOutput.additionalContext, before.cache.report);
+    assert.equal((result.stdout.match(/itixo-dirigent-stats-report:start/g) || []).length, 1);
+    assert.equal((result.stdout.match(/itixo-dirigent-stats-report:end/g) || []).length, 1);
+    assert.deepEqual(JSON.parse(fs.readFileSync(statePath(stateDir, "root-run"), "utf8")), before);
+  };
+
+  for (const prompt of ["/dirigent-stats", "/itixo-claude:dirigent-stats"]) {
+    assertNoOutput({ hook_event_name: "UserPromptSubmit", prompt, session_id: "root-run" });
+  }
+  for (const command_name of ["dirigent-stats", "itixo-claude:dirigent-stats"]) {
+    assertSingleReport({
+      hook_event_name: "UserPromptExpansion", expansion_type: "slash_command", command_name, session_id: "root-run",
+    }, "UserPromptExpansion");
+  }
+  assertSingleReport({
+    hook_event_name: "UserPromptSubmit", prompt: "$itixo-claude:dirigent-stats", session_id: "root-run",
+  }, "UserPromptSubmit");
+  assertSingleReport({
+    hook_event_name: "UserPromptSubmit", prompt: "please /dirigent-stats now", session_id: "root-run",
+  }, "UserPromptSubmit");
+  assertSingleReport({ prompt: "/dirigent-stats", session_id: "root-run" }, "UserPromptSubmit");
+
+  for (const event of [
+    { hook_event_name: "UserPromptExpansion", expansion_type: "plain_text", command_name: "dirigent-stats", session_id: "root-run" },
+    { hook_event_name: "UserPromptExpansion", expansion_type: "slash_command", command_name: "itixo-codex:dirigent-stats", session_id: "root-run" },
+    { hook_event_name: "UserPromptExpansion", expansion_type: "slash_command", command_name: "dirigent-stats-extra", session_id: "root-run" },
+  ]) {
+    assertNoOutput(event);
   }
 });
 
