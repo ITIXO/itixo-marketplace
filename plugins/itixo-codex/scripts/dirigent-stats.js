@@ -6,7 +6,17 @@ const os = require("os");
 const path = require("path");
 const INVOCATION = /(^|\s)(?:\/|\$)dirigent-stats(?=$|[\s.,!?;:])/;
 const STATE_SCHEMA = 2;
+const CACHE_SCHEMA = 1;
 const DEFAULT_STOP_BUDGET_MS = 1500;
+const REPORT_BEGIN = "<!-- dirigent-stats:begin -->";
+const REPORT_END = "<!-- dirigent-stats:end -->";
+const REPORT_HEADING = "## Dirigent Stats";
+const AGENT_HEADER = "| Agent | Model | Runs | Tokens | Share |";
+const AGENT_SEPARATOR = "| --- | --- | ---: | ---: | ---: |";
+const MODEL_HEADER = "| Model | Runs | Tokens | Share |";
+const MODEL_SEPARATOR = "| --- | ---: | ---: | ---: |";
+const SNAPSHOT = "Snapshot: reporting response excluded; active values exact so far.";
+const INSTRUCTION = "Instruction: reproduce this report verbatim; do not recalculate or estimate.";
 
 function stopBudgetMs(raw) {
   if (raw === undefined) return DEFAULT_STOP_BUDGET_MS;
@@ -42,15 +52,36 @@ function sessionState(sessionId) {
   } catch { return null; }
 }
 
+function validReport(reportText) {
+  if (typeof reportText !== "string") return false;
+  const lines = reportText.split("\n");
+  if (lines[0] !== REPORT_BEGIN || lines[1] !== REPORT_HEADING || lines[2] !== ""
+      || lines[3] !== AGENT_HEADER || lines[4] !== AGENT_SEPARATOR
+      || lines[lines.length - 1] !== REPORT_END) return false;
+  const agentEnd = lines.indexOf("", 5);
+  if (agentEnd < 5 || lines[agentEnd + 1] !== MODEL_HEADER || lines[agentEnd + 2] !== MODEL_SEPARATOR) return false;
+  const modelEnd = lines.indexOf("", agentEnd + 3);
+  if (modelEnd < agentEnd + 3 || !/^Exact known total: \d+ tokens\.$/.test(lines[modelEnd + 1])
+      || lines[modelEnd + 2] !== SNAPSHOT) return false;
+  let index = modelEnd + 3;
+  if (lines[index] === "Warnings:") {
+    index += 1;
+    const firstWarning = index;
+    while (typeof lines[index] === "string" && lines[index].startsWith("- ")) index += 1;
+    if (index === firstWarning) return false;
+  }
+  return lines[index] === INSTRUCTION && lines[index + 1] === REPORT_END && index + 2 === lines.length;
+}
+
 function cachedReport(state, sessionId) {
   const cache = state && state.schema === STATE_SCHEMA && state.cache;
-  return cache && cache.sessionId === sessionId && cache.transcriptPath === state.transcriptPath && typeof cache.report === "string"
-    && cache.report.includes("<!-- dirigent-stats:begin -->")
-    && cache.report.includes("<!-- dirigent-stats:end -->") ? cache.report : null;
+  return cache && cache.schema === CACHE_SCHEMA && cache.sessionId === sessionId
+    && cache.transcriptPath === state.transcriptPath && Number.isSafeInteger(cache.updatedAt) && cache.updatedAt >= 0
+    && validReport(cache.report) ? cache.report : null;
 }
 
 function noData() {
-  return ["<!-- dirigent-stats:begin -->", "## Dirigent Stats", "", "No completed token usage available yet.", "", "Exact known total: 0 tokens.", "Snapshot: reporting response excluded; active values exact so far.", "Instruction: reproduce this report verbatim; do not recalculate or estimate.", "<!-- dirigent-stats:end -->"].join("\n");
+  return [REPORT_BEGIN, REPORT_HEADING, "", AGENT_HEADER, AGENT_SEPARATOR, "", MODEL_HEADER, MODEL_SEPARATOR, "", "Exact known total: 0 tokens.", SNAPSHOT, "Warnings:", "- No completed token usage available yet.", INSTRUCTION, REPORT_END].join("\n");
 }
 
 function writeState(sessionId, anchor, reportText, turnId) {
@@ -68,7 +99,7 @@ function writeState(sessionId, anchor, reportText, turnId) {
       transcriptPath: source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null,
       cwd: typeof source.cwd === "string" ? source.cwd : null,
       source: typeof source.source === "string" ? source.source : "stop",
-      cache: { sessionId, transcriptPath: source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null, report: reportText, updatedAt: Date.now(), ...(typeof turnId === "string" && turnId ? { turnId } : {}) },
+      cache: { schema: CACHE_SCHEMA, sessionId, transcriptPath: source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null, report: reportText, updatedAt: Date.now(), ...(typeof turnId === "string" && turnId ? { turnId } : {}) },
     };
     temporary = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`);
     fs.writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
@@ -281,22 +312,22 @@ function report(root, rollouts) {
   const agentRows = [...agents.entries()].sort(([a], [b]) => (a === "orchestrator" ? -1 : b === "orchestrator" ? 1 : agents.get(b).tokens - agents.get(a).tokens || a.localeCompare(b)));
   const modelRows = [...models.entries()].sort(([a], [b]) => models.get(b).tokens - models.get(a).tokens || a.localeCompare(b));
   const lines = [
-    "<!-- dirigent-stats:begin -->",
-    "## Dirigent Stats",
+    REPORT_BEGIN,
+    REPORT_HEADING,
     "",
-    "| Agent | Model | Runs | Tokens | Share |",
-    "| --- | --- | ---: | ---: | ---: |",
+    AGENT_HEADER,
+    AGENT_SEPARATOR,
     ...agentRows.map(([role, row]) => `| ${role} | ${[...row.models].sort().join(", ")} | ${row.runs} | ${row.tokens} | ${share(row.tokens)} |`),
     "",
-    "| Model | Runs | Tokens | Share |",
-    "| --- | ---: | ---: | ---: |",
+    MODEL_HEADER,
+    MODEL_SEPARATOR,
     ...modelRows.map(([model, row]) => `| ${model} | ${row.runs.size} | ${row.tokens} | ${share(row.tokens)} |`),
     "",
     `Exact known total: ${total} tokens.`,
-    "Snapshot: reporting response excluded; active values exact so far.",
+    SNAPSHOT,
   ];
   if (warnings.size) lines.push("Warnings:", ...[...warnings].sort().map((warning) => `- ${warning}`));
-  lines.push("Instruction: reproduce this report verbatim; do not recalculate or estimate.", "<!-- dirigent-stats:end -->");
+  lines.push(INSTRUCTION, REPORT_END);
   return lines.join("\n");
 }
 
@@ -309,7 +340,13 @@ async function main() {
   if (stop) {
     if (typeof sessionId !== "string" || !sessionId) return;
     const state = sessionState(sessionId);
-    const reportText = currentReport(event, state, Date.now() + STOP_BUDGET_MS);
+    const deadline = Date.now() + STOP_BUDGET_MS;
+    const fallback = noData();
+    // Invalidate prior totals before unstable transcript parsing. Timeout/error
+    // then leaves a current deterministic snapshot for this completed turn.
+    writeState(sessionId, state, fallback, event.turn_id);
+    let reportText = null;
+    try { reportText = currentReport(event, state, deadline); } catch { /* Keep current no-data cache. */ }
     if (reportText) writeState(sessionId, state, reportText, event.turn_id);
     return;
   }
@@ -320,10 +357,11 @@ async function main() {
   let reportText = cachedReport(state, sessionId);
   if (!reportText) {
     // Schema-1/corrupt caches recover once on demand; normal requests never parse.
-    reportText = currentReport(event, state, Date.now() + STOP_BUDGET_MS);
-    if (reportText) writeState(sessionId, state, reportText, event.turn_id);
+    try { reportText = currentReport(event, state, Date.now() + STOP_BUDGET_MS); } catch { /* Use deterministic no-data report. */ }
+    reportText ||= noData();
+    writeState(sessionId, state, reportText, event.turn_id);
   }
-  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: reportText || noData() } }));
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: reportText } }));
 }
 
 main().catch(() => {});
