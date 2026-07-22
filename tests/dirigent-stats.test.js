@@ -39,6 +39,24 @@ function startSession(plugin, event, stateDir) {
   });
 }
 
+function statsStopScript(plugin) {
+  const hooks = JSON.parse(read(plugin, "hooks/hooks.json")).hooks;
+  const commands = (hooks.Stop || []).flatMap((entry) => entry.hooks || [])
+    .map((hook) => hook.command)
+    .filter((command) => typeof command === "string" && /dirigent-stats/i.test(command));
+  assert.ok(commands.length > 0, `${plugin} must register a stats update on Stop`);
+  const match = commands[0].match(/\/scripts\/([^"'\\s]+\.js)/);
+  assert.ok(match, `${plugin} Stop stats command must invoke a script`);
+  return path.join(root, "plugins", plugin, "scripts", match[1]);
+}
+
+function stopSession(plugin, event, stateDir, env = {}) {
+  return run(statsStopScript(plugin), event, {
+    ...env,
+    DIRIGENT_STATS_STATE_DIR: stateDir,
+  });
+}
+
 function statePath(stateDir, sessionId) {
   return path.join(stateDir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
 }
@@ -62,7 +80,7 @@ function startSessionConcurrently(plugin, event, stateDir) {
 
 function assertCompleteMarker(file, sessionId) {
   const marker = JSON.parse(fs.readFileSync(file, "utf8"));
-  assert.equal(marker.schema, 1);
+  assert.ok(Number.isInteger(marker.schema) && marker.schema >= 1);
   assert.equal(marker.sessionId, sessionId);
 }
 
@@ -80,9 +98,12 @@ test("SessionStart persists isolated, atomically refreshed provider session mark
       const file = statePath(stateDir, sessionId);
       assert.ok(fs.existsSync(file));
       assert.doesNotMatch(path.basename(file), new RegExp(sessionId));
-      assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), {
-        schema: 1, sessionId, transcriptPath: path.resolve(`/tmp/${source}.jsonl`), cwd: "/tmp", source,
-      });
+      const marker = JSON.parse(fs.readFileSync(file, "utf8"));
+      assert.ok(Number.isInteger(marker.schema) && marker.schema >= 1);
+      assert.deepEqual(
+        { sessionId: marker.sessionId, transcriptPath: marker.transcriptPath, cwd: marker.cwd, source: marker.source },
+        { sessionId, transcriptPath: path.resolve(`/tmp/${source}.jsonl`), cwd: "/tmp", source },
+      );
     }
 
     const sameId = `${plugin}-refresh`;
@@ -139,7 +160,7 @@ test("concurrent SessionStart writes keep every marker complete and isolated", a
   }
 });
 
-test("hashed marker paths contain traversal IDs and corrupt state is unavailable", () => {
+test("hashed marker paths contain traversal IDs", () => {
   const claudeFixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
   const claudeProjects = path.join(claudeFixture, "projects");
   const codexSessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
@@ -163,15 +184,6 @@ test("hashed marker paths contain traversal IDs and corrupt state is unavailable
     assert.equal(path.dirname(traversalMarker), stateDir);
     assertCompleteMarker(traversalMarker, traversalId);
 
-    startSession(current.plugin, { source: "startup", session_id: current.sessionId, transcript_path: current.root }, stateDir);
-    for (const persisted of ["{\"schema\":1", JSON.stringify({ schema: 1, sessionId: "another-session", transcriptPath: current.root })]) {
-      fs.writeFileSync(statePath(stateDir, current.sessionId), persisted);
-      const output = context(run(current.script, { prompt: "/dirigent-stats", session_id: current.sessionId }, {
-        ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
-      }));
-      assert.match(output, /Unavailable: current session stats context is missing or invalid\./);
-      assert.doesNotMatch(output, /root-model|Exact known total/);
-    }
   }
 });
 
@@ -254,7 +266,7 @@ test("Claude stats hook fails open for non-trigger and malformed input", () => {
   }
 });
 
-test("explicit stats reports require same-session marker and never borrow another transcript", () => {
+test("Stop caches completed reports and explicit stats survives unavailable transcripts", () => {
   const claudeFixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
   const claudeProjects = path.join(claudeFixture, "projects");
   const claudeRoot = path.join(claudeProjects, "synthetic-project", "root-run.jsonl");
@@ -273,20 +285,80 @@ test("explicit stats reports require same-session marker and never borrow anothe
     },
   ];
   for (const current of cases) {
-    const missingState = temporaryDirectory();
-    const missing = context(run(current.script, { prompt: "/dirigent-stats", session_id: current.sessionId }, {
-      ...current.env, DIRIGENT_STATS_STATE_DIR: missingState,
-    }));
-    assert.match(missing, /<!-- (?:itixo-)?dirigent-stats(?:-report)?:?(?:start|begin) -->/);
-    assert.match(missing, /Unavailable: current session stats context is missing or invalid\./);
+    const stateDir = temporaryDirectory();
+    startSession(current.plugin, { source: "startup", session_id: current.sessionId, transcript_path: current.root }, stateDir);
+    const stopped = stopSession(current.plugin, {
+      hook_event_name: "Stop", session_id: current.sessionId, transcript_path: current.root,
+      cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+    }, stateDir, current.env);
+    assert.equal(stopped.status, 0, stopped.stderr);
+    assert.equal(stopped.stderr, "");
 
-    const mismatchState = temporaryDirectory();
-    startSession(current.plugin, { source: "resume", session_id: current.sessionId, transcript_path: current.unrelated }, mismatchState);
-    const mismatched = context(run(current.script, {
+    const cached = context(run(current.script, { prompt: "$dirigent-stats", session_id: current.sessionId }, {
+      ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
+    }));
+    assert.match(cached, /<!-- (?:itixo-)?dirigent-stats(?:-report)?:?(?:start|begin) -->/);
+    assert.match(cached, /root-model|Exact known total/);
+    assert.doesNotMatch(cached, /Unavailable: current session stats context is missing or invalid\./);
+
+    const unavailableStorage = path.join(temporaryDirectory(), "missing-session-storage");
+    const cachedWithoutTranscript = context(run(current.script, { prompt: "/dirigent-stats", session_id: current.sessionId }, {
+      ...current.env,
+      DIRIGENT_STATS_STATE_DIR: stateDir,
+      ...(current.plugin === "itixo-claude"
+        ? { DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: unavailableStorage, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: unavailableStorage }
+        : { DIRIGENT_STATS_CODEX_SESSIONS_DIR: unavailableStorage }),
+    }));
+    assert.equal(cachedWithoutTranscript, cached);
+  }
+});
+
+test("legacy, corrupt, and missing state self-heal through Stop or one explicit recovery", () => {
+  const claudeFixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
+  const claudeProjects = path.join(claudeFixture, "projects");
+  const codexSessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const cases = [
+    {
+      plugin: "itixo-claude", sessionId: "root-run", root: path.join(claudeProjects, "synthetic-project", "root-run.jsonl"),
+      script: path.join(root, "plugins", "itixo-claude", "scripts", "dirigent-stats.js"),
+      env: { DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: claudeProjects, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: path.join(claudeFixture, "ledger") },
+    },
+    {
+      plugin: "itixo-codex", sessionId: "root-rollout", root: path.join(codexSessions, "root.jsonl"),
+      script: path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js"),
+      env: { DIRIGENT_STATS_CODEX_SESSIONS_DIR: codexSessions },
+    },
+  ];
+  for (const current of cases) {
+    for (const persisted of ["{\"schema\":1", JSON.stringify({ schema: 1, sessionId: "another-session", transcriptPath: current.root })]) {
+      const stateDir = temporaryDirectory();
+      startSession(current.plugin, { source: "startup", session_id: current.sessionId, transcript_path: current.root }, stateDir);
+      fs.writeFileSync(statePath(stateDir, current.sessionId), persisted);
+      const stopped = stopSession(current.plugin, {
+        hook_event_name: "Stop", session_id: current.sessionId, transcript_path: current.root,
+        cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+      }, stateDir, current.env);
+      assert.equal(stopped.status, 0, stopped.stderr);
+      const healed = context(run(current.script, { prompt: "/dirigent-stats", session_id: current.sessionId }, {
+        ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
+      }));
+      assert.doesNotMatch(healed, /Unavailable: current session stats context is missing or invalid\./);
+    }
+
+    const recoveredState = temporaryDirectory();
+    const recovered = context(run(current.script, {
       prompt: "$dirigent-stats", session_id: current.sessionId, transcript_path: current.root,
-    }, { ...current.env, DIRIGENT_STATS_STATE_DIR: mismatchState }));
-    assert.match(mismatched, /Unavailable: current session stats context is missing or invalid\./);
-    assert.doesNotMatch(mismatched, /root-model|unrelated-model|Exact known total/);
+    }, { ...current.env, DIRIGENT_STATS_STATE_DIR: recoveredState }));
+    assert.doesNotMatch(recovered, /Unavailable: current session stats context is missing or invalid\./);
+    const unavailableStorage = path.join(temporaryDirectory(), "missing-session-storage");
+    const cachedRecovery = context(run(current.script, { prompt: "$dirigent-stats", session_id: current.sessionId }, {
+      ...current.env,
+      DIRIGENT_STATS_STATE_DIR: recoveredState,
+      ...(current.plugin === "itixo-claude"
+        ? { DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: unavailableStorage, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: unavailableStorage }
+        : { DIRIGENT_STATS_CODEX_SESSIONS_DIR: unavailableStorage }),
+    }));
+    assert.equal(cachedRecovery, recovered);
   }
 });
 
