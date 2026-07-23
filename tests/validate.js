@@ -727,18 +727,18 @@ for (const plugin of statsPlugins) {
     const requiredSkillContract = [
       ["explicit slash invocation", /`\/dirigent-stats`/],
       ["explicit dollar invocation", /`\$dirigent-stats`/],
-      ["hook-provided report only", /hook-provided report/i],
+      ["view choices", /`--view agents\|models\|both`/],
+      ["default both view", /default to `both`/i],
+      ["exact invalid-view fallback", /exactly `Invalid stats view\. Use agents, models, or both\.`/],
+      ["cached report only", /selected cached report/i],
       ["verbatim reporting", /verbatim/i],
-      ["no estimates", /never estimate/i],
-      ["unknown-value preservation", /unknown values and warnings/i],
-      ...(plugin === "itixo-codex" ? [
-        ["exact no-data fallback", /exactly `No token usage available yet\.`/i],
-        ["no-data table suppression", /return exactly `No token usage available yet\.` and nothing else/i],
-        ["human nonzero report", /heading, tables, total, and warnings/i],
-        ["internal metadata suppression", /never expose comment markers, snapshots, or internal instructions/i],
-      ] : [
-        ["unavailable fallback", /unavailable rather than estimating/i],
-      ]),
+      ["no recalculation or double sums", /never recalculate, estimate, or double-sum/i],
+      ["exact no-data fallback", /exactly `No token usage available yet\.`/i],
+      ["kToks units", /exact `kToks`/i],
+      ["trimmed three-decimal formatting", /at most three decimals and trailing zeros removed/i],
+      ["mToks suppression", /never convert to `mToks`/i],
+      ["recursive agent accounting", /root orchestrator plus recursive agents/i],
+      ["grouping invariant", /alternate groupings of the same total/i],
     ];
     for (const [description, pattern] of requiredSkillContract) {
       if (!pattern.test(skill)) fail(`${skillRel}: must state ${description}`);
@@ -762,7 +762,7 @@ if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claud
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  const expectedVersion = plugin === "itixo-codex" ? "0.2.12" : "0.2.10";
+  const expectedVersion = plugin === "itixo-codex" ? "0.2.13" : "0.2.11";
   if (manifest && manifest.version !== expectedVersion) fail(`${manifestRel}: version '${manifest.version}', expected '${expectedVersion}'`);
 }
 
