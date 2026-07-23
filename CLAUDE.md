@@ -41,11 +41,11 @@ All three must pass.
 |------|--------|-------|--------|
 | orchestrator | inherit | user-selected | itixo-planner |
 | mid | sonnet | Terra + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku | Luna + low (or Terra + low fallback) | itixo-investigator, itixo-docs-updater |
+| cheap | haiku | Luna + high (or Terra + low fallback) | itixo-investigator, itixo-docs-updater |
 
 The seven `itixo-*` IDs are canonical and shared by Claude native agents and Codex custom agents. `itixo-planner` inherits the main task's model and effort. Version `0.2.0` is a breaking rename with no generic aliases.
 
-Keep this table in sync with `base/rules/agents.md` and `scripts/generate-agents.js` (PROVIDERS map). Codex templates are inactive until explicitly installed; `itixo-codex:install-agents` asks for personal vs project scope and the cheap-model choice. Personal installs target `~/.codex/agents/`; project installs target `<project-root>/.codex/agents/` with an explicit root. Luna + low is default for cheap roles; `--cheap-model terra` installs Terra + low if Luna workers are unavailable. Mid roles use Terra + medium. The installer only replaces exact Itixo-managed TOML files, refuses unmanaged conflicts, is idempotent for unchanged files, and requires a new task or Codex restart for discovery.
+Keep this table in sync with `base/rules/agents.md` and `scripts/generate-agents.js` (PROVIDERS map). Codex templates are inactive until explicitly installed; `itixo-codex:install-agents` asks for personal vs project scope, then cheap model and cheap effort as separate choices. Personal installs target `~/.codex/agents/`; project installs target `<project-root>/.codex/agents/` with an explicit root. Luna + high is the recommended cheap-role default; choose Terra + low when Luna workers are unavailable, or override either choice with `--cheap-model luna|terra` and `--cheap-effort high|low`. Mid roles use Terra + medium. The installer only replaces exact Itixo-managed TOML files, refuses unmanaged conflicts, is idempotent for unchanged files, and requires a new task or Codex restart for discovery.
 
 ### Adding a new plugin
 

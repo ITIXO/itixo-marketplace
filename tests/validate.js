@@ -464,7 +464,7 @@ for (const agent of Object.keys(TIERS)) {
     if (model || effort) fail(`${rel}: planner must inherit model and effort`);
   } else {
     const expected = CODEX_MODEL[TIERS[agent]];
-    const expectedEffort = TIERS[agent] === "cheap" ? "low" : "medium";
+    const expectedEffort = TIERS[agent] === "cheap" ? "high" : "medium";
     if (model !== expected) fail(`${rel}: model '${model}', expected '${expected}'`);
     if (effort !== expectedEffort) fail(`${rel}: effort '${effort}', expected '${expectedEffort}'`);
   }
@@ -757,7 +757,8 @@ if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claud
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  if (manifest && manifest.version !== "0.2.9") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.9'`);
+  const expectedVersion = plugin === "itixo-codex" ? "0.2.10" : "0.2.9";
+  if (manifest && manifest.version !== expectedVersion) fail(`${manifestRel}: version '${manifest.version}', expected '${expectedVersion}'`);
 }
 
 const claudeHooksRel = "plugins/itixo-claude/hooks/hooks.json";

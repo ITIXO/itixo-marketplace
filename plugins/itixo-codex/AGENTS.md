@@ -22,4 +22,4 @@ For `itixo-github-issues`, include target repository and owner context, constrai
 
 For every delegation, invoke the installed custom TOML agent by its canonical ID. Do not load `plugins/itixo-codex/agents/*.md`, substitute a generic agent, or pass a separate model or reasoning-effort override: the installed TOML owns its instructions, model, and effort.
 
-If a required `itixo-*` custom agent is unavailable, stop the affected work. Tell the user installation is required; do not perform that role inline. Invoke or offer `itixo-codex:install-agents`, and obtain its explicit scope and cheap-model choice before installation.
+If a required `itixo-*` custom agent is unavailable, stop the affected work. Tell the user installation is required; do not perform that role inline. Invoke or offer `itixo-codex:install-agents`, and obtain its explicit scope, cheap-model, and cheap-effort choices before installation. Recommend Luna + high; Terra + low is the fallback.

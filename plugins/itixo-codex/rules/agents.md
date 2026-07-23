@@ -10,13 +10,13 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 |------|-------|--------|
 | orchestrator | user-selected | itixo-planner |
 | mid | gpt-5.6-terra | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | gpt-5.6-luna | itixo-investigator, itixo-docs-updater |
+| cheap | gpt-5.6-luna + high (default); gpt-5.6-terra + low (fallback) | itixo-investigator, itixo-docs-updater |
 
 ## Rules
 
 - Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md` or pass a model or reasoning-effort override: TOML owns instructions, model, and effort.
-- If a required custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with its explicit scope and cheap-model choices. Never substitute a generic agent or perform the role inline.
-- itixo-investigator (luna) locates first; itixo-builder (terra) gets exact file:line targets.
+- If a required custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is Luna + high; Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
+- `itixo-investigator` locates first using its installed cheap-tier template; `itixo-builder` gets exact file:line targets using its installed mid-tier template.
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.
 - Parallelize independent subagent runs.

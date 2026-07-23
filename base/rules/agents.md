@@ -19,7 +19,7 @@ MUST be delegated to a subagent on a cheaper model.
 |------|---------|--------|-------|
 | orchestrator | thinking, decomposition, integration | user-selected (inherit) | user-selected |
 | mid | implementation, tests, review | sonnet | gpt-5.6-terra |
-| cheap | lookups, docs, mechanical reads | haiku | gpt-5.6-luna |
+| cheap | lookups, docs, mechanical reads | haiku | gpt-5.6-luna + high (Terra + low fallback) |
 
 ## Agent → tier mapping
 
@@ -37,7 +37,7 @@ MUST be delegated to a subagent on a cheaper model.
 
 - Claude invokes the native plugin agent using the canonical `itixo-*` ID; its generated definition owns the prescribed tier.
 - Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md` or pass a model or reasoning-effort override; the installed TOML owns instructions, model, and effort.
-- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with the explicit scope and cheap-model choices it requires. Never substitute a generic agent or perform the role inline.
+- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is Luna + high; Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
 
 ## Delegation rules
 
