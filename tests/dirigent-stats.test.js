@@ -194,9 +194,11 @@ test("hashed marker paths contain traversal IDs", () => {
   }
 });
 
-test("dirigent-stats skill is byte-identical across providers", () => {
-  assert.equal(read(plugins[0], skillRel), read(plugins[1], skillRel));
+test("dirigent-stats metadata stays identical while provider report contracts diverge", () => {
   assert.equal(read(plugins[0], metadataRel), read(plugins[1], metadataRel));
+  assert.match(read("itixo-claude", skillRel), /marked Markdown verbatim/);
+  assert.match(read("itixo-codex", skillRel), /exactly `No token usage available yet\.`/);
+  assert.match(read("itixo-codex", skillRel), /Never expose comment markers, snapshots, or internal instructions/);
 });
 
 test("dirigent-stats exposes explicit and implicit invocation metadata", () => {
@@ -213,18 +215,211 @@ test("dirigent-stats exposes explicit and implicit invocation metadata", () => {
 });
 
 test("dirigent-stats only returns hook-generated exact report", () => {
-  const skill = read("itixo-codex", skillRel);
+  const codexSkill = read("itixo-codex", skillRel);
   for (const pattern of [
     /hook-provided report/i,
     /verbatim/i,
     /never estimate/i,
     /unknown values and warnings/i,
-    /unavailable rather than estimating/i,
   ]) {
-    assert.match(skill, pattern);
+    assert.match(codexSkill, pattern);
   }
-  assert.match(skill, /current session/i);
-  assert.match(skill, /root orchestrator and recursive subagents/i);
+  assert.match(codexSkill, /current session/i);
+  assert.match(codexSkill, /root orchestrator and recursive subagents/i);
+  assert.match(codexSkill, /return exactly `No token usage available yet\.` and nothing else/i);
+  assert.match(codexSkill, /heading, tables, total, and warnings/i);
+  assert.match(read("itixo-claude", skillRel), /unavailable rather than estimating/i);
+});
+
+test("Codex no-data output is exactly the plain user fallback", () => {
+  const sessions = temporaryDirectory();
+  const stateDir = temporaryDirectory();
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  startSession("itixo-codex", { source: "startup", session_id: "empty-rollout" }, stateDir);
+
+  const output = context(run(script, { prompt: "$dirigent-stats", session_id: "empty-rollout" }, {
+    DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+    DIRIGENT_STATS_STATE_DIR: stateDir,
+  }));
+
+  assert.equal(output, "No token usage available yet.");
+  assert.doesNotMatch(output, /\||## |<!--|Instruction:|Snapshot:/);
+});
+
+test("Codex nonzero output keeps human report data without transport metadata", () => {
+  const sessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const transcript = path.join(sessions, "root.jsonl");
+  const stateDir = temporaryDirectory();
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  startSession("itixo-codex", { source: "startup", session_id: "root-rollout", transcript_path: transcript }, stateDir);
+  const stopped = stopSession("itixo-codex", {
+    hook_event_name: "Stop", session_id: "root-rollout", transcript_path: transcript,
+    cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+  }, stateDir, { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions });
+  assert.equal(stopped.status, 0, stopped.stderr);
+
+  const output = context(run(script, { prompt: "$dirigent-stats", session_id: "root-rollout" }, {
+    DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+    DIRIGENT_STATS_STATE_DIR: stateDir,
+  }));
+
+  assert.match(output, /^## Dirigent Stats$/m);
+  assert.match(output, /^\| Agent \| Model \| Runs \| Tokens \| Share \|$/m);
+  assert.match(output, /^\| Model \| Runs \| Tokens \| Share \|$/m);
+  assert.match(output, /Exact known total: 65 tokens\./);
+  assert.match(output, /Partial report: usage unavailable/);
+  assert.doesNotMatch(output, /<!--|Instruction:|Snapshot:/);
+});
+
+test("Codex Stop resolves and anchors a null-state transcript within its bounded budget", () => {
+  const sessions = temporaryDirectory();
+  const stateDir = temporaryDirectory();
+  const sessionId = "bounded-rollout";
+  const transcript = path.join(sessions, "zzz-matching-rollout.jsonl");
+  for (let index = 0; index < 48; index++) {
+    const decoy = path.join(sessions, `decoy-${String(index).padStart(3, "0")}.jsonl`);
+    fs.writeFileSync(decoy, JSON.stringify({ type: "session_meta", payload: { id: `decoy-${index}` } }));
+    fs.utimesSync(decoy, new Date(0), new Date(0));
+  }
+  fs.writeFileSync(transcript, [
+    JSON.stringify({ type: "session_meta", payload: { id: sessionId } }),
+    JSON.stringify({ type: "turn_context", payload: { turn_id: "turn", model: "bounded-model" } }),
+    JSON.stringify({ type: "event_msg", payload: { turn_id: "turn", info: { total_token_usage: { total_tokens: 42 }, last_token_usage: { total_tokens: 42 } } } }),
+  ].join("\n"));
+  fs.writeFileSync(statePath(stateDir, sessionId), JSON.stringify({
+    schema: 2, sessionId, transcriptPath: null, cwd: "/tmp", source: "startup",
+  }));
+  const clock = preload(["let now = 0;", "Date.now = () => (now += 5);"].join("\n"));
+  try {
+    const stopped = stopSession("itixo-codex", {
+      hook_event_name: "Stop", session_id: sessionId, cwd: "/tmp", model: "bounded-model", turn_id: "completed-turn",
+    }, stateDir, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+      DIRIGENT_STATS_STOP_BUDGET_MS: "100",
+      NODE_OPTIONS: clock.option,
+    });
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const output = context(run(
+      path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js"),
+      { prompt: "$dirigent-stats", session_id: sessionId },
+      { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir },
+    ));
+    assert.match(output, /Exact known total: 42 tokens\./);
+    assert.doesNotMatch(output, /No token usage available yet|Exact known total: 0 tokens/);
+    const persisted = JSON.parse(fs.readFileSync(statePath(stateDir, sessionId), "utf8"));
+    assert.equal(persisted.transcriptPath, path.resolve(transcript));
+    assert.equal(persisted.cache.transcriptPath, path.resolve(transcript));
+  } finally {
+    fs.rmSync(clock.directory, { recursive: true, force: true });
+  }
+});
+
+test("Codex Stop never caches an old resolved report under a newer SessionStart anchor", () => {
+  const sessions = temporaryDirectory();
+  const stateDir = temporaryDirectory();
+  const sessionId = "anchor-race-rollout";
+  const oldTranscript = path.join(sessions, "old.jsonl");
+  const newTranscript = path.join(sessions, "new.jsonl");
+  fs.writeFileSync(oldTranscript, [
+    JSON.stringify({ type: "session_meta", payload: { id: sessionId } }),
+    JSON.stringify({ type: "turn_context", payload: { turn_id: "old-turn", model: "old-model" } }),
+    JSON.stringify({ type: "event_msg", payload: { turn_id: "old-turn", info: { total_token_usage: { total_tokens: 31 }, last_token_usage: { total_tokens: 31 } } } }),
+  ].join("\n"));
+  fs.writeFileSync(newTranscript, JSON.stringify({ type: "session_meta", payload: { id: sessionId } }));
+  fs.writeFileSync(statePath(stateDir, sessionId), JSON.stringify({
+    schema: 2, sessionId, transcriptPath: null, cwd: "/tmp/old", source: "startup",
+  }));
+
+  const race = preload([
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "const originalRead = fs.readFileSync;",
+    "let injected = false;",
+    "fs.readFileSync = function(file, ...args) {",
+    "  const value = originalRead.call(this, file, ...args);",
+    "  if (!injected && path.resolve(String(file)) === path.resolve(process.env.RACE_OLD_TRANSCRIPT)) {",
+    "    injected = true;",
+    "    fs.writeFileSync(process.env.RACE_STATE_FILE, JSON.stringify({",
+    "      schema: 2, sessionId: process.env.RACE_SESSION_ID, transcriptPath: path.resolve(process.env.RACE_NEW_TRANSCRIPT),",
+    "      cwd: '/tmp/new', source: 'resume'",
+    "    }));",
+    "  }",
+    "  return value;",
+    "};",
+  ].join("\n"));
+  try {
+    const stopped = stopSession("itixo-codex", {
+      hook_event_name: "Stop", session_id: sessionId, transcript_path: oldTranscript,
+      cwd: "/tmp/old", model: "old-model", turn_id: "old-turn",
+    }, stateDir, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+      NODE_OPTIONS: race.option,
+      RACE_STATE_FILE: statePath(stateDir, sessionId),
+      RACE_SESSION_ID: sessionId,
+      RACE_OLD_TRANSCRIPT: oldTranscript,
+      RACE_NEW_TRANSCRIPT: newTranscript,
+    });
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const output = context(run(
+      path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js"),
+      { prompt: "$dirigent-stats", session_id: sessionId },
+      { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir },
+    ));
+    assert.equal(output, "No token usage available yet.");
+    const persisted = JSON.parse(fs.readFileSync(statePath(stateDir, sessionId), "utf8"));
+    assert.equal(persisted.transcriptPath, path.resolve(newTranscript));
+    assert.doesNotMatch(persisted.cache?.report || "", /31 tokens|old-model/);
+  } finally {
+    fs.rmSync(race.directory, { recursive: true, force: true });
+  }
+});
+
+test("Codex candidate prioritization stops stat work at the deterministic deadline", () => {
+  const sessions = temporaryDirectory();
+  const stateDir = temporaryDirectory();
+  const sessionId = "bounded-stat-rollout";
+  const statCountFile = path.join(temporaryDirectory(), "stat-count.txt");
+  for (let index = 0; index < 64; index++) {
+    fs.writeFileSync(
+      path.join(sessions, `decoy-${String(index).padStart(3, "0")}.jsonl`),
+      JSON.stringify({ type: "session_meta", payload: { id: `decoy-${index}` } }),
+    );
+  }
+  fs.writeFileSync(statePath(stateDir, sessionId), JSON.stringify({
+    schema: 2, sessionId, transcriptPath: null, cwd: "/tmp", source: "startup",
+  }));
+  const clock = preload([
+    "const fs = require('node:fs');",
+    "const originalStat = fs.statSync;",
+    "const originalWrite = fs.writeFileSync;",
+    "let now = 0;",
+    "let jsonlStats = 0;",
+    "Date.now = () => now;",
+    "fs.statSync = function(file, ...args) {",
+    "  if (typeof file === 'string' && file.endsWith('.jsonl')) { jsonlStats += 1; now += 10; }",
+    "  return originalStat.call(this, file, ...args);",
+    "};",
+    "process.on('exit', () => originalWrite.call(fs, process.env.STAT_COUNT_FILE, String(jsonlStats)));",
+  ].join("\n"));
+  try {
+    const stopped = stopSession("itixo-codex", {
+      hook_event_name: "Stop", session_id: sessionId, cwd: "/tmp", model: "none", turn_id: "completed-turn",
+    }, stateDir, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+      DIRIGENT_STATS_STOP_BUDGET_MS: "100",
+      NODE_OPTIONS: clock.option,
+      STAT_COUNT_FILE: statCountFile,
+    });
+    assert.equal(stopped.status, 0, stopped.stderr);
+    assert.equal(stopped.stdout, "");
+    assert.equal(stopped.stderr, "");
+    const statCount = Number(fs.readFileSync(statCountFile, "utf8"));
+    assert.ok(statCount <= 12, `candidate stat work must stop at deadline; observed ${statCount} JSONL stats`);
+    const persisted = JSON.parse(fs.readFileSync(statePath(stateDir, sessionId), "utf8"));
+    assert.equal(persisted.cache.report, "No token usage available yet.");
+  } finally {
+    fs.rmSync(clock.directory, { recursive: true, force: true });
+  }
 });
 
 test("Claude report aggregates recursive descendants without leaking unrelated data", () => {
@@ -441,7 +636,12 @@ test("Stop caches completed reports and explicit stats survives unavailable tran
     const cached = context(run(current.script, { prompt: "$dirigent-stats", session_id: current.sessionId }, {
       ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
     }));
-    assert.match(cached, /<!-- (?:itixo-)?dirigent-stats(?:-report)?:?(?:start|begin) -->/);
+    if (current.plugin === "itixo-claude") {
+      assert.match(cached, /<!-- itixo-dirigent-stats-report:start -->/);
+    } else {
+      assert.match(cached, /^## Dirigent Stats$/m);
+      assert.doesNotMatch(cached, /<!--|Instruction:|Snapshot:/);
+    }
     assert.match(cached, /root-model|Exact known total/);
     assert.doesNotMatch(cached, /Unavailable: current session stats context is missing or invalid\./);
 
@@ -631,8 +831,7 @@ test("Codex timed-out Stop invalidates prior cached totals", () => {
   }));
   assert.notEqual(current, prior);
   assert.doesNotMatch(current, /Exact known total: 65 tokens|root-model|worker-model/);
-  assert.match(current, /No completed token usage available yet/);
-  assert.match(current, /Exact known total: 0 tokens\./);
+  assert.equal(current, "No token usage available yet.");
   const persisted = JSON.parse(fs.readFileSync(statePath(stateDir, "root-rollout"), "utf8"));
   if (persisted.cache) {
     assert.notEqual(persisted.cache.report, prior);
@@ -828,8 +1027,8 @@ test("Codex budget values normalize to finite bounded behavior", () => {
   try {
     const defaultReport = reportFor(undefined);
     const maximumReport = reportFor("5000");
-    assert.match(defaultReport, /Exact known total: 0 tokens\./);
-    assert.match(maximumReport, /Exact known total: 0 tokens\./);
+    assert.match(defaultReport, /Exact known total: 7 tokens\./);
+    assert.match(maximumReport, /Exact known total: 7 tokens\./);
     assert.equal(reportFor("not-a-number"), defaultReport);
     assert.equal(reportFor("Infinity"), defaultReport);
     assert.equal(reportFor("999999999999999999999"), maximumReport);

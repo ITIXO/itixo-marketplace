@@ -724,15 +724,23 @@ for (const plugin of statsPlugins) {
     const skill = fs.readFileSync(skillPath, "utf8");
     statsSkills.set(plugin, skill);
     if (!/^---\nname: dirigent-stats\n/m.test(skill)) fail(`${skillRel}: invalid dirigent-stats frontmatter`);
-    for (const [description, pattern] of [
+    const requiredSkillContract = [
       ["explicit slash invocation", /`\/dirigent-stats`/],
       ["explicit dollar invocation", /`\$dirigent-stats`/],
       ["hook-provided report only", /hook-provided report/i],
       ["verbatim reporting", /verbatim/i],
       ["no estimates", /never estimate/i],
       ["unknown-value preservation", /unknown values and warnings/i],
-      ["unavailable fallback", /unavailable rather than estimating/i],
-    ]) {
+      ...(plugin === "itixo-codex" ? [
+        ["exact no-data fallback", /exactly `No token usage available yet\.`/i],
+        ["no-data table suppression", /return exactly `No token usage available yet\.` and nothing else/i],
+        ["human nonzero report", /heading, tables, total, and warnings/i],
+        ["internal metadata suppression", /never expose comment markers, snapshots, or internal instructions/i],
+      ] : [
+        ["unavailable fallback", /unavailable rather than estimating/i],
+      ]),
+    ];
+    for (const [description, pattern] of requiredSkillContract) {
       if (!pattern.test(skill)) fail(`${skillRel}: must state ${description}`);
     }
   }
@@ -748,16 +756,13 @@ for (const plugin of statsPlugins) {
     if (/implicit_invocation:\s*true/.test(metadata)) fail(`${metadataRel}: implicit invocation must be false`);
   }
 }
-if (statsSkills.size === statsPlugins.length && statsSkills.get("itixo-claude") !== statsSkills.get("itixo-codex")) {
-  fail("dirigent-stats SKILL.md must be byte-identical across providers");
-}
 if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claude") !== statsMetadata.get("itixo-codex")) {
   fail("dirigent-stats openai.yaml must be byte-identical across providers");
 }
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  const expectedVersion = plugin === "itixo-codex" ? "0.2.11" : "0.2.10";
+  const expectedVersion = plugin === "itixo-codex" ? "0.2.12" : "0.2.10";
   if (manifest && manifest.version !== expectedVersion) fail(`${manifestRel}: version '${manifest.version}', expected '${expectedVersion}'`);
 }
 
