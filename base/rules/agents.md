@@ -11,7 +11,7 @@ Every step that is:
 1. precise enough to describe in a self-contained prompt, and
 2. executable without further high-level judgment
 
-MUST be delegated to a subagent on a cheaper model.
+MUST be delegated to its prescribed agent role and, by default, that role's prescribed model tier. A matching model and/or effort override explicitly supplied by the user replaces only those default fields; it does not remove the delegation requirement. The orchestrator never invents or broadens an override.
 
 ## Model tiers
 
@@ -35,16 +35,17 @@ MUST be delegated to a subagent on a cheaper model.
 
 ## Provider dispatch
 
-- Claude invokes the native plugin agent using the canonical `itixo-*` ID; its generated definition owns the prescribed tier.
-- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md` or pass a model or reasoning-effort override; the installed TOML owns instructions, model, and effort.
+- Claude invokes the native plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model and effort. Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
+- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md`; the installed TOML owns instructions, model, and effort. Explicit user-requested per-agent overrides are installed with `itixo-codex:install-agents` and then owned by the matching TOML. Do not pass an additional invocation override. Explicit planner Sol may exceed the caller model.
+- Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
 - If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is Luna + high; Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
 
 ## Delegation rules
 
 - Delegate when the step is self-contained; keep in orchestrator when it requires cross-step judgment.
-- Prompt to subagent must include: goal, exact files/paths if known, constraints, expected output format.
+- Prompt to subagent must include: goal, exact files/paths if known, constraints, expected output format, and any explicit user-requested model or effort override supported by the provider.
 - Subagent returns compact result; orchestrator never re-reads what subagent already summarized.
-- itixo-investigator before itixo-builder: locate first with cheap model, then hand precise file:line targets to itixo-builder.
+- `itixo-investigator` before `itixo-builder`: investigator locates first on its configured model, defaulting to the cheap tier unless the user supplied a matching explicit override; then hand precise file:line targets to builder on its configured model, defaulting to the mid tier unless likewise overridden.
 - Never let a subagent expand scope. Scope change goes back to orchestrator.
 - Parallelize independent subagent runs.
 - **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least three safe independent executable units exist, launch exactly three direct worker subagents in one parallel batch before awaiting any result. The orchestrator is not a worker.
@@ -58,7 +59,7 @@ MUST be delegated to a subagent on a cheaper model.
 ## GitHub issue delegation (mandatory)
 
 - Delegate all GitHub issue assessment, structuring, and creation work to exactly one `itixo-github-issues` agent. Do not split checks and creation between agents.
-- Before delegating, load the matching `agents/itixo-github-issues.md` role instructions. Select the provider model in the `mid` tier from the table above.
+- Before delegating, load the matching `agents/itixo-github-issues.md` role instructions. For Claude, honor a matching explicit per-invocation model and/or effort override; otherwise use the `mid`-tier Sonnet default. For Codex, invoke the installed TOML, which owns either its explicit installed override or the `mid`-tier Terra + medium default.
 - Prompt that agent with requested outcome, target repository and owner context, constraints, expected output, and known IssueType or project conventions. Require it to determine whether native GitHub IssueTypes are available; the fallback below applies only when they are unavailable in a personal repository.
 - The `itixo-github-issues` agent owns duplicate, native-IssueType availability, fallback-label, linked-sub-issue/depth, and repository-convention checks, then reports or creates the issue result.
 - With native IssueTypes, it classifies the root as `Feature` when appropriate, direct children as `Task` by default, and a direct child as `Feature` only when that large child is split into executable children. It allows at most two parent-child edges: `Feature -> Feature -> Task`.
