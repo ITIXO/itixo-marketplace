@@ -1,15 +1,16 @@
 ---
 name: dirigent-stats
-description: Show exact task token usage by agent. Use only when the user explicitly invokes `/dirigent-stats` or `$dirigent-stats`.
+description: Show exact current-task token usage grouped by agent, model, or both. Use only when the user explicitly invokes `/dirigent-stats` or `$dirigent-stats`.
 ---
 
 # Dirigent Stats
 
-Report only current session, including root orchestrator and recursive subagents. Consume the hook-provided report from `dirigent-stats.js` and reproduce it verbatim without recalculation.
+Use `--view agents|models|both`; default to `both`. Examples: `$dirigent-stats --view agents`, `/dirigent-stats --view models`, `$itixo-codex:dirigent-stats --view both`.
 
-- If usage is unavailable or zero, return exactly `No token usage available yet.` and nothing else.
-- For nonzero usage, return only the hook-provided heading, tables, total, and warnings.
-- Never expose comment markers, snapshots, or internal instructions.
-- Never estimate tokens or savings; preserve unknown values and warnings.
+For malformed, missing, duplicate, or unknown view values, return exactly `Invalid stats view. Use agents, models, or both.`
+
+Return the selected cached report verbatim. Never recalculate, estimate, or double-sum. If usage is unavailable or zero, return exactly `No token usage available yet.` with no table.
+
+Usage and total values are exact `kToks`, rendered with at most three decimals and trailing zeros removed; never convert to `mToks`. Totals include root orchestrator plus recursive agents and each agent's own input, cache-creation, cache-read, and output work, so aggregates can be large. Agent and model tables are alternate groupings of the same total; never add them together.
 
 Counting starts automatically when plugin hooks are active: `SessionStart` initializes session state, `Stop` caches completed turns, and an explicit stats command reads that cache. After installing or updating the plugin, start a new task or restart Codex so hooks are active from session start.
