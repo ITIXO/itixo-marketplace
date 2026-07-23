@@ -91,6 +91,48 @@ function preload(source) {
   return { directory, option: `--require=${file}` };
 }
 
+const INVALID_VIEW = "Invalid stats view. Use agents, models, or both.";
+const AGENT_USAGE_HEADER = "| Agent | Model | Runs | Usage | Share |";
+const MODEL_USAGE_HEADER = "| Model | Runs | Usage | Share |";
+
+function writeJsonl(file, records) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, records.map((record) => JSON.stringify(record)).join("\n"));
+}
+
+function assertView(report, view) {
+  const lines = new Set(report.split("\n"));
+  assert.equal(lines.has(AGENT_USAGE_HEADER), view !== "models", report);
+  assert.equal(lines.has(MODEL_USAGE_HEADER), view !== "agents", report);
+}
+
+function markdownRows(report, header) {
+  const lines = report.split("\n");
+  const start = lines.indexOf(header);
+  assert.notEqual(start, -1, report);
+  const rows = [];
+  for (let index = start + 2; index < lines.length && lines[index].startsWith("|"); index += 1) {
+    rows.push(lines[index].split("|").slice(1, -1).map((cell) => cell.trim()));
+  }
+  return rows;
+}
+
+function kToks(value) {
+  return Number(value.replace(/,/g, "").replace(/ kToks$/, ""));
+}
+
+function assertUsageInvariant(report) {
+  const totalMatch = report.match(/Exact known total: ([\d,.]+ kToks)\./);
+  assert.ok(totalMatch, report);
+  const total = kToks(totalMatch[1]);
+  const agentSum = markdownRows(report, AGENT_USAGE_HEADER)
+    .reduce((sum, row) => sum + kToks(row[3]), 0);
+  const modelSum = markdownRows(report, MODEL_USAGE_HEADER)
+    .reduce((sum, row) => sum + kToks(row[2]), 0);
+  assert.equal(agentSum, total);
+  assert.equal(modelSum, total);
+}
+
 test("SessionStart persists isolated, atomically refreshed provider session markers", () => {
   for (const plugin of plugins) {
     const stateDir = temporaryDirectory();
@@ -194,9 +236,17 @@ test("hashed marker paths contain traversal IDs", () => {
   }
 });
 
-test("dirigent-stats skill is byte-identical across providers", () => {
-  assert.equal(read(plugins[0], skillRel), read(plugins[1], skillRel));
+test("dirigent-stats metadata and report contracts stay aligned across providers", () => {
   assert.equal(read(plugins[0], metadataRel), read(plugins[1], metadataRel));
+  for (const plugin of plugins) {
+    const skill = read(plugin, skillRel);
+    assert.match(skill, /`--view agents\|models\|both`/);
+    assert.match(skill, /default to `both`/);
+    assert.match(skill, /exactly `Invalid stats view\. Use agents, models, or both\.`/);
+    assert.match(skill, /exactly `No token usage available yet\.`/);
+    assert.match(skill, /exact `kToks`/);
+    assert.match(skill, /never convert to `mToks`/);
+  }
 });
 
 test("dirigent-stats exposes explicit and implicit invocation metadata", () => {
@@ -213,18 +263,209 @@ test("dirigent-stats exposes explicit and implicit invocation metadata", () => {
 });
 
 test("dirigent-stats only returns hook-generated exact report", () => {
-  const skill = read("itixo-codex", skillRel);
+  const codexSkill = read("itixo-codex", skillRel);
   for (const pattern of [
-    /hook-provided report/i,
+    /selected cached report/i,
     /verbatim/i,
-    /never estimate/i,
-    /unknown values and warnings/i,
-    /unavailable rather than estimating/i,
+    /never recalculate, estimate, or double-sum/i,
+    /at most three decimals/i,
   ]) {
-    assert.match(skill, pattern);
+    assert.match(codexSkill, pattern);
   }
-  assert.match(skill, /current session/i);
-  assert.match(skill, /root orchestrator and recursive subagents/i);
+  assert.match(codexSkill, /root orchestrator plus recursive agents/i);
+  assert.match(codexSkill, /If usage is unavailable or zero, return exactly `No token usage available yet\.`/i);
+  assert.match(codexSkill, /alternate groupings of the same total/i);
+});
+
+test("Codex no-data output is exactly the plain user fallback", () => {
+  const sessions = temporaryDirectory();
+  const stateDir = temporaryDirectory();
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  startSession("itixo-codex", { source: "startup", session_id: "empty-rollout" }, stateDir);
+
+  const output = context(run(script, { prompt: "$dirigent-stats", session_id: "empty-rollout" }, {
+    DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+    DIRIGENT_STATS_STATE_DIR: stateDir,
+  }));
+
+  assert.equal(output, "No token usage available yet.");
+  assert.doesNotMatch(output, /\||## |<!--|Instruction:|Snapshot:/);
+});
+
+test("Codex nonzero output keeps human report data without transport metadata", () => {
+  const sessions = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const transcript = path.join(sessions, "root.jsonl");
+  const stateDir = temporaryDirectory();
+  const script = path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js");
+  startSession("itixo-codex", { source: "startup", session_id: "root-rollout", transcript_path: transcript }, stateDir);
+  const stopped = stopSession("itixo-codex", {
+    hook_event_name: "Stop", session_id: "root-rollout", transcript_path: transcript,
+    cwd: "/tmp", model: "root-model", turn_id: "completed-turn",
+  }, stateDir, { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions });
+  assert.equal(stopped.status, 0, stopped.stderr);
+
+  const output = context(run(script, { prompt: "$dirigent-stats", session_id: "root-rollout" }, {
+    DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+    DIRIGENT_STATS_STATE_DIR: stateDir,
+  }));
+
+  assert.match(output, /^## Dirigent Stats$/m);
+  assert.match(output, /^\| Agent \| Model \| Runs \| Usage \| Share \|$/m);
+  assert.match(output, /^\| Model \| Runs \| Usage \| Share \|$/m);
+  assert.match(output, /Exact known total: 0\.065 kToks\./);
+  assert.match(output, /Partial report: usage unavailable/);
+  assert.doesNotMatch(output, /<!--|Instruction:|Snapshot:/);
+});
+
+test("Codex Stop resolves and anchors a null-state transcript within its bounded budget", () => {
+  const sessions = temporaryDirectory();
+  const stateDir = temporaryDirectory();
+  const sessionId = "bounded-rollout";
+  const transcript = path.join(sessions, "zzz-matching-rollout.jsonl");
+  for (let index = 0; index < 48; index++) {
+    const decoy = path.join(sessions, `decoy-${String(index).padStart(3, "0")}.jsonl`);
+    fs.writeFileSync(decoy, JSON.stringify({ type: "session_meta", payload: { id: `decoy-${index}` } }));
+    fs.utimesSync(decoy, new Date(0), new Date(0));
+  }
+  fs.writeFileSync(transcript, [
+    JSON.stringify({ type: "session_meta", payload: { id: sessionId } }),
+    JSON.stringify({ type: "turn_context", payload: { turn_id: "turn", model: "bounded-model" } }),
+    JSON.stringify({ type: "event_msg", payload: { turn_id: "turn", info: { total_token_usage: { total_tokens: 42 }, last_token_usage: { total_tokens: 42 } } } }),
+  ].join("\n"));
+  fs.writeFileSync(statePath(stateDir, sessionId), JSON.stringify({
+    schema: 2, sessionId, transcriptPath: null, cwd: "/tmp", source: "startup",
+  }));
+  const clock = preload(["let now = 0;", "Date.now = () => (now += 5);"].join("\n"));
+  try {
+    const stopped = stopSession("itixo-codex", {
+      hook_event_name: "Stop", session_id: sessionId, cwd: "/tmp", model: "bounded-model", turn_id: "completed-turn",
+    }, stateDir, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+      DIRIGENT_STATS_STOP_BUDGET_MS: "100",
+      NODE_OPTIONS: clock.option,
+    });
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const output = context(run(
+      path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js"),
+      { prompt: "$dirigent-stats", session_id: sessionId },
+      { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir },
+    ));
+    assert.match(output, /Exact known total: 0\.042 kToks\./);
+    assert.doesNotMatch(output, /No token usage available yet|Exact known total: 0 kToks/);
+    const persisted = JSON.parse(fs.readFileSync(statePath(stateDir, sessionId), "utf8"));
+    assert.equal(persisted.transcriptPath, path.resolve(transcript));
+    assert.equal(persisted.cache.transcriptPath, path.resolve(transcript));
+  } finally {
+    fs.rmSync(clock.directory, { recursive: true, force: true });
+  }
+});
+
+test("Codex Stop never caches an old resolved report under a newer SessionStart anchor", () => {
+  const sessions = temporaryDirectory();
+  const stateDir = temporaryDirectory();
+  const sessionId = "anchor-race-rollout";
+  const oldTranscript = path.join(sessions, "old.jsonl");
+  const newTranscript = path.join(sessions, "new.jsonl");
+  fs.writeFileSync(oldTranscript, [
+    JSON.stringify({ type: "session_meta", payload: { id: sessionId } }),
+    JSON.stringify({ type: "turn_context", payload: { turn_id: "old-turn", model: "old-model" } }),
+    JSON.stringify({ type: "event_msg", payload: { turn_id: "old-turn", info: { total_token_usage: { total_tokens: 31 }, last_token_usage: { total_tokens: 31 } } } }),
+  ].join("\n"));
+  fs.writeFileSync(newTranscript, JSON.stringify({ type: "session_meta", payload: { id: sessionId } }));
+  fs.writeFileSync(statePath(stateDir, sessionId), JSON.stringify({
+    schema: 2, sessionId, transcriptPath: null, cwd: "/tmp/old", source: "startup",
+  }));
+
+  const race = preload([
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "const originalRead = fs.readFileSync;",
+    "let injected = false;",
+    "fs.readFileSync = function(file, ...args) {",
+    "  const value = originalRead.call(this, file, ...args);",
+    "  if (!injected && path.resolve(String(file)) === path.resolve(process.env.RACE_OLD_TRANSCRIPT)) {",
+    "    injected = true;",
+    "    fs.writeFileSync(process.env.RACE_STATE_FILE, JSON.stringify({",
+    "      schema: 2, sessionId: process.env.RACE_SESSION_ID, transcriptPath: path.resolve(process.env.RACE_NEW_TRANSCRIPT),",
+    "      cwd: '/tmp/new', source: 'resume'",
+    "    }));",
+    "  }",
+    "  return value;",
+    "};",
+  ].join("\n"));
+  try {
+    const stopped = stopSession("itixo-codex", {
+      hook_event_name: "Stop", session_id: sessionId, transcript_path: oldTranscript,
+      cwd: "/tmp/old", model: "old-model", turn_id: "old-turn",
+    }, stateDir, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+      NODE_OPTIONS: race.option,
+      RACE_STATE_FILE: statePath(stateDir, sessionId),
+      RACE_SESSION_ID: sessionId,
+      RACE_OLD_TRANSCRIPT: oldTranscript,
+      RACE_NEW_TRANSCRIPT: newTranscript,
+    });
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const output = context(run(
+      path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js"),
+      { prompt: "$dirigent-stats", session_id: sessionId },
+      { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir },
+    ));
+    assert.equal(output, "No token usage available yet.");
+    const persisted = JSON.parse(fs.readFileSync(statePath(stateDir, sessionId), "utf8"));
+    assert.equal(persisted.transcriptPath, path.resolve(newTranscript));
+    assert.doesNotMatch(persisted.cache?.report || "", /31 tokens|old-model/);
+  } finally {
+    fs.rmSync(race.directory, { recursive: true, force: true });
+  }
+});
+
+test("Codex candidate prioritization stops stat work at the deterministic deadline", () => {
+  const sessions = temporaryDirectory();
+  const stateDir = temporaryDirectory();
+  const sessionId = "bounded-stat-rollout";
+  const statCountFile = path.join(temporaryDirectory(), "stat-count.txt");
+  for (let index = 0; index < 64; index++) {
+    fs.writeFileSync(
+      path.join(sessions, `decoy-${String(index).padStart(3, "0")}.jsonl`),
+      JSON.stringify({ type: "session_meta", payload: { id: `decoy-${index}` } }),
+    );
+  }
+  fs.writeFileSync(statePath(stateDir, sessionId), JSON.stringify({
+    schema: 2, sessionId, transcriptPath: null, cwd: "/tmp", source: "startup",
+  }));
+  const clock = preload([
+    "const fs = require('node:fs');",
+    "const originalStat = fs.statSync;",
+    "const originalWrite = fs.writeFileSync;",
+    "let now = 0;",
+    "let jsonlStats = 0;",
+    "Date.now = () => now;",
+    "fs.statSync = function(file, ...args) {",
+    "  if (typeof file === 'string' && file.endsWith('.jsonl')) { jsonlStats += 1; now += 10; }",
+    "  return originalStat.call(this, file, ...args);",
+    "};",
+    "process.on('exit', () => originalWrite.call(fs, process.env.STAT_COUNT_FILE, String(jsonlStats)));",
+  ].join("\n"));
+  try {
+    const stopped = stopSession("itixo-codex", {
+      hook_event_name: "Stop", session_id: sessionId, cwd: "/tmp", model: "none", turn_id: "completed-turn",
+    }, stateDir, {
+      DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions,
+      DIRIGENT_STATS_STOP_BUDGET_MS: "100",
+      NODE_OPTIONS: clock.option,
+      STAT_COUNT_FILE: statCountFile,
+    });
+    assert.equal(stopped.status, 0, stopped.stderr);
+    assert.equal(stopped.stdout, "");
+    assert.equal(stopped.stderr, "");
+    const statCount = Number(fs.readFileSync(statCountFile, "utf8"));
+    assert.ok(statCount <= 12, `candidate stat work must stop at deadline; observed ${statCount} JSONL stats`);
+    const persisted = JSON.parse(fs.readFileSync(statePath(stateDir, sessionId), "utf8"));
+    assert.equal(persisted.cache.report, "No token usage available yet.");
+  } finally {
+    fs.rmSync(clock.directory, { recursive: true, force: true });
+  }
 });
 
 test("Claude report aggregates recursive descendants without leaking unrelated data", () => {
@@ -249,16 +490,16 @@ test("Claude report aggregates recursive descendants without leaking unrelated d
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, "");
   const output = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
-  assert.match(output, /\| orchestrator \| root-model \| 1 \| 20 \| 44\.4% \|/);
-  assert.match(output, /\| builder \| worker-model-a, worker-model-b \| 2 \| 20 \| 44\.4% \|/);
-  assert.match(output, /\| unknown \| worker-model-c \| 1 \| 5 \| 11\.1% \|/);
-  assert.match(output, /\| root-model \| 1 \| 20 \| 44\.4% \|/);
-  assert.match(output, /\| worker-model-a \| 1 \| 10 \| 22\.2% \|/);
-  assert.match(output, /\| worker-model-b \| 1 \| 10 \| 22\.2% \|/);
-  assert.match(output, /\| worker-model-c \| 1 \| 5 \| 11\.1% \|/);
-  assert.match(output, /Warning: One or more child transcript identities were unavailable/);
-  assert.match(output, /Warning: Some assistant usage records were unavailable/);
-  assert.match(output, /Warning: Some assistant usage records lacked stable message IDs/);
+  assert.match(output, /\| orchestrator \| root-model \| 1 \| 0\.02 kToks \| 44\.4% \|/);
+  assert.match(output, /\| builder \| worker-model-a, worker-model-b \| 2 \| 0\.02 kToks \| 44\.4% \|/);
+  assert.match(output, /\| unknown \| worker-model-c \| 1 \| 0\.005 kToks \| 11\.1% \|/);
+  assert.match(output, /\| root-model \| 1 \| 0\.02 kToks \| 44\.4% \|/);
+  assert.match(output, /\| worker-model-a \| 1 \| 0\.01 kToks \| 22\.2% \|/);
+  assert.match(output, /\| worker-model-b \| 1 \| 0\.01 kToks \| 22\.2% \|/);
+  assert.match(output, /\| worker-model-c \| 1 \| 0\.005 kToks \| 11\.1% \|/);
+  assert.match(output, /One or more child transcript identities were unavailable/);
+  assert.match(output, /Some assistant usage records were unavailable/);
+  assert.match(output, /Some assistant usage records lacked stable message IDs/);
   assert.doesNotMatch(output, /unrelated-model|999|100 \||77 \|/);
   assert.doesNotMatch(output, /\| root-model \| 2 \| 120 \|/);
 });
@@ -379,8 +620,8 @@ test("Claude Submit and Expansion hooks emit exactly once through their intended
     const output = JSON.parse(result.stdout);
     assert.equal(output.hookSpecificOutput.hookEventName, hookEventName);
     assert.equal(output.hookSpecificOutput.additionalContext, before.cache.report);
-    assert.equal((result.stdout.match(/itixo-dirigent-stats-report:start/g) || []).length, 1);
-    assert.equal((result.stdout.match(/itixo-dirigent-stats-report:end/g) || []).length, 1);
+    assert.equal(result.stdout.trim().split("\n").length, 1);
+    assert.doesNotMatch(result.stdout, /<!--|itixo-dirigent-stats-report/);
     assert.deepEqual(JSON.parse(fs.readFileSync(statePath(stateDir, "root-run"), "utf8")), before);
   };
 
@@ -441,7 +682,8 @@ test("Stop caches completed reports and explicit stats survives unavailable tran
     const cached = context(run(current.script, { prompt: "$dirigent-stats", session_id: current.sessionId }, {
       ...current.env, DIRIGENT_STATS_STATE_DIR: stateDir,
     }));
-    assert.match(cached, /<!-- (?:itixo-)?dirigent-stats(?:-report)?:?(?:start|begin) -->/);
+    assert.match(cached, /^## Dirigent Stats$/m);
+    assert.doesNotMatch(cached, /<!--|Instruction:|Snapshot:/);
     assert.match(cached, /root-model|Exact known total/);
     assert.doesNotMatch(cached, /Unavailable: current session stats context is missing or invalid\./);
 
@@ -582,7 +824,7 @@ test("Claude startup and clear reset cache while resume and compact preserve it"
     } else {
       assert.notEqual(afterRefresh, cached);
       assert.doesNotMatch(afterRefresh, /\| orchestrator \| root-model \|/);
-      assert.match(afterRefresh, /No exact assistant usage records were available/);
+      assert.equal(afterRefresh, "No token usage available yet.");
       assert.equal(state.transcriptPath, null);
       assert.equal(state.cache.report, afterRefresh);
     }
@@ -606,7 +848,7 @@ test("Codex timed-out Stop invalidates prior cached totals", () => {
   const prior = context(run(script, { prompt: "$dirigent-stats", session_id: "root-rollout" }, {
     DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir,
   }));
-  assert.match(prior, /Exact known total: 65 tokens\./);
+  assert.match(prior, /Exact known total: 0\.065 kToks\./);
 
   const clock = preload(["let now = 0;", "Date.now = () => (now += 1000);"].join("\n"));
   try {
@@ -630,9 +872,8 @@ test("Codex timed-out Stop invalidates prior cached totals", () => {
     DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir,
   }));
   assert.notEqual(current, prior);
-  assert.doesNotMatch(current, /Exact known total: 65 tokens|root-model|worker-model/);
-  assert.match(current, /No completed token usage available yet/);
-  assert.match(current, /Exact known total: 0 tokens\./);
+  assert.doesNotMatch(current, /Exact known total: 0\.065 kToks|root-model|worker-model/);
+  assert.equal(current, "No token usage available yet.");
   const persisted = JSON.parse(fs.readFileSync(statePath(stateDir, "root-rollout"), "utf8"));
   if (persisted.cache) {
     assert.notEqual(persisted.cache.report, prior);
@@ -678,7 +919,7 @@ test("Codex rejects malformed tagged cached reports instead of emitting them", (
     }));
     assert.notEqual(recovered, malformed);
     assert.doesNotMatch(recovered, /Unavailable: current session stats context is missing or invalid|arbitrary marker string/);
-    assert.match(recovered, /\| orchestrator \| root-model \| 1 \| 30 \| 46\.2% \|/);
+    assert.match(recovered, /\| orchestrator \| root-model \| 1 \| 0\.03 kToks \| 46\.2% \|/);
     assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).cache.report, recovered);
   }
 });
@@ -828,8 +1069,8 @@ test("Codex budget values normalize to finite bounded behavior", () => {
   try {
     const defaultReport = reportFor(undefined);
     const maximumReport = reportFor("5000");
-    assert.match(defaultReport, /Exact known total: 0 tokens\./);
-    assert.match(maximumReport, /Exact known total: 0 tokens\./);
+    assert.match(defaultReport, /Exact known total: 0\.007 kToks\./);
+    assert.match(maximumReport, /Exact known total: 0\.007 kToks\./);
     assert.equal(reportFor("not-a-number"), defaultReport);
     assert.equal(reportFor("Infinity"), defaultReport);
     assert.equal(reportFor("999999999999999999999"), maximumReport);
@@ -861,11 +1102,11 @@ test("Codex report follows recursive parent_thread_id and final usage snapshots"
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, "");
   const output = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
-  assert.match(output, /\| orchestrator \| root-model \| 1 \| 30 \| 46\.2% \|/);
-  assert.match(output, /\| builder \| worker-model-a, worker-model-b \| 2 \| 35 \| 53\.8% \|/);
-  assert.match(output, /\| root-model \| 1 \| 30 \| 46\.2% \|/);
-  assert.match(output, /\| worker-model-a \| 1 \| 20 \| 30\.8% \|/);
-  assert.match(output, /\| worker-model-b \| 1 \| 15 \| 23\.1% \|/);
+  assert.match(output, /\| orchestrator \| root-model \| 1 \| 0\.03 kToks \| 46\.2% \|/);
+  assert.match(output, /\| builder \| worker-model-a, worker-model-b \| 2 \| 0\.035 kToks \| 53\.8% \|/);
+  assert.match(output, /\| root-model \| 1 \| 0\.03 kToks \| 46\.2% \|/);
+  assert.match(output, /\| worker-model-a \| 1 \| 0\.02 kToks \| 30\.8% \|/);
+  assert.match(output, /\| worker-model-b \| 1 \| 0\.015 kToks \| 23\.1% \|/);
   assert.doesNotMatch(output, /\| unknown \||Unmatched exact token remainder/);
   assert.match(output, /Partial report: usage unavailable/);
   assert.doesNotMatch(output, /unrelated-model|999/);
@@ -885,9 +1126,9 @@ test("Codex sums distinct incremental usage events within one turn", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, "");
   const output = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
-  assert.match(output, /\| orchestrator \| incremental-model \| 1 \| 30 \| 100\.0% \|/);
-  assert.match(output, /\| incremental-model \| 1 \| 30 \| 100\.0% \|/);
-  assert.match(output, /Exact known total: 30 tokens\./);
+  assert.match(output, /\| orchestrator \| incremental-model \| 1 \| 0\.03 kToks \| 100\.0% \|/);
+  assert.match(output, /\| incremental-model \| 1 \| 0\.03 kToks \| 100\.0% \|/);
+  assert.match(output, /Exact known total: 0\.03 kToks\./);
   assert.doesNotMatch(output, /\| unknown \||Unmatched exact token remainder|777/);
 });
 
@@ -906,7 +1147,7 @@ test("Codex warns when cumulative usage resets", () => {
   assert.equal(result.stderr, "");
   const output = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
   assert.match(output, /Cumulative token usage reset; pre-reset model attribution is unavailable/);
-  assert.match(output, /\| post-reset-model \| 1 \| 12 \| 100\.0% \|/);
+  assert.match(output, /\| post-reset-model \| 1 \| 0\.012 kToks \| 100\.0% \|/);
   assert.doesNotMatch(output, /\| unknown \||Unmatched exact token remainder/);
   assert.doesNotMatch(output, /\| pre-reset-model \|/);
 });
@@ -920,3 +1161,521 @@ test("Codex stats hook fails open for non-trigger and malformed input", () => {
     assert.equal(result.stderr, "");
   }
 });
+
+test("both providers select pre-rendered cached views without rescanning transcripts", () => {
+  const claudeFixture = path.join(root, "tests", "fixtures", "dirigent-stats", "claude");
+  const codexFixture = path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+  const cases = [
+    {
+      plugin: "itixo-claude",
+      sessionId: "root-run",
+      fixture: claudeFixture,
+      storage: (copy) => path.join(copy, "projects"),
+      transcript: (copy) => path.join(copy, "projects", "synthetic-project", "root-run.jsonl"),
+      env: (copy) => ({
+        DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: path.join(copy, "projects"),
+        DIRIGENT_STATS_CLAUDE_LEDGER_DIR: path.join(copy, "ledger"),
+      }),
+      requests: [
+        ["agents", { hook_event_name: "UserPromptExpansion", expansion_type: "slash_command", command_name: "dirigent-stats", command_args: "--view agents", session_id: "root-run" }],
+        ["models", { hook_event_name: "UserPromptExpansion", expansion_type: "slash_command", command_name: "itixo-claude:dirigent-stats", command_args: "--view models", session_id: "root-run" }],
+        ["both", { prompt: "$itixo-claude:dirigent-stats --view both", session_id: "root-run" }],
+        ["both", { prompt: "$dirigent-stats", session_id: "root-run" }],
+      ],
+      invalid: (args) => ({
+        hook_event_name: "UserPromptExpansion", expansion_type: "slash_command",
+        command_name: "dirigent-stats", command_args: args, session_id: "root-run",
+      }),
+    },
+    {
+      plugin: "itixo-codex",
+      sessionId: "root-rollout",
+      fixture: codexFixture,
+      storage: (copy) => copy,
+      transcript: (copy) => path.join(copy, "root.jsonl"),
+      env: (copy) => ({ DIRIGENT_STATS_CODEX_SESSIONS_DIR: copy }),
+      requests: [
+        ["agents", { prompt: "/dirigent-stats --view agents", session_id: "root-rollout" }],
+        ["models", { prompt: "$itixo-codex:dirigent-stats --view models", session_id: "root-rollout" }],
+        ["both", { prompt: "/itixo-codex:dirigent-stats --view both", session_id: "root-rollout" }],
+        ["both", { prompt: "$dirigent-stats", session_id: "root-rollout" }],
+      ],
+      invalid: (args) => ({ prompt: `$dirigent-stats ${args}`, session_id: "root-rollout" }),
+    },
+  ];
+  const sentinel = preload([
+    "const fs = require('node:fs');",
+    "const original = fs.readFileSync;",
+    "fs.readFileSync = function(file, ...args) {",
+    "  if (typeof file === 'string' && file.endsWith('.jsonl')) throw new Error('unexpected transcript rescan');",
+    "  return original.call(this, file, ...args);",
+    "};",
+  ].join("\n"));
+  try {
+    for (const current of cases) {
+      const storageRoot = temporaryDirectory();
+      const copy = path.join(storageRoot, "source");
+      fs.cpSync(current.fixture, copy, { recursive: true });
+      const stateDir = temporaryDirectory();
+      const transcript = current.transcript(copy);
+      const env = current.env(copy);
+      startSession(current.plugin, {
+        source: "startup", session_id: current.sessionId, transcript_path: transcript,
+      }, stateDir);
+      const stopped = stopSession(current.plugin, {
+        hook_event_name: "Stop", session_id: current.sessionId, transcript_path: transcript,
+        cwd: "/tmp", model: "root-model", turn_id: "view-turn",
+      }, stateDir, env);
+      assert.equal(stopped.status, 0, stopped.stderr);
+      fs.rmSync(current.storage(copy), { recursive: true, force: true });
+      const script = path.join(root, "plugins", current.plugin, "scripts", "dirigent-stats.js");
+      for (const [view, event] of current.requests) {
+        assertView(context(run(script, event, {
+          ...env, DIRIGENT_STATS_STATE_DIR: stateDir, NODE_OPTIONS: sentinel.option,
+        })), view);
+      }
+      for (const args of ["--view", "--view unknown", "--view agents --view models"]) {
+        assert.equal(context(run(script, current.invalid(args), {
+          ...env, DIRIGENT_STATS_STATE_DIR: stateDir, NODE_OPTIONS: sentinel.option,
+        })), INVALID_VIEW);
+      }
+    }
+  } finally {
+    fs.rmSync(sentinel.directory, { recursive: true, force: true });
+  }
+});
+
+test("both providers use the exact zero sentinel and lossless grouped kToks formatting", () => {
+  for (const plugin of plugins) {
+    const script = path.join(root, "plugins", plugin, "scripts", "dirigent-stats.js");
+    const emptyState = temporaryDirectory();
+    const emptyStorage = temporaryDirectory();
+    const emptySession = `${plugin}-empty`;
+    startSession(plugin, { source: "startup", session_id: emptySession }, emptyState);
+    const emptyEnv = plugin === "itixo-claude"
+      ? { DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: emptyStorage, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: emptyStorage }
+      : { DIRIGENT_STATS_CODEX_SESSIONS_DIR: emptyStorage };
+    assert.equal(context(run(script, { prompt: "$dirigent-stats", session_id: emptySession }, {
+      ...emptyEnv, DIRIGENT_STATS_STATE_DIR: emptyState,
+    })), "No token usage available yet.");
+
+    const storage = temporaryDirectory();
+    const stateDir = temporaryDirectory();
+    const sessionId = `${plugin}-format`;
+    let transcript;
+    let env;
+    if (plugin === "itixo-claude") {
+      const projects = path.join(storage, "projects");
+      const ledger = path.join(storage, "ledger");
+      transcript = path.join(projects, "project", `${sessionId}.jsonl`);
+      writeJsonl(transcript, [
+        { type: "assistant", sessionId, message: { id: "root-message", model: "model-25000000", usage: { input_tokens: 25_000_000 } } },
+      ]);
+      for (const value of [1, 20, 999, 1000, 1250]) {
+        writeJsonl(path.join(projects, "project", sessionId, "subagents", `agent-${value}.jsonl`), [
+          { type: "assistant", sessionId: `child-${value}`, agentId: `agent-${value}`, message: { id: `message-${value}`, model: `model-${value}`, usage: { input_tokens: value } } },
+        ]);
+      }
+      env = { DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger };
+    } else {
+      const sessions = path.join(storage, "sessions");
+      transcript = path.join(sessions, "root.jsonl");
+      writeJsonl(transcript, [
+        { type: "session_meta", payload: { id: sessionId } },
+        { type: "turn_context", payload: { turn_id: "root-turn", model: "model-25000000" } },
+        { type: "event_msg", payload: { info: { total_token_usage: { total_tokens: 25_000_000 }, last_token_usage: { total_tokens: 25_000_000 } } } },
+      ]);
+      for (const value of [1, 20, 999, 1000, 1250]) {
+        writeJsonl(path.join(sessions, `child-${value}.jsonl`), [
+          { type: "session_meta", payload: { id: `child-${value}`, parent_thread_id: sessionId, agent_role: `role-${value}` } },
+          { type: "turn_context", payload: { turn_id: `turn-${value}`, model: `model-${value}` } },
+          { type: "event_msg", payload: { info: { total_token_usage: { total_tokens: value }, last_token_usage: { total_tokens: value } } } },
+        ]);
+      }
+      env = { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions };
+    }
+    startSession(plugin, { source: "startup", session_id: sessionId, transcript_path: transcript }, stateDir);
+    const stopped = stopSession(plugin, {
+      hook_event_name: "Stop", session_id: sessionId, transcript_path: transcript,
+      cwd: "/tmp", turn_id: "format-turn",
+    }, stateDir, env);
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const report = context(run(script, { prompt: "$dirigent-stats", session_id: sessionId }, {
+      ...env, DIRIGENT_STATS_STATE_DIR: stateDir,
+    }));
+    assertView(report, "both");
+    for (const formatted of ["0.001", "0.02", "0.999", "1", "1.25", "25,000"]) {
+      assert.match(report, new RegExp(`\\| ${formatted.replace(".", "\\.")} kToks \\|`));
+    }
+    assert.match(report, /Exact known total: 25,003\.27 kToks\./);
+    assert.doesNotMatch(report, /mToks|\bTokens\b|Exact known total: .* tokens\./);
+    assertUsageInvariant(report);
+  }
+});
+
+test("Claude globally deduplicates copied transcripts and keeps only final streamed message usage", () => {
+  const storage = temporaryDirectory();
+  const projects = path.join(storage, "projects");
+  const ledger = path.join(storage, "ledger");
+  const stateDir = temporaryDirectory();
+  const sessionId = "claude-dedup";
+  const transcript = path.join(projects, "project", `${sessionId}.jsonl`);
+  writeJsonl(transcript, [
+    { type: "assistant", sessionId, message: { id: "root-message", model: "root-model", usage: { input_tokens: 1000 } } },
+  ]);
+  const streamed = [
+    { type: "assistant", sessionId: "copied-child", agentId: "copied-agent", message: { id: "streamed-message", model: "child-model", usage: { input_tokens: 20 } } },
+    { type: "assistant", sessionId: "copied-child", agentId: "copied-agent", message: { id: "streamed-message", model: "child-model", usage: { input_tokens: 1000 } } },
+  ];
+  writeJsonl(path.join(projects, "project", sessionId, "subagents", "agent-copy-a.jsonl"), streamed);
+  writeJsonl(path.join(projects, "project", sessionId, "subagents", "agent-copy-b.jsonl"), streamed);
+  writeJsonl(path.join(ledger, `itixo-delegation-${sessionId}.jsonl`), [
+    { agentId: "copied-agent", agentType: "builder" },
+  ]);
+  startSession("itixo-claude", { source: "startup", session_id: sessionId, transcript_path: transcript }, stateDir);
+  assert.equal(stopSession("itixo-claude", {
+    hook_event_name: "Stop", session_id: sessionId, transcript_path: transcript, turn_id: "dedup-turn",
+  }, stateDir, {
+    DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger,
+  }).status, 0);
+  const report = context(run(path.join(root, "plugins", "itixo-claude", "scripts", "dirigent-stats.js"), {
+    prompt: "$dirigent-stats", session_id: sessionId,
+  }, {
+    DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects, DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger,
+    DIRIGENT_STATS_STATE_DIR: stateDir,
+  }));
+  assert.match(report, /\| builder \| child-model \| 1 \| 1 kToks \| 50\.0% \|/);
+  assert.match(report, /Exact known total: 2 kToks\./);
+  assertUsageInvariant(report);
+});
+
+test("Codex deduplicates conflicting rollout IDs and counts repeated cumulative snapshots once", () => {
+  const sessions = temporaryDirectory();
+  const stateDir = temporaryDirectory();
+  const sessionId = "codex-dedup";
+  const transcript = path.join(sessions, "root.jsonl");
+  writeJsonl(transcript, [
+    { type: "session_meta", payload: { id: sessionId } },
+    { type: "turn_context", payload: { turn_id: "root-turn", model: "root-model" } },
+    { type: "event_msg", payload: { info: { total_token_usage: { total_tokens: 200 }, last_token_usage: { total_tokens: 200 } } } },
+    { type: "response_item", payload: { info: { total_token_usage: { total_tokens: 1000 }, last_token_usage: { total_tokens: 800 } } } },
+    { type: "event_msg", payload: { info: { total_token_usage: { total_tokens: 1000 }, last_token_usage: { total_tokens: 800 } } } },
+  ]);
+  for (const [file, model] of [["child-a.jsonl", "child-model-a"], ["child-b.jsonl", "child-model-b"]]) {
+    writeJsonl(path.join(sessions, file), [
+      { type: "session_meta", payload: { id: "duplicate-child", parent_thread_id: sessionId, agent_role: "builder" } },
+      { type: "turn_context", payload: { turn_id: "child-turn", model } },
+      { type: "event_msg", payload: { info: { total_token_usage: { total_tokens: 1000 }, last_token_usage: { total_tokens: 1000 } } } },
+    ]);
+  }
+  startSession("itixo-codex", { source: "startup", session_id: sessionId, transcript_path: transcript }, stateDir);
+  assert.equal(stopSession("itixo-codex", {
+    hook_event_name: "Stop", session_id: sessionId, transcript_path: transcript, turn_id: "dedup-turn",
+  }, stateDir, { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions }).status, 0);
+  const report = context(run(path.join(root, "plugins", "itixo-codex", "scripts", "dirigent-stats.js"), {
+    prompt: "$dirigent-stats", session_id: sessionId,
+  }, { DIRIGENT_STATS_CODEX_SESSIONS_DIR: sessions, DIRIGENT_STATS_STATE_DIR: stateDir }));
+  assert.match(report, /\| orchestrator \| root-model \| 1 \| 1 kToks \| 50\.0% \|/);
+  assert.match(report, /\| builder \| child-model-[ab] \| 1 \| 1 kToks \| 50\.0% \|/);
+  assert.match(report, /Exact known total: 2 kToks\./);
+  assert.match(report, /Warning(?:s)?:[\s\S]*duplicate[\s\S]*rollout[\s\S]*conflict/i);
+  assertUsageInvariant(report);
+});
+
+test("Claude scopes message IDs by each validated child transcript session", () => {
+  const storage = temporaryDirectory();
+  const projects = path.join(storage, "projects");
+  const ledger = path.join(storage, "ledger");
+  const stateDir = temporaryDirectory();
+  const sessionId = "claude-session-scoped-message";
+  const transcript = path.join(projects, "project", `${sessionId}.jsonl`);
+  writeJsonl(transcript, [
+    { type: "user", sessionId, message: { content: "root" } },
+    { type: "assistant", sessionId, message: { id: "root-message", model: "root-model", usage: { input_tokens: 1000 } } },
+  ]);
+  const childRecords = (childSession, agent, model, tokens) => [
+    { type: "user", sessionId: childSession, agentId: agent, message: { content: "child" } },
+    // Claude streaming usage records may omit the session ID. The file's
+    // validated session identity must scope this otherwise shared message ID.
+    { type: "assistant", agentId: agent, message: { id: "shared-message", model, usage: { input_tokens: tokens } } },
+  ];
+  writeJsonl(
+    path.join(projects, "project", sessionId, "subagents", "agent-child-a.jsonl"),
+    childRecords("child-session-a", "agent-a", "child-model-a", 1000),
+  );
+  writeJsonl(
+    path.join(projects, "project", sessionId, "subagents", "agent-child-a-copy.jsonl"),
+    childRecords("child-session-a", "agent-a", "child-model-a", 1000),
+  );
+  writeJsonl(
+    path.join(projects, "project", sessionId, "subagents", "agent-child-b.jsonl"),
+    childRecords("child-session-b", "agent-b", "child-model-b", 2000),
+  );
+  writeJsonl(path.join(ledger, `itixo-delegation-${sessionId}.jsonl`), [
+    { agentId: "agent-a", agentType: "builder" },
+    { agentId: "agent-b", agentType: "builder" },
+  ]);
+  startSession("itixo-claude", { source: "startup", session_id: sessionId, transcript_path: transcript }, stateDir);
+  const stopped = stopSession("itixo-claude", {
+    hook_event_name: "Stop", session_id: sessionId, transcript_path: transcript, turn_id: "session-scope-turn",
+  }, stateDir, {
+    DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects,
+    DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger,
+  });
+  assert.equal(stopped.status, 0, stopped.stderr);
+  const report = context(run(path.join(root, "plugins", "itixo-claude", "scripts", "dirigent-stats.js"), {
+    prompt: "$dirigent-stats", session_id: sessionId,
+  }, {
+    DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects,
+    DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger,
+    DIRIGENT_STATS_STATE_DIR: stateDir,
+  }));
+  assert.match(report, /\| builder \| child-model-a, child-model-b \| 2 \| 3 kToks \| 75\.0% \|/);
+  assert.match(report, /\| child-model-a \| 1 \| 1 kToks \| 25\.0% \|/);
+  assert.match(report, /\| child-model-b \| 1 \| 2 kToks \| 50\.0% \|/);
+  assert.match(report, /Exact known total: 4 kToks\./);
+  assertUsageInvariant(report);
+});
+
+function inconsistentCachedReports() {
+  return {
+    both: [
+      "## Dirigent Stats", "",
+      AGENT_USAGE_HEADER, "| --- | --- | ---: | ---: | ---: |",
+      "| both-agent | both-model | 1 | 1 kToks | 100.0% |", "",
+      MODEL_USAGE_HEADER, "| --- | ---: | ---: | ---: |",
+      "| both-model | 1 | 1 kToks | 100.0% |", "",
+      "Exact known total: 1 kToks.",
+      "Warnings:", "- both-only warning",
+    ].join("\n"),
+    agents: [
+      "## Dirigent Stats", "",
+      AGENT_USAGE_HEADER, "| --- | --- | ---: | ---: | ---: |",
+      "| agents-only | agents-model | 1 | 2 kToks | 100.0% |", "",
+      "Exact known total: 2 kToks.",
+      "Warnings:", "- agents-only warning",
+    ].join("\n"),
+    models: [
+      "## Dirigent Stats", "",
+      MODEL_USAGE_HEADER, "| --- | ---: | ---: | ---: |",
+      "| models-only | 1 | 3 kToks | 100.0% |", "",
+      "Exact known total: 3 kToks.",
+      "Warnings:", "- models-only warning",
+    ].join("\n"),
+  };
+}
+
+function schemaTwoState(sessionId, transcriptPath, reports) {
+  return {
+    schema: 2,
+    sessionId,
+    transcriptPath,
+    cwd: "/tmp",
+    source: "startup",
+    cache: {
+      schema: 2,
+      sessionId,
+      transcriptPath,
+      reports,
+      report: reports.both,
+      createdAt: "2026-07-23T00:00:00.000Z",
+      updatedAt: 1_753_228_800_000,
+      turnId: "inconsistent-turn",
+    },
+  };
+}
+
+for (const plugin of plugins) {
+  test(`${plugin} rejects individually valid but mutually inconsistent cache variants`, () => {
+    const isClaude = plugin === "itixo-claude";
+    const fixture = isClaude
+      ? path.join(root, "tests", "fixtures", "dirigent-stats", "claude")
+      : path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+    const storageRoot = temporaryDirectory();
+    const storage = path.join(storageRoot, "source");
+    fs.cpSync(fixture, storage, { recursive: true });
+    const sessionId = isClaude ? "root-run" : "root-rollout";
+    const transcript = isClaude
+      ? path.join(storage, "projects", "synthetic-project", "root-run.jsonl")
+      : path.join(storage, "root.jsonl");
+    const env = isClaude
+      ? {
+        DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: path.join(storage, "projects"),
+        DIRIGENT_STATS_CLAUDE_LEDGER_DIR: path.join(storage, "ledger"),
+      }
+      : { DIRIGENT_STATS_CODEX_SESSIONS_DIR: storage };
+    const script = path.join(root, "plugins", plugin, "scripts", "dirigent-stats.js");
+
+    const expectedStateDir = temporaryDirectory();
+    startSession(plugin, { source: "startup", session_id: sessionId, transcript_path: transcript }, expectedStateDir);
+    const stopped = stopSession(plugin, {
+      hook_event_name: "Stop", session_id: sessionId, transcript_path: transcript,
+      cwd: "/tmp", turn_id: "expected-turn",
+    }, expectedStateDir, env);
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const expected = JSON.parse(fs.readFileSync(statePath(expectedStateDir, sessionId), "utf8")).cache.reports;
+
+    for (const view of ["both", "agents", "models"]) {
+      const stateDir = temporaryDirectory();
+      fs.writeFileSync(
+        statePath(stateDir, sessionId),
+        JSON.stringify(schemaTwoState(sessionId, transcript, inconsistentCachedReports())),
+      );
+      const output = context(run(script, {
+        prompt: `$dirigent-stats --view ${view}`, session_id: sessionId,
+      }, {
+        ...env,
+        DIRIGENT_STATS_STATE_DIR: stateDir,
+        ...(isClaude ? { DIRIGENT_STATS_TIMEOUT_MS: "100" } : { DIRIGENT_STATS_STOP_BUDGET_MS: "100" }),
+      }));
+      assert.equal(output, expected[view], `${plugin} served inconsistent ${view} cache`);
+      const healed = JSON.parse(fs.readFileSync(statePath(stateDir, sessionId), "utf8")).cache.reports;
+      assert.deepEqual(healed, expected);
+    }
+
+    const unavailableTranscript = path.join(storageRoot, "missing.jsonl");
+    const unavailableEnv = isClaude
+      ? {
+        DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: path.join(storageRoot, "missing-projects"),
+        DIRIGENT_STATS_CLAUDE_LEDGER_DIR: path.join(storageRoot, "missing-ledger"),
+      }
+      : { DIRIGENT_STATS_CODEX_SESSIONS_DIR: path.join(storageRoot, "missing-sessions") };
+    for (const view of ["both", "agents", "models"]) {
+      const stateDir = temporaryDirectory();
+      fs.writeFileSync(
+        statePath(stateDir, sessionId),
+        JSON.stringify(schemaTwoState(sessionId, unavailableTranscript, inconsistentCachedReports())),
+      );
+      const output = context(run(script, {
+        prompt: `$dirigent-stats --view ${view}`, session_id: sessionId,
+      }, { ...unavailableEnv, DIRIGENT_STATS_STATE_DIR: stateDir }));
+      assert.equal(output, "No token usage available yet.");
+      assert.deepEqual(
+        JSON.parse(fs.readFileSync(statePath(stateDir, sessionId), "utf8")).cache.reports,
+        { both: "No token usage available yet.", agents: "No token usage available yet.", models: "No token usage available yet." },
+      );
+    }
+  });
+}
+
+test("Claude copied transcripts choose final cumulative message usage independent of filename order", () => {
+  const reportFor = (highName, staleName) => {
+    const storage = temporaryDirectory();
+    const projects = path.join(storage, "projects");
+    const ledger = path.join(storage, "ledger");
+    const stateDir = temporaryDirectory();
+    const sessionId = `claude-copy-order-${highName.replace(/\W/g, "-")}`;
+    const transcript = path.join(projects, "project", `${sessionId}.jsonl`);
+    writeJsonl(transcript, [
+      { type: "assistant", sessionId, message: { id: "root-message", model: "root-model", usage: { input_tokens: 1000 } } },
+    ]);
+    const childDir = path.join(projects, "project", sessionId, "subagents");
+    writeJsonl(path.join(childDir, highName), [
+      { type: "user", sessionId: "copied-child", agentId: "copied-agent", message: { content: "child" } },
+      { type: "assistant", agentId: "copied-agent", message: { id: "copied-message", model: "child-model", usage: { input_tokens: 2000 } } },
+      { type: "assistant", agentId: "copied-agent", message: { id: "copied-message", model: "child-model", usage: { input_tokens: 3000 } } },
+    ]);
+    writeJsonl(path.join(childDir, staleName), [
+      { type: "user", sessionId: "copied-child", agentId: "copied-agent", message: { content: "child" } },
+      { type: "assistant", agentId: "copied-agent", message: { id: "copied-message", model: "child-model", usage: { input_tokens: 1000 } } },
+    ]);
+    writeJsonl(path.join(ledger, `itixo-delegation-${sessionId}.jsonl`), [
+      { agentId: "copied-agent", agentType: "builder" },
+    ]);
+    startSession("itixo-claude", { source: "startup", session_id: sessionId, transcript_path: transcript }, stateDir);
+    const stopped = stopSession("itixo-claude", {
+      hook_event_name: "Stop", session_id: sessionId, transcript_path: transcript, turn_id: "copy-order-turn",
+    }, stateDir, {
+      DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects,
+      DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger,
+    });
+    assert.equal(stopped.status, 0, stopped.stderr);
+    return context(run(path.join(root, "plugins", "itixo-claude", "scripts", "dirigent-stats.js"), {
+      prompt: "$dirigent-stats", session_id: sessionId,
+    }, {
+      DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: projects,
+      DIRIGENT_STATS_CLAUDE_LEDGER_DIR: ledger,
+      DIRIGENT_STATS_STATE_DIR: stateDir,
+    }));
+  };
+
+  const reports = [
+    reportFor("a-final.jsonl", "z-stale.jsonl"),
+    reportFor("z-final.jsonl", "a-stale.jsonl"),
+  ];
+  for (const report of reports) {
+    assert.match(report, /\| builder \| child-model \| 1 \| 3 kToks \| 75\.0% \|/);
+    assert.match(report, /\| child-model \| 1 \| 3 kToks \| 75\.0% \|/);
+    assert.match(report, /Exact known total: 4 kToks\./);
+    assertUsageInvariant(report);
+  }
+});
+
+function arithmeticMismatchReports() {
+  const agentTable = [
+    AGENT_USAGE_HEADER,
+    "| --- | --- | ---: | ---: | ---: |",
+    "| orchestrator | grouped-model | 1 | 1,234.5 kToks | 100.0% |",
+    "| builder | decimal-model | 1 | 0.25 kToks | 0.0% |",
+  ];
+  const modelTable = [
+    MODEL_USAGE_HEADER,
+    "| --- | ---: | ---: | ---: |",
+    "| grouped-model | 1 | 1,234.5 kToks | 100.0% |",
+    "| decimal-model | 1 | 0.125 kToks | 0.0% |",
+  ];
+  const suffix = [
+    "Exact known total: 1,235 kToks.",
+    "Warnings:",
+    "- arithmetic cache warning",
+  ];
+  return {
+    both: ["## Dirigent Stats", "", ...agentTable, "", ...modelTable, "", ...suffix].join("\n"),
+    agents: ["## Dirigent Stats", "", ...agentTable, "", ...suffix].join("\n"),
+    models: ["## Dirigent Stats", "", ...modelTable, "", ...suffix].join("\n"),
+  };
+}
+
+for (const plugin of plugins) {
+  test(`${plugin} rejects cross-matching cache variants whose table arithmetic disagrees with total`, () => {
+    const isClaude = plugin === "itixo-claude";
+    const fixture = isClaude
+      ? path.join(root, "tests", "fixtures", "dirigent-stats", "claude")
+      : path.join(root, "tests", "fixtures", "dirigent-stats", "codex", "sessions");
+    const storage = path.join(temporaryDirectory(), "source");
+    fs.cpSync(fixture, storage, { recursive: true });
+    const sessionId = isClaude ? "root-run" : "root-rollout";
+    const transcript = isClaude
+      ? path.join(storage, "projects", "synthetic-project", "root-run.jsonl")
+      : path.join(storage, "root.jsonl");
+    const env = isClaude
+      ? {
+        DIRIGENT_STATS_CLAUDE_PROJECTS_DIR: path.join(storage, "projects"),
+        DIRIGENT_STATS_CLAUDE_LEDGER_DIR: path.join(storage, "ledger"),
+      }
+      : { DIRIGENT_STATS_CODEX_SESSIONS_DIR: storage };
+    const script = path.join(root, "plugins", plugin, "scripts", "dirigent-stats.js");
+    const expectedStateDir = temporaryDirectory();
+    startSession(plugin, { source: "startup", session_id: sessionId, transcript_path: transcript }, expectedStateDir);
+    const stopped = stopSession(plugin, {
+      hook_event_name: "Stop", session_id: sessionId, transcript_path: transcript,
+      cwd: "/tmp", turn_id: "expected-arithmetic-turn",
+    }, expectedStateDir, env);
+    assert.equal(stopped.status, 0, stopped.stderr);
+    const expected = JSON.parse(fs.readFileSync(statePath(expectedStateDir, sessionId), "utf8")).cache.reports;
+
+    const stateDir = temporaryDirectory();
+    fs.writeFileSync(
+      statePath(stateDir, sessionId),
+      JSON.stringify(schemaTwoState(sessionId, transcript, arithmeticMismatchReports())),
+    );
+    const output = context(run(script, {
+      prompt: "$dirigent-stats --view both", session_id: sessionId,
+    }, { ...env, DIRIGENT_STATS_STATE_DIR: stateDir }));
+    assert.equal(output, expected.both, `${plugin} served arithmetically inconsistent cache`);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(statePath(stateDir, sessionId), "utf8")).cache.reports,
+      expected,
+    );
+  });
+}

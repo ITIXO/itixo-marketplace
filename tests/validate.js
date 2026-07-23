@@ -342,8 +342,8 @@ for (const [plugin, text] of dirigentContents) {
     if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
       fail(`${rel}: must load itixo-github-issues role instructions`);
     }
-    if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
-      fail(`${rel}: must select mid-tier itixo-github-issues model from delegation rules`);
+    if (!/\buser\s+explicitly\s+requested\s+a\s+model\s+and\/or\s+effort\s+override\s+for\s+this\s+invocation\b[\s\S]{0,120}\brelay\s+those\s+matching\s+fields\b[\s\S]{0,120}\botherwise\s+use\s+the\s+generated\s+sonnet\/mid\s+default\b/i.test(text)) {
+      fail(`${rel}: must honor matching GitHub-issues overrides or use the generated Sonnet/mid default`);
     }
   } else {
     if (!/\binvoke\s+the\s+installed\s+custom\s+toml\s+agent\s+by\s+(?:that\s+)?canonical\s+id\b/i.test(text)) {
@@ -369,11 +369,11 @@ if (failures === 0) ok("dirigent delegates GitHub issue work with provider-speci
 const githubIssueRuleFiles = [
   {
     rel: "base/rules/agents.md",
-    model: /\bselect\s+(?:the\s+)?provider\s+model\s+in\s+(?:the\s+)?`?mid`?\s+tier\b/i,
+    model: /\bhonor\s+a\s+matching\s+explicit\s+per-invocation\s+model\s+and\/or\s+effort\s+override\b[\s\S]{0,120}\botherwise\s+use\s+the\s+`?mid`?-tier\s+sonnet\s+default\b/i,
   },
   {
     rel: "plugins/itixo-claude/rules/agents.md",
-    model: /\bselect\s+`?sonnet`?[\s\S]{0,80}\b`?mid`?\b/i,
+    model: /\bhonor\s+a\s+matching\s+explicit\s+per-invocation\s+model\s+and\/or\s+effort\s+override\b[\s\S]{0,120}\botherwise\s+select\s+`?sonnet`?\s*,\s*the\s+`?mid`?\s+model\b[\s\S]{0,120}\bgenerated\s+default\s+effort\b/i,
   },
   {
     rel: "plugins/itixo-codex/rules/agents.md",
@@ -408,7 +408,7 @@ for (const { rel, model, codexToml } of githubIssueRuleFiles) {
       fail(`${rel}: must load itixo-github-issues role instructions before delegation`);
     }
     if (!model.test(text)) {
-      fail(`${rel}: must select its mid-tier itixo-github-issues model`);
+      fail(`${rel}: must honor matching GitHub-issues overrides or use its prescribed Sonnet/mid default`);
     }
   }
   if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*(?:target\s+)?repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*(?:and\s+)?expected\s+output\b/i.test(text)) {
@@ -464,7 +464,7 @@ for (const agent of Object.keys(TIERS)) {
     if (model || effort) fail(`${rel}: planner must inherit model and effort`);
   } else {
     const expected = CODEX_MODEL[TIERS[agent]];
-    const expectedEffort = TIERS[agent] === "cheap" ? "low" : "medium";
+    const expectedEffort = TIERS[agent] === "cheap" ? "high" : "medium";
     if (model !== expected) fail(`${rel}: model '${model}', expected '${expected}'`);
     if (effort !== expectedEffort) fail(`${rel}: effort '${effort}', expected '${expectedEffort}'`);
   }
@@ -512,7 +512,7 @@ if (fs.existsSync(codexAgentsPath)) {
   for (const required of [
     "installed custom TOML agent",
     "itixo-codex:install-agents",
-    "model or reasoning-effort override",
+    "per-agent override",
     "substitute a generic agent",
   ]) {
     if (!codexAgents.includes(required)) fail(`${codexAgentsRel}: missing custom-agent dispatch requirement '${required}'`);
@@ -724,15 +724,23 @@ for (const plugin of statsPlugins) {
     const skill = fs.readFileSync(skillPath, "utf8");
     statsSkills.set(plugin, skill);
     if (!/^---\nname: dirigent-stats\n/m.test(skill)) fail(`${skillRel}: invalid dirigent-stats frontmatter`);
-    for (const [description, pattern] of [
+    const requiredSkillContract = [
       ["explicit slash invocation", /`\/dirigent-stats`/],
       ["explicit dollar invocation", /`\$dirigent-stats`/],
-      ["hook-provided report only", /hook-provided report/i],
+      ["view choices", /`--view agents\|models\|both`/],
+      ["default both view", /default to `both`/i],
+      ["exact invalid-view fallback", /exactly `Invalid stats view\. Use agents, models, or both\.`/],
+      ["cached report only", /selected cached report/i],
       ["verbatim reporting", /verbatim/i],
-      ["no estimates", /never estimate/i],
-      ["unknown-value preservation", /unknown values and warnings/i],
-      ["unavailable fallback", /unavailable rather than estimating/i],
-    ]) {
+      ["no recalculation or double sums", /never recalculate, estimate, or double-sum/i],
+      ["exact no-data fallback", /exactly `No token usage available yet\.`/i],
+      ["kToks units", /exact `kToks`/i],
+      ["trimmed three-decimal formatting", /at most three decimals and trailing zeros removed/i],
+      ["mToks suppression", /never convert to `mToks`/i],
+      ["recursive agent accounting", /root orchestrator plus recursive agents/i],
+      ["grouping invariant", /alternate groupings of the same total/i],
+    ];
+    for (const [description, pattern] of requiredSkillContract) {
       if (!pattern.test(skill)) fail(`${skillRel}: must state ${description}`);
     }
   }
@@ -748,16 +756,14 @@ for (const plugin of statsPlugins) {
     if (/implicit_invocation:\s*true/.test(metadata)) fail(`${metadataRel}: implicit invocation must be false`);
   }
 }
-if (statsSkills.size === statsPlugins.length && statsSkills.get("itixo-claude") !== statsSkills.get("itixo-codex")) {
-  fail("dirigent-stats SKILL.md must be byte-identical across providers");
-}
 if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claude") !== statsMetadata.get("itixo-codex")) {
   fail("dirigent-stats openai.yaml must be byte-identical across providers");
 }
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  if (manifest && manifest.version !== "0.2.9") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.9'`);
+  const expectedVersion = plugin === "itixo-codex" ? "0.2.13" : "0.2.11";
+  if (manifest && manifest.version !== expectedVersion) fail(`${manifestRel}: version '${manifest.version}', expected '${expectedVersion}'`);
 }
 
 const claudeHooksRel = "plugins/itixo-claude/hooks/hooks.json";

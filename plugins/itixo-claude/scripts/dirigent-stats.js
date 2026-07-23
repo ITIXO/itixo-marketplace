@@ -13,8 +13,19 @@ const DIRECT_SLASH_REQUEST = /^\/(?:dirigent-stats|itixo-claude:dirigent-stats)(
 const EXPANSION_COMMANDS = new Set(["dirigent-stats", "itixo-claude:dirigent-stats"]);
 const USAGE_FIELDS = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"];
 const STATE_SCHEMA = 2;
-const CACHE_SCHEMA = 1;
+const CACHE_SCHEMA = 2;
 const DEFAULT_TIMEOUT_MS = 1500;
+const NO_DATA = "No token usage available yet.";
+const INVALID_VIEW = "Invalid stats view. Use agents, models, or both.";
+const VIEWS = ["both", "agents", "models"];
+const REPORT_HEADING = "## Dirigent Stats";
+const AGENT_HEADER = "| Agent | Model | Runs | Usage | Share |";
+const AGENT_SEPARATOR = "| --- | --- | ---: | ---: | ---: |";
+const MODEL_HEADER = "| Model | Runs | Usage | Share |";
+const MODEL_SEPARATOR = "| --- | ---: | ---: | ---: |";
+const USAGE = String.raw`(?:0|[1-9]\d{0,2}(?:,\d{3})*)(?:\.\d{1,3})? kToks`;
+const AGENT_ROW = new RegExp(String.raw`^\| [^|\n]+ \| [^|\n]* \| \d+ \| ${USAGE} \| \d+\.\d% \|$`);
+const MODEL_ROW = new RegExp(String.raw`^\| [^|\n]+ \| \d+ \| ${USAGE} \| \d+\.\d% \|$`);
 
 function stateDir() {
   return process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.CLAUDE_PLUGIN_DATA || path.join(os.homedir(), ".claude"), "dirigent-stats");
@@ -61,12 +72,91 @@ function stopState(state, event, sessionId) {
   return eventState(event, sessionId);
 }
 
+function validReport(reportText, view) {
+  if (typeof reportText !== "string") return false;
+  if (reportText === NO_DATA) return true;
+  if (/<!--|Snapshot:|Instruction:/.test(reportText)) return false;
+  const lines = reportText.split("\n");
+  if (lines[0] !== REPORT_HEADING || lines[1] !== "") return false;
+  let index = 2;
+  const table = (header, separator, rowPattern) => {
+    if (lines[index] !== header || lines[index + 1] !== separator) return false;
+    index += 2;
+    const first = index;
+    while (typeof lines[index] === "string" && rowPattern.test(lines[index])) index += 1;
+    if (index === first || lines[index] !== "") return false;
+    index += 1;
+    return true;
+  };
+  if (view !== "models" && !table(AGENT_HEADER, AGENT_SEPARATOR, AGENT_ROW)) return false;
+  if (view !== "agents" && !table(MODEL_HEADER, MODEL_SEPARATOR, MODEL_ROW)) return false;
+  if (!new RegExp(String.raw`^Exact known total: ${USAGE}\.$`).test(lines[index])) return false;
+  index += 1;
+  if (lines[index] === "Warnings:") {
+    index += 1;
+    const first = index;
+    while (typeof lines[index] === "string" && lines[index].startsWith("- ")) index += 1;
+    if (index === first) return false;
+  }
+  return index === lines.length;
+}
+
+function usageTokens(usage) {
+  const match = /^((?:0|[1-9]\d{0,2}(?:,\d{3})*))(?:\.(\d{1,3}))? kToks$/.exec(usage);
+  if (!match) return null;
+  const whole = Number(match[1].replace(/,/g, ""));
+  const fraction = Number((match[2] || "").padEnd(3, "0"));
+  const tokens = (whole * 1000) + fraction;
+  return Number.isSafeInteger(tokens) ? tokens : null;
+}
+
+function validReports(reports) {
+  if (!reports || typeof reports !== "object") return false;
+  const zero = VIEWS.map((view) => reports[view] === NO_DATA);
+  if (zero.some(Boolean)) return zero.every(Boolean);
+  if (!VIEWS.every((view) => validReport(reports[view], view))) return false;
+  const parts = (report) => {
+    const lines = report.split("\n");
+    const table = (header, usageCell) => {
+      const start = lines.indexOf(header);
+      if (start < 0) return { text: null, tokens: null };
+      const end = lines.indexOf("", start);
+      let tokens = 0;
+      for (const row of lines.slice(start + 2, end)) {
+        const cells = row.slice(1, -1).split("|").map((cell) => cell.trim());
+        const rowTokens = usageTokens(cells[usageCell]);
+        if (rowTokens === null || tokens > Number.MAX_SAFE_INTEGER - rowTokens) return null;
+        tokens += rowTokens;
+      }
+      return { text: lines.slice(start, end).join("\n"), tokens };
+    };
+    const agent = table(AGENT_HEADER, 3);
+    const model = table(MODEL_HEADER, 2);
+    const totalLine = lines.find((line) => line.startsWith("Exact known total: "));
+    const total = totalLine && usageTokens(totalLine.slice("Exact known total: ".length, -1));
+    const warningStart = lines.indexOf("Warnings:");
+    return agent && model && total !== null ? {
+      agent,
+      model,
+      total,
+      warnings: warningStart < 0 ? "" : lines.slice(warningStart).join("\n"),
+    } : null;
+  };
+  const both = parts(reports.both);
+  const agents = parts(reports.agents);
+  const models = parts(reports.models);
+  const arithmeticMatches = (report) => report
+    && [report.agent, report.model].every((table) => table.tokens === null || table.tokens === report.total);
+  return arithmeticMatches(both) && arithmeticMatches(agents) && arithmeticMatches(models)
+    && both.total === agents.total && both.total === models.total
+    && both.warnings === agents.warnings && both.warnings === models.warnings
+    && both.agent.text === agents.agent.text && both.model.text === models.model.text;
+}
+
 function validCache(cache, state, sessionId) {
   return state && state.schema === STATE_SCHEMA && cache && cache.schema === CACHE_SCHEMA
     && cache.sessionId === sessionId && cache.transcriptPath === state.transcriptPath
-    && typeof cache.report === "string" && cache.report.includes("<!-- itixo-dirigent-stats-report:start -->")
-    && cache.report.includes("## Dirigent Stats") && cache.report.includes("### Agents")
-    && cache.report.includes("### Models") && cache.report.includes("<!-- itixo-dirigent-stats-report:end -->");
+    && validReports(cache.reports);
 }
 
 function timeoutMs() {
@@ -138,11 +228,12 @@ function sessionFiles(transcript, rootSessionId, deadline) {
   // Claude stores descendants only below <project>/<root-session>/subagents/.
   // Do not scan sibling root sessions, choose newest files, or infer a parent from mtime.
   const descendants = walkJsonl(path.join(path.dirname(root), rootSessionId, "subagents"), deadline);
-  return [root, ...descendants.filter((file) => {
+  const children = descendants.flatMap((file) => {
     const records = readJsonLines(file);
     const sessionId = records.map(recordSessionId).find((id) => typeof id === "string" && id);
-    return typeof sessionId === "string" && validTranscriptSession(records, sessionId);
-  })].sort();
+    return typeof sessionId === "string" && validTranscriptSession(records, sessionId) ? [{ file, sessionId }] : [];
+  });
+  return [{ file: root, sessionId: rootSessionId }, ...children].sort((left, right) => left.file.localeCompare(right.file));
 }
 
 function findExactTranscript(projectsDir, sessionId, deadline) {
@@ -194,37 +285,35 @@ function ledgerIdentity(ledgerFile, childIds) {
   return identities;
 }
 
+function formatUsage(tokens) {
+  const whole = Math.floor(tokens / 1000).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const remainder = Math.trunc(tokens % 1000);
+  const fraction = remainder ? `.${String(remainder).padStart(3, "0").replace(/0+$/, "")}` : "";
+  return `${whole}${fraction} kToks`;
+}
+
 function markdown(rows, total) {
+  if (total === 0) return { both: NO_DATA, agents: NO_DATA, models: NO_DATA };
   const share = (value) => total ? `${((value / total) * 100).toFixed(1)}%` : "unknown";
   const agentRows = [...rows.agents.values()]
     .sort((a, b) => (a.role === "orchestrator" ? -1 : b.role === "orchestrator" ? 1 : b.tokens - a.tokens || a.role.localeCompare(b.role)))
-    .map((row) => `| ${row.role} | ${[...row.models].sort().join(", ") || "unknown"} | ${row.runs.size} | ${row.tokens} | ${share(row.tokens)} |`);
+    .map((row) => `| ${row.role} | ${[...row.models].sort().join(", ") || "unknown"} | ${row.runs.size} | ${formatUsage(row.tokens)} | ${share(row.tokens)} |`);
   const modelRows = [...rows.models.values()]
     .sort((a, b) => b.tokens - a.tokens || a.model.localeCompare(b.model))
-    .map((row) => `| ${row.model} | ${row.runs.size} | ${row.tokens} | ${share(row.tokens)} |`);
-  return [
-    "<!-- itixo-dirigent-stats-report:start -->",
-    "Return the report below verbatim; do not recalculate, estimate, or add savings.",
-    "## Dirigent Stats",
-    "",
-    "### Agents",
-    "| Agent | Model | Runs | Tokens | Share |",
-    "| --- | --- | ---: | ---: | ---: |",
-    ...agentRows,
-    "",
-    "### Models",
-    "| Model | Runs | Tokens | Share |",
-    "| --- | ---: | ---: | ---: |",
-    ...modelRows,
-    "",
-    "Snapshot: report excludes the reporting response; active totals are exact so far.",
-    ...rows.warnings.map((warning) => `Warning: ${warning}`),
-    "<!-- itixo-dirigent-stats-report:end -->",
-  ].join("\n");
+    .map((row) => `| ${row.model} | ${row.runs.size} | ${formatUsage(row.tokens)} | ${share(row.tokens)} |`);
+  const render = (view) => {
+    const lines = [REPORT_HEADING, ""];
+    if (view !== "models") lines.push(AGENT_HEADER, AGENT_SEPARATOR, ...agentRows, "");
+    if (view !== "agents") lines.push(MODEL_HEADER, MODEL_SEPARATOR, ...modelRows, "");
+    lines.push(`Exact known total: ${formatUsage(total)}.`);
+    if (rows.warnings.length) lines.push("Warnings:", ...rows.warnings.sort().map((warning) => `- ${warning}`));
+    return lines.join("\n");
+  };
+  return Object.fromEntries(VIEWS.map((view) => [view, render(view)]));
 }
 
 function noDataReport() {
-  return markdown({ agents: new Map(), models: new Map(), warnings: ["No exact assistant usage records were available."] }, 0);
+  return { both: NO_DATA, agents: NO_DATA, models: NO_DATA };
 }
 
 function transcriptFor(state, projects, sessionId, deadline) {
@@ -240,12 +329,12 @@ function buildReport(state, sessionId, deadline) {
   if (!files.length || expired(deadline)) return noDataReport();
 
   const warnings = [];
-  const entries = [];
-  for (const file of files) {
+  const latestByIdentity = new Map();
+  for (const current of files) {
     if (expired(deadline)) return noDataReport();
+    const { file, sessionId: transcriptSessionId } = current;
     const records = readJsonLines(file);
     const transcriptAgentId = records.map(agentId).find(Boolean);
-    const latestByMessageId = new Map();
     for (const record of records) {
       if (expired(deadline)) return noDataReport();
       if (record.type !== "assistant" || !record.message || typeof record.message !== "object" || isDisplaySummary(record)) continue;
@@ -256,10 +345,28 @@ function buildReport(state, sessionId, deadline) {
         warnings.push("Some assistant usage records lacked stable message IDs and were excluded.");
         continue;
       }
-      latestByMessageId.set(messageId, { file, id: agentId(record) || transcriptAgentId, model: modelName(record), tokens: usage });
+      const recordSession = recordSessionId(record) || transcriptSessionId;
+      const key = `${recordSession}\0${messageId}`;
+      const candidate = {
+        file,
+        id: agentId(record) || transcriptAgentId,
+        model: modelName(record),
+        tokens: usage,
+        root: path.resolve(file) === path.resolve(transcript),
+      };
+      const previous = latestByIdentity.get(key);
+      const candidateIdentity = `${candidate.id || ""}\0${candidate.model}`;
+      const previousIdentity = previous && `${previous.id || ""}\0${previous.model}`;
+      if (!previous
+        || candidate.tokens > previous.tokens
+        || (candidate.tokens === previous.tokens && candidate.root && !previous.root)
+        || (candidate.tokens === previous.tokens && candidate.root === previous.root
+          && candidateIdentity < previousIdentity)) {
+        latestByIdentity.set(key, candidate);
+      }
     }
-    entries.push(...latestByMessageId.values());
   }
+  const entries = [...latestByIdentity.values()];
   if (!entries.length) warnings.push("No exact assistant usage records were available.");
 
   const childIds = new Set(entries.map((entry) => entry.id).filter(Boolean));
@@ -282,7 +389,7 @@ function buildReport(state, sessionId, deadline) {
   return markdown(rows, [...rows.agents.values()].reduce((sum, row) => sum + row.tokens, 0));
 }
 
-function cacheReport(state, sessionId, report) {
+function cacheReport(state, sessionId, reports) {
   if (!state) return;
   const next = {
     schema: STATE_SCHEMA,
@@ -290,7 +397,7 @@ function cacheReport(state, sessionId, report) {
     transcriptPath: state.transcriptPath,
     cwd: typeof state.cwd === "string" ? state.cwd : null,
     source: typeof state.source === "string" ? state.source : "unknown",
-    cache: { schema: CACHE_SCHEMA, sessionId, transcriptPath: state.transcriptPath, report, createdAt: new Date().toISOString() },
+    cache: { schema: CACHE_SCHEMA, sessionId, transcriptPath: state.transcriptPath, reports, report: reports.both, createdAt: new Date().toISOString() },
   };
   atomicStateWrite(stateFile(sessionId), next);
 }
@@ -306,6 +413,18 @@ function requestedEvent(event) {
   const prompt = typeof event.prompt === "string" ? event.prompt : typeof event.user_prompt === "string" ? event.user_prompt : "";
   if (eventName === "UserPromptSubmit" && DIRECT_SLASH_REQUEST.test(prompt.trimStart())) return null;
   return REQUEST.test(prompt) ? eventName || "UserPromptSubmit" : null;
+}
+
+function requestedView(event, hookEventName) {
+  const text = hookEventName === "UserPromptExpansion"
+    ? event.command_args
+    : typeof event.prompt === "string" ? event.prompt : typeof event.user_prompt === "string" ? event.user_prompt : "";
+  const tokens = typeof text === "string" ? text.trim().split(/\s+/).filter(Boolean) : [];
+  const positions = tokens.flatMap((token, index) => token === "--view" ? [index] : []);
+  if (positions.length === 0) return "both";
+  if (positions.length !== 1) return null;
+  const value = tokens[positions[0] + 1];
+  return VIEWS.includes(value) ? value : null;
 }
 
 let input = "";
@@ -327,13 +446,18 @@ process.stdin.on("end", () => {
     }
     const hookEventName = requestedEvent(event);
     if (!hookEventName) return;
-    const report = validCache(state && state.cache, state, sessionId)
-      ? state.cache.report
+    const view = requestedView(event, hookEventName);
+    if (!view) {
+      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: INVALID_VIEW } }) + "\n");
+      return;
+    }
+    const reports = validCache(state && state.cache, state, sessionId)
+      ? state.cache.reports
       : buildReport(state, sessionId, deadline);
     // Legacy, missing, and corrupt cache recover once from anchored data. Keep
     // prompt response deterministic even when no completed transcript exists.
-    if (!validCache(state && state.cache, state, sessionId)) cacheReport(state, sessionId, report);
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: report } }) + "\n");
+    if (!validCache(state && state.cache, state, sessionId)) cacheReport(state, sessionId, reports);
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: reports[view] } }) + "\n");
   } catch {
     // Never block prompt submission.
   }

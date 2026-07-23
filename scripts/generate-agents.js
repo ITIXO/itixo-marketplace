@@ -15,7 +15,7 @@ const PROVIDERS = Object.freeze({
     directory: path.join(ROOT, "plugins", "itixo-codex", "templates", "agents"),
     obsoleteDirectory: path.join(ROOT, "plugins", "itixo-codex", "agents"),
     models: Object.freeze({ cheap: "gpt-5.6-luna", mid: "gpt-5.6-terra" }),
-    efforts: Object.freeze({ cheap: "low", mid: "medium" }),
+    efforts: Object.freeze({ cheap: "high", mid: "medium" }),
   },
 });
 const CLAUDE_TOOLS = Object.freeze({

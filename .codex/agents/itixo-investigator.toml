@@ -3,7 +3,7 @@
 name = "itixo-investigator"
 description = "Read-only code locator."
 model = "gpt-5.6-luna"
-model_reasoning_effort = "high"
+model_reasoning_effort = "low"
 
 developer_instructions = """
 ## Role
