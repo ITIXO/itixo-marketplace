@@ -568,9 +568,120 @@ if (codexMarketplace) {
 }
 if (failures === 0) ok("Codex-native manifests valid and consistent");
 
-// --- 8. itixo-codex: default runtime-model reporting hook ---
+// --- 8. Provider manifest metadata remains complete and shared where applicable ---
+const claudePluginManifestRel = "plugins/itixo-claude/.claude-plugin/plugin.json";
 const codexPluginManifestRel = "plugins/itixo-codex/.codex-plugin/plugin.json";
+const claudePluginManifest = readJson(claudePluginManifestRel);
 const codexPluginManifest = readJson(codexPluginManifestRel);
+const sharedManifestFields = ["author", "homepage", "repository", "skills", "keywords"];
+
+function isHttpsUrl(value) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isNonEmptyStringArray(value) {
+  return Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+function validateMarketplacePngIcon(manifestRel, field, assetRel) {
+  const icon = fs.readFileSync(path.join(ROOT, assetRel));
+  const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (icon.length < 24 || !icon.subarray(0, 8).equals(pngSignature)) {
+    fail(`${manifestRel}: interface ${field} must reference a PNG file`);
+    return;
+  }
+  if (icon.readUInt32BE(8) !== 13 || icon.toString("ascii", 12, 16) !== "IHDR") {
+    fail(`${manifestRel}: interface ${field} PNG must contain an IHDR header`);
+    return;
+  }
+  const width = icon.readUInt32BE(16);
+  const height = icon.readUInt32BE(20);
+  if (width !== height || width < 128 || width > 2048) {
+    fail(`${manifestRel}: interface ${field} PNG must be square and 128-2048px, got ${width}x${height}`);
+  }
+}
+
+if (claudePluginManifest && codexPluginManifest) {
+  for (const field of sharedManifestFields) {
+    if (!Object.hasOwn(claudePluginManifest, field)) fail(`${claudePluginManifestRel}: missing shared '${field}'`);
+    if (!Object.hasOwn(codexPluginManifest, field)) fail(`${codexPluginManifestRel}: missing shared '${field}'`);
+    if (field !== "keywords" && JSON.stringify(claudePluginManifest[field]) !== JSON.stringify(codexPluginManifest[field])) {
+      fail(`plugin manifests: shared '${field}' must match exactly`);
+    }
+  }
+
+  const author = claudePluginManifest.author;
+  if (!author || typeof author !== "object" || !isHttpsUrl(author.url)) {
+    fail("plugin manifests: shared author.url must be an HTTPS URL");
+  }
+  if (!isHttpsUrl(claudePluginManifest.homepage)) fail("plugin manifests: shared homepage must be an HTTPS URL");
+  if (typeof claudePluginManifest.repository !== "string" || claudePluginManifest.repository.length === 0) {
+    fail("plugin manifests: shared repository must be a non-empty string");
+  }
+  if (typeof claudePluginManifest.skills !== "string" || claudePluginManifest.skills.length === 0) {
+    fail("plugin manifests: shared skills must be a non-empty string path");
+  }
+  for (const [manifestRel, manifest] of [[claudePluginManifestRel, claudePluginManifest], [codexPluginManifestRel, codexPluginManifest]]) {
+    if (!isNonEmptyStringArray(manifest.keywords)) fail(`${manifestRel}: keywords must be a non-empty string array`);
+  }
+  for (const [manifestRel, manifest, providerTag] of [
+    [claudePluginManifestRel, claudePluginManifest, "claude"],
+    [codexPluginManifestRel, codexPluginManifest, "codex"],
+  ]) {
+    for (const keyword of [providerTag, "orchestration", "agents", "skills", "developer-tools", "dirigent"]) {
+      if (!manifest.keywords?.includes(keyword)) fail(`${manifestRel}: keywords must include '${keyword}'`);
+    }
+  }
+
+  if (claudePluginManifest.displayName !== "Itixo Claude") {
+    fail(`${claudePluginManifestRel}: displayName must be 'Itixo Claude'`);
+  }
+  if (Object.hasOwn(claudePluginManifest, "interface")) {
+    fail(`${claudePluginManifestRel}: must not define Codex interface metadata`);
+  }
+
+  const codexInterface = codexPluginManifest.interface;
+  if (!codexInterface || typeof codexInterface !== "object" || Array.isArray(codexInterface)) {
+    fail(`${codexPluginManifestRel}: missing interface metadata`);
+  } else {
+    for (const field of ["displayName", "shortDescription", "longDescription", "developerName", "category", "capabilities", "websiteURL", "defaultPrompt", "composerIcon", "logo"]) {
+      if (!Object.hasOwn(codexInterface, field)) fail(`${codexPluginManifestRel}: interface missing '${field}'`);
+    }
+    for (const field of ["displayName", "shortDescription", "longDescription"]) {
+      if (typeof codexInterface[field] !== "string" || codexInterface[field].trim().length === 0) {
+        fail(`${codexPluginManifestRel}: interface '${field}' must be a non-empty string`);
+      }
+    }
+    if (codexInterface.developerName !== "Itixo") fail(`${codexPluginManifestRel}: interface developerName must be 'Itixo'`);
+    if (codexInterface.category !== "Developer Tools") fail(`${codexPluginManifestRel}: interface category must be 'Developer Tools'`);
+    if (JSON.stringify(codexInterface.capabilities) !== JSON.stringify(["Read", "Write"])) {
+      fail(`${codexPluginManifestRel}: interface capabilities must be exactly Read/Write`);
+    }
+    if (!isHttpsUrl(codexInterface.websiteURL)) fail(`${codexPluginManifestRel}: interface websiteURL must be an HTTPS URL`);
+    if (!Array.isArray(codexInterface.defaultPrompt) || codexInterface.defaultPrompt.length < 1 || codexInterface.defaultPrompt.length > 3 ||
+      codexInterface.defaultPrompt.some((prompt) => typeof prompt !== "string" || prompt.length === 0 || prompt.length > 128)) {
+      fail(`${codexPluginManifestRel}: interface defaultPrompt must contain 1-3 non-empty prompts of at most 128 characters`);
+    }
+    for (const field of ["composerIcon", "logo"]) {
+      if (codexInterface[field] !== "./assets/icon.png") {
+        fail(`${codexPluginManifestRel}: interface ${field} must be './assets/icon.png'`);
+      }
+      const assetRel = path.join("plugins/itixo-codex", codexInterface[field] || "");
+      if (!fs.existsSync(path.join(ROOT, assetRel))) {
+        fail(`${codexPluginManifestRel}: interface ${field} references missing '${assetRel}'`);
+      } else {
+        validateMarketplacePngIcon(codexPluginManifestRel, field, assetRel);
+      }
+    }
+  }
+}
+if (failures === 0) ok("provider manifest metadata valid and consistent");
+
+// --- 9. itixo-codex: default runtime-model reporting hook ---
 if (codexPluginManifest && Object.hasOwn(codexPluginManifest, "hooks")) {
   fail(`${codexPluginManifestRel}: hooks must be auto-discovered from hooks/hooks.json`);
 }
@@ -596,7 +707,7 @@ if (runtimeModelHook?.hooks?.SubagentStart?.some((entry) => entry.matcher !== "*
 }
 if (failures === 0) ok("itixo-codex runtime-model hook configured");
 
-// --- 9. Dirigent Stats remains a shared, safe, exact-accounting skill ---
+// --- 10. Dirigent Stats remains a shared, safe, exact-accounting skill ---
 const statsPlugins = ["itixo-claude", "itixo-codex"];
 const statsSkillRel = "skills/dirigent-stats/SKILL.md";
 const statsMetadataRel = "skills/dirigent-stats/agents/openai.yaml";
@@ -646,7 +757,7 @@ if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claud
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  if (manifest && manifest.version !== "0.2.8") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.8'`);
+  if (manifest && manifest.version !== "0.2.9") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.9'`);
 }
 
 const claudeHooksRel = "plugins/itixo-claude/hooks/hooks.json";
