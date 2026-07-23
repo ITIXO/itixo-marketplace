@@ -6,16 +6,19 @@ const os = require("os");
 const path = require("path");
 const INVOCATION = /(^|\s)(?:\/|\$)(?:dirigent-stats|itixo-codex:dirigent-stats)(?=$|\s|[.,!?;:](?=$|\s))/;
 const STATE_SCHEMA = 2;
-const CACHE_SCHEMA = 1;
+const CACHE_SCHEMA = 2;
 const DEFAULT_STOP_BUDGET_MS = 1500;
 const NO_DATA = "No token usage available yet.";
 const REPORT_HEADING = "## Dirigent Stats";
-const AGENT_HEADER = "| Agent | Model | Runs | Tokens | Share |";
+const INVALID_VIEW = "Invalid stats view. Use agents, models, or both.";
+const VIEWS = ["both", "agents", "models"];
+const AGENT_HEADER = "| Agent | Model | Runs | Usage | Share |";
 const AGENT_SEPARATOR = "| --- | --- | ---: | ---: | ---: |";
-const MODEL_HEADER = "| Model | Runs | Tokens | Share |";
+const MODEL_HEADER = "| Model | Runs | Usage | Share |";
 const MODEL_SEPARATOR = "| --- | ---: | ---: | ---: |";
-const AGENT_ROW = /^\| [^|\n]+ \| [^|\n]* \| \d+ \| \d+ \| \d+\.\d% \|$/;
-const MODEL_ROW = /^\| [^|\n]+ \| \d+ \| \d+ \| \d+\.\d% \|$/;
+const USAGE = String.raw`(?:0|[1-9]\d{0,2}(?:,\d{3})*)(?:\.\d{1,3})? kToks`;
+const AGENT_ROW = new RegExp(String.raw`^\| [^|\n]+ \| [^|\n]* \| \d+ \| ${USAGE} \| \d+\.\d% \|$`);
+const MODEL_ROW = new RegExp(String.raw`^\| [^|\n]+ \| \d+ \| ${USAGE} \| \d+\.\d% \|$`);
 
 function stopBudgetMs(raw) {
   if (raw === undefined) return DEFAULT_STOP_BUDGET_MS;
@@ -51,20 +54,26 @@ function sessionState(sessionId) {
   } catch { return null; }
 }
 
-function validReport(reportText) {
+function validReport(reportText, view) {
   if (typeof reportText !== "string") return false;
   if (reportText === NO_DATA) return true;
   if (/<!--|Snapshot:|Instruction:/.test(reportText)) return false;
   const lines = reportText.split("\n");
-  if (lines[0] !== REPORT_HEADING || lines[1] !== ""
-      || lines[2] !== AGENT_HEADER || lines[3] !== AGENT_SEPARATOR) return false;
-  const agentEnd = lines.indexOf("", 4);
-  if (agentEnd <= 4 || !lines.slice(4, agentEnd).every((line) => AGENT_ROW.test(line))
-      || lines[agentEnd + 1] !== MODEL_HEADER || lines[agentEnd + 2] !== MODEL_SEPARATOR) return false;
-  const modelEnd = lines.indexOf("", agentEnd + 3);
-  if (modelEnd <= agentEnd + 3 || !lines.slice(agentEnd + 3, modelEnd).every((line) => MODEL_ROW.test(line))
-      || !/^Exact known total: [1-9]\d* tokens\.$/.test(lines[modelEnd + 1])) return false;
-  let index = modelEnd + 2;
+  if (lines[0] !== REPORT_HEADING || lines[1] !== "") return false;
+  let index = 2;
+  const table = (header, separator, rowPattern) => {
+    if (lines[index] !== header || lines[index + 1] !== separator) return false;
+    index += 2;
+    const first = index;
+    while (typeof lines[index] === "string" && rowPattern.test(lines[index])) index += 1;
+    if (index === first || lines[index] !== "") return false;
+    index += 1;
+    return true;
+  };
+  if (view !== "models" && !table(AGENT_HEADER, AGENT_SEPARATOR, AGENT_ROW)) return false;
+  if (view !== "agents" && !table(MODEL_HEADER, MODEL_SEPARATOR, MODEL_ROW)) return false;
+  if (!new RegExp(String.raw`^Exact known total: ${USAGE}\.$`).test(lines[index])) return false;
+  index += 1;
   if (lines[index] === "Warnings:") {
     index += 1;
     const firstWarning = index;
@@ -74,15 +83,87 @@ function validReport(reportText) {
   return index === lines.length;
 }
 
+function usageTokens(usage) {
+  const match = /^((?:0|[1-9]\d{0,2}(?:,\d{3})*))(?:\.(\d{1,3}))? kToks$/.exec(usage);
+  if (!match) return null;
+  const whole = Number(match[1].replace(/,/g, ""));
+  const fraction = Number((match[2] || "").padEnd(3, "0"));
+  const tokens = (whole * 1000) + fraction;
+  return Number.isSafeInteger(tokens) ? tokens : null;
+}
+
+function validReports(reports) {
+  if (!reports || typeof reports !== "object") return false;
+  const zero = VIEWS.map((view) => reports[view] === NO_DATA);
+  if (zero.some(Boolean)) return zero.every(Boolean);
+  if (!VIEWS.every((view) => validReport(reports[view], view))) return false;
+  const parts = (report) => {
+    const lines = report.split("\n");
+    const table = (header, usageCell) => {
+      const start = lines.indexOf(header);
+      if (start < 0) return { text: null, tokens: null };
+      const end = lines.indexOf("", start);
+      let tokens = 0;
+      for (const row of lines.slice(start + 2, end)) {
+        const cells = row.slice(1, -1).split("|").map((cell) => cell.trim());
+        const rowTokens = usageTokens(cells[usageCell]);
+        if (rowTokens === null || tokens > Number.MAX_SAFE_INTEGER - rowTokens) return null;
+        tokens += rowTokens;
+      }
+      return { text: lines.slice(start, end).join("\n"), tokens };
+    };
+    const agent = table(AGENT_HEADER, 3);
+    const model = table(MODEL_HEADER, 2);
+    const totalLine = lines.find((line) => line.startsWith("Exact known total: "));
+    const total = totalLine && usageTokens(totalLine.slice("Exact known total: ".length, -1));
+    const warningStart = lines.indexOf("Warnings:");
+    return agent && model && total !== null ? {
+      agent,
+      model,
+      total,
+      warnings: warningStart < 0 ? "" : lines.slice(warningStart).join("\n"),
+    } : null;
+  };
+  const both = parts(reports.both);
+  const agents = parts(reports.agents);
+  const models = parts(reports.models);
+  const arithmeticMatches = (report) => report
+    && [report.agent, report.model].every((table) => table.tokens === null || table.tokens === report.total);
+  return arithmeticMatches(both) && arithmeticMatches(agents) && arithmeticMatches(models)
+    && both.total === agents.total && both.total === models.total
+    && both.warnings === agents.warnings && both.warnings === models.warnings
+    && both.agent.text === agents.agent.text && both.model.text === models.model.text;
+}
+
 function cachedReport(state, sessionId) {
   const cache = state && state.schema === STATE_SCHEMA && state.cache;
   return cache && cache.schema === CACHE_SCHEMA && cache.sessionId === sessionId
     && cache.transcriptPath === state.transcriptPath && Number.isSafeInteger(cache.updatedAt) && cache.updatedAt >= 0
-    && validReport(cache.report) ? cache.report : null;
+    && validReports(cache.reports) ? cache.reports : null;
 }
 
 function noData() {
   return NO_DATA;
+}
+
+function noDataReports() {
+  return { both: NO_DATA, agents: NO_DATA, models: NO_DATA };
+}
+
+function formatUsage(tokens) {
+  const whole = Math.floor(tokens / 1000).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const remainder = Math.trunc(tokens % 1000);
+  const fraction = remainder ? `.${String(remainder).padStart(3, "0").replace(/0+$/, "")}` : "";
+  return `${whole}${fraction} kToks`;
+}
+
+function requestedView(text) {
+  const tokens = typeof text === "string" ? text.trim().split(/\s+/).filter(Boolean) : [];
+  const positions = tokens.flatMap((token, index) => token === "--view" ? [index] : []);
+  if (positions.length === 0) return "both";
+  if (positions.length !== 1) return null;
+  const value = tokens[positions[0] + 1];
+  return VIEWS.includes(value) ? value : null;
 }
 
 function sameAnchor(left, right) {
@@ -90,7 +171,7 @@ function sameAnchor(left, right) {
     && left.transcriptPath === right.transcriptPath && left.cwd === right.cwd && left.source === right.source);
 }
 
-function writeState(sessionId, anchor, reportText, turnId, resolvedTranscriptPath = null) {
+function writeState(sessionId, anchor, reports, turnId, resolvedTranscriptPath = null) {
   let temporary = null;
   try {
     const dir = stateDir();
@@ -112,7 +193,7 @@ function writeState(sessionId, anchor, reportText, turnId, resolvedTranscriptPat
       transcriptPath,
       cwd: typeof source.cwd === "string" ? source.cwd : null,
       source: typeof source.source === "string" ? source.source : "stop",
-      cache: { schema: CACHE_SCHEMA, sessionId, transcriptPath, report: reportText, updatedAt: Date.now(), ...(typeof turnId === "string" && turnId ? { turnId } : {}) },
+      cache: { schema: CACHE_SCHEMA, sessionId, transcriptPath, reports, report: reports.both, updatedAt: Date.now(), ...(typeof turnId === "string" && turnId ? { turnId } : {}) },
     };
     temporary = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`);
     fs.writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
@@ -283,11 +364,12 @@ function currentReport(event, state, deadline = Infinity) {
   const sessionsDir = process.env.DIRIGENT_STATS_CODEX_SESSIONS_DIR || path.join(process.env.HOME || "", ".codex", "sessions");
   const sessionId = event.session_id || event.thread_id;
   if (typeof sessionId !== "string" || !sessionId || Date.now() > deadline) return null;
-  const files = jsonlFiles(sessionsDir, [], deadline);
+  const files = jsonlFiles(sessionsDir, [], deadline).sort();
   const transcript = state && state.transcriptPath !== null ? state.transcriptPath : resolveTranscript(event, files, deadline);
   const selected = transcript && parseRollout(transcript, deadline);
   if (!selected || selected.id !== sessionId || Date.now() > deadline) return null;
   const children = new Map();
+  const byId = new Map([[selected.id, selected]]);
   if (selected.parentId) children.set(selected.parentId, [selected]);
   for (let index = 0; index < files.length; index += 1) {
     if (index % 16 === 0 && Date.now() > deadline) return null;
@@ -295,6 +377,18 @@ function currentReport(event, state, deadline = Infinity) {
     if (file === transcript) continue;
     const rollout = parseRollout(file, deadline);
     if (!rollout) continue;
+    const duplicate = byId.get(rollout.id);
+    if (duplicate) {
+      const identity = (value) => JSON.stringify({
+        parentId: value.parentId, role: value.role, total: value.total,
+        models: [...value.models.entries()].sort(([left], [right]) => left.localeCompare(right)),
+      });
+      if (identity(duplicate) !== identity(rollout)) {
+        selected.warnings.add("Duplicate rollout ID conflict detected; first rollout used.");
+      }
+      continue;
+    }
+    byId.set(rollout.id, rollout);
     if (!rollout.parentId) continue;
     const items = children.get(rollout.parentId) || [];
     items.push(rollout);
@@ -343,22 +437,18 @@ function report(root, rollouts) {
   const share = (tokens) => `${(total ? tokens * 100 / total : 0).toFixed(1)}%`;
   const agentRows = [...agents.entries()].sort(([a], [b]) => (a === "orchestrator" ? -1 : b === "orchestrator" ? 1 : agents.get(b).tokens - agents.get(a).tokens || a.localeCompare(b)));
   const modelRows = [...models.entries()].sort(([a], [b]) => models.get(b).tokens - models.get(a).tokens || a.localeCompare(b));
-  if (total === 0) return noData();
-  const lines = [
-    REPORT_HEADING,
-    "",
-    AGENT_HEADER,
-    AGENT_SEPARATOR,
-    ...agentRows.map(([role, row]) => `| ${role} | ${[...row.models].sort().join(", ")} | ${row.runs} | ${row.tokens} | ${share(row.tokens)} |`),
-    "",
-    MODEL_HEADER,
-    MODEL_SEPARATOR,
-    ...modelRows.map(([model, row]) => `| ${model} | ${row.runs.size} | ${row.tokens} | ${share(row.tokens)} |`),
-    "",
-    `Exact known total: ${total} tokens.`,
-  ];
-  if (warnings.size) lines.push("Warnings:", ...[...warnings].sort().map((warning) => `- ${warning}`));
-  return lines.join("\n");
+  if (total === 0) return noDataReports();
+  const renderedAgents = agentRows.map(([role, row]) => `| ${role} | ${[...row.models].sort().join(", ")} | ${row.runs} | ${formatUsage(row.tokens)} | ${share(row.tokens)} |`);
+  const renderedModels = modelRows.map(([model, row]) => `| ${model} | ${row.runs.size} | ${formatUsage(row.tokens)} | ${share(row.tokens)} |`);
+  const render = (view) => {
+    const lines = [REPORT_HEADING, ""];
+    if (view !== "models") lines.push(AGENT_HEADER, AGENT_SEPARATOR, ...renderedAgents, "");
+    if (view !== "agents") lines.push(MODEL_HEADER, MODEL_SEPARATOR, ...renderedModels, "");
+    lines.push(`Exact known total: ${formatUsage(total)}.`);
+    if (warnings.size) lines.push("Warnings:", ...[...warnings].sort().map((warning) => `- ${warning}`));
+    return lines.join("\n");
+  };
+  return Object.fromEntries(VIEWS.map((view) => [view, render(view)]));
 }
 
 async function main() {
@@ -371,7 +461,7 @@ async function main() {
     if (typeof sessionId !== "string" || !sessionId) return;
     const state = sessionState(sessionId);
     const deadline = Date.now() + STOP_BUDGET_MS;
-    const fallback = noData();
+    const fallback = noDataReports();
     // Invalidate prior totals before unstable transcript parsing. Timeout/error
     // then leaves a current deterministic snapshot for this completed turn.
     writeState(sessionId, state, fallback, event.turn_id);
@@ -384,15 +474,20 @@ async function main() {
   if (typeof prompt !== "string" || !INVOCATION.test(prompt)) return;
   if (typeof sessionId !== "string" || !sessionId) return;
   const state = sessionState(sessionId);
-  let reportText = cachedReport(state, sessionId);
-  if (!reportText) {
+  const view = requestedView(prompt);
+  if (!view) {
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: INVALID_VIEW } }));
+    return;
+  }
+  let reports = cachedReport(state, sessionId);
+  if (!reports) {
     // Schema-1/corrupt caches recover once on demand; normal requests never parse.
     let result = null;
     try { result = currentReport(event, state, Date.now() + STOP_BUDGET_MS); } catch { /* Use deterministic no-data report. */ }
-    reportText = result ? result.reportText : noData();
-    writeState(sessionId, state, reportText, event.turn_id, result && result.transcriptPath);
+    reports = result ? result.reportText : noDataReports();
+    writeState(sessionId, state, reports, event.turn_id, result && result.transcriptPath);
   }
-  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: reportText } }));
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: reports[view] } }));
 }
 
 main().catch(() => {});
