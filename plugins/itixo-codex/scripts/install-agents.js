@@ -12,6 +12,13 @@ const NOFOLLOW_FLAG = typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants
 const CHEAP_AGENT_IDS = new Set(["itixo-investigator", "itixo-docs-updater"]);
 const CHEAP_MODELS = new Set(["luna", "terra"]);
 const CHEAP_EFFORTS = new Set(["high", "low"]);
+const AGENT_MODEL_ALIASES = Object.freeze({
+  sol: "gpt-5.6-sol",
+  terra: "gpt-5.6-terra",
+  luna: "gpt-5.6-luna",
+});
+const AGENT_EFFORTS = new Set(["none", "low", "medium", "high", "xhigh", "max"]);
+const REPEATABLE_ARGUMENTS = new Set(["--agent-model", "--agent-effort"]);
 const AGENT_IDS = [
   "itixo-builder",
   "itixo-docs-updater",
@@ -29,29 +36,66 @@ function fail(message) {
 function usage() {
   return [
     "Usage:",
-    "  node install-agents.js --scope personal [--cheap-model luna|terra] [--cheap-effort high|low]",
-    "  node install-agents.js --scope project --project-root <path> [--cheap-model luna|terra] [--cheap-effort high|low]",
+    "  node install-agents.js --scope personal [--cheap-model luna|terra] [--cheap-effort high|low] [--agent-model <id>=<sol|terra|luna>]... [--agent-effort <id>=<none|low|medium|high|xhigh|max>]...",
+    "  node install-agents.js --scope project --project-root <path> [--cheap-model luna|terra] [--cheap-effort high|low] [--agent-model <id>=<sol|terra|luna>]... [--agent-effort <id>=<none|low|medium|high|xhigh|max>]...",
   ].join("\n");
+}
+
+function parseAgentAssignments(argument, assignments, allowedValues, fieldLabel) {
+  const parsed = {};
+  for (const assignment of assignments) {
+    const match = assignment.match(/^([^=]+)=([^=]+)$/);
+    if (!match) {
+      fail(`Malformed agent ${fieldLabel} override '${assignment}'. Expected '<itixo-agent-id>=<value>'.`);
+    }
+    const [, agentId, value] = match;
+    if (!AGENT_IDS.includes(agentId)) {
+      fail(`Unknown agent ID '${agentId}' for '${argument}'.`);
+    }
+    if (!allowedValues.has(value)) {
+      fail(`Invalid agent ${fieldLabel} '${value}' for '${agentId}'.`);
+    }
+    if (Object.hasOwn(parsed, agentId)) {
+      fail(`Duplicate agent ${fieldLabel} override for '${agentId}'.`);
+    }
+    parsed[agentId] = value;
+  }
+  return parsed;
 }
 
 function parseArguments(argv) {
   const values = {};
+  const repeatableValues = {
+    "--agent-model": [],
+    "--agent-effort": [],
+  };
+  const allowedArguments = new Set([
+    "--scope",
+    "--project-root",
+    "--cheap-model",
+    "--cheap-effort",
+    ...REPEATABLE_ARGUMENTS,
+  ]);
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--help" || argument === "-h") {
       return { help: true };
     }
-    if (!new Set(["--scope", "--project-root", "--cheap-model", "--cheap-effort"]).has(argument)) {
+    if (!allowedArguments.has(argument)) {
       fail(`Unknown argument '${argument}'.\n${usage()}`);
     }
-    if (Object.hasOwn(values, argument)) {
+    if (!REPEATABLE_ARGUMENTS.has(argument) && Object.hasOwn(values, argument)) {
       fail(`Argument '${argument}' may be specified only once.\n${usage()}`);
     }
     const value = argv[index + 1];
     if (!value || value.startsWith("--")) {
       fail(`Argument '${argument}' requires a value.\n${usage()}`);
     }
-    values[argument] = value;
+    if (REPEATABLE_ARGUMENTS.has(argument)) {
+      repeatableValues[argument].push(value);
+    } else {
+      values[argument] = value;
+    }
     index += 1;
   }
 
@@ -73,12 +117,26 @@ function parseArguments(argv) {
   }
 
   const cheapModel = values["--cheap-model"] || "luna";
+  const agentModels = parseAgentAssignments(
+    "--agent-model",
+    repeatableValues["--agent-model"],
+    new Set(Object.keys(AGENT_MODEL_ALIASES)),
+    "model",
+  );
+  const agentEfforts = parseAgentAssignments(
+    "--agent-effort",
+    repeatableValues["--agent-effort"],
+    AGENT_EFFORTS,
+    "effort",
+  );
 
   return {
     scope: values["--scope"],
     projectRoot: values["--project-root"],
     cheapModel,
     cheapEffort: values["--cheap-effort"] || (cheapModel === "luna" ? "high" : "low"),
+    agentModels,
+    agentEfforts,
   };
 }
 
@@ -122,7 +180,21 @@ function ensureContained(root, target, label) {
   }
 }
 
-function readTemplate(agentId, cheapModel, cheapEffort) {
+function setTomlField(content, field, value) {
+  const fieldPattern = new RegExp(`^${field} = .+\\n`, "m");
+  if (fieldPattern.test(content)) {
+    return value === null ? content.replace(fieldPattern, "") : content.replace(fieldPattern, `${field} = "${value}"\n`);
+  }
+  if (value === null) return content;
+
+  const anchorPattern = field === "model_reasoning_effort" && /^model = .+$/m.test(content)
+    ? /^model = .+$/m
+    : /^description = .+$/m;
+  if (!anchorPattern.test(content)) fail(`Cannot add '${field}' to custom agent template.`);
+  return content.replace(anchorPattern, (anchor) => `${anchor}\n${field} = "${value}"`);
+}
+
+function readTemplate(agentId, cheapModel, cheapEffort, agentModel, agentEffort) {
   const selectedCheapModel = cheapModel || "luna";
   const selectedCheapEffort = cheapEffort || (selectedCheapModel === "luna" ? "high" : "low");
   const templatePath = path.join(TEMPLATE_DIRECTORY, `${agentId}.toml`);
@@ -135,17 +207,12 @@ function readTemplate(agentId, cheapModel, cheapEffort) {
   validateTemplate(agentId, templatePath, content);
 
   if (CHEAP_AGENT_IDS.has(agentId)) {
-    const expectedModel = 'model = "gpt-5.6-luna"';
-    const expectedEffort = 'model_reasoning_effort = "high"';
-    if ((content.match(/model = "gpt-5\.6-luna"/g) || []).length !== 1) {
-      fail(`Template '${templatePath}' has unexpected Luna model structure.`);
-    }
-    if ((content.match(/model_reasoning_effort = "high"/g) || []).length !== 1) {
-      fail(`Template '${templatePath}' has unexpected high reasoning effort structure.`);
-    }
-    content = content
-      .replace(expectedModel, `model = "gpt-5.6-${selectedCheapModel}"`)
-      .replace(expectedEffort, `model_reasoning_effort = "${selectedCheapEffort}"`);
+    content = setTomlField(content, "model", `gpt-5.6-${selectedCheapModel}`);
+    content = setTomlField(content, "model_reasoning_effort", selectedCheapEffort);
+  }
+  if (agentModel !== undefined) content = setTomlField(content, "model", AGENT_MODEL_ALIASES[agentModel]);
+  if (agentEffort !== undefined) {
+    content = setTomlField(content, "model_reasoning_effort", agentEffort === "none" ? null : agentEffort);
   }
   return content;
 }
@@ -394,8 +461,13 @@ function install(options, dependencies = {}) {
   if (typeof renameSync !== "function") fail("renameSync dependency must be a function.");
   const cheapModel = options.cheapModel || "luna";
   const cheapEffort = options.cheapEffort || (cheapModel === "luna" ? "high" : "low");
+  const agentModels = options.agentModels || {};
+  const agentEfforts = options.agentEfforts || {};
   const destination = resolveDestination(options);
-  const templates = AGENT_IDS.map((agentId) => [agentId, readTemplate(agentId, cheapModel, cheapEffort)]);
+  const templates = AGENT_IDS.map((agentId) => [
+    agentId,
+    readTemplate(agentId, cheapModel, cheapEffort, agentModels[agentId], agentEfforts[agentId]),
+  ]);
   const targets = preflight(destination, templates);
 
   fs.mkdirSync(destination, { recursive: true, mode: 0o700 });
@@ -428,9 +500,18 @@ function install(options, dependencies = {}) {
   const installed = targets.filter((entry) => entry.action === "installed").length;
   const skipped = targets.length - installed;
   for (const entry of targets) console.log(`${entry.action} ${entry.target}`);
-  console.log(
-    `summary installed=${installed} skipped=${skipped} scope=${options.scope} cheap-model=${cheapModel} cheap-effort=${cheapEffort}`,
-  );
+  const summary = [
+    `summary installed=${installed}`,
+    `skipped=${skipped}`,
+    `scope=${options.scope}`,
+    `cheap-model=${cheapModel}`,
+    `cheap-effort=${cheapEffort}`,
+  ];
+  const modelSummary = Object.keys(agentModels).sort().map((agentId) => `${agentId}:${agentModels[agentId]}`);
+  const effortSummary = Object.keys(agentEfforts).sort().map((agentId) => `${agentId}:${agentEfforts[agentId]}`);
+  if (modelSummary.length > 0) summary.push(`agent-models=${modelSummary.join(",")}`);
+  if (effortSummary.length > 0) summary.push(`agent-efforts=${effortSummary.join(",")}`);
+  console.log(summary.join(" "));
 }
 
 function main() {
