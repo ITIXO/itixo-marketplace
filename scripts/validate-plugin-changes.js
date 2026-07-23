@@ -13,6 +13,7 @@ const PLUGIN_MANIFESTS = [
   ".codex-plugin/plugin.json",
 ];
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const PLUGIN_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function parseArgs(args) {
   const options = {};
@@ -105,11 +106,6 @@ function parseVersion(version) {
   return version.split(".").map(Number);
 }
 
-function hasChangelogHeading(changelog, version) {
-  const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^### ${escapedVersion}(?=[ \\t]|$)`, "m").test(changelog);
-}
-
 function compareVersions(left, right) {
   const leftParts = parseVersion(left);
   const rightParts = parseVersion(right);
@@ -118,6 +114,105 @@ function compareVersions(left, right) {
     if (leftParts[index] !== rightParts[index]) return leftParts[index] - rightParts[index];
   }
   return 0;
+}
+
+function parseChangelog(markdown) {
+  const sections = new Map();
+  const errors = [];
+  const visibleMarkdown = String(markdown).replace(
+    /<!--[\s\S]*?(?:-->|$)/g,
+    (comment) => comment.replace(/[^\n]/g, " "),
+  );
+  const lines = visibleMarkdown.split(/\r?\n/);
+  let currentSection = null;
+  let currentRelease = null;
+  let fence = null;
+
+  const finishRelease = () => {
+    if (!currentRelease) return;
+    if (!currentRelease.body.some((line) => line.trim() !== "")) {
+      errors.push(`Changelog:${currentRelease.line}: release '${currentRelease.version}' in plugin '${currentSection.slug}' must have visible release notes.`);
+    }
+    currentRelease = null;
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const lineNumber = index + 1;
+    const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (fenceMatch) {
+      const marker = fenceMatch[1];
+      if (!fence) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      if (currentRelease) currentRelease.body.push(line);
+      continue;
+    }
+    if (fence) {
+      if (currentRelease) currentRelease.body.push(line);
+      continue;
+    }
+
+    const h2 = /^##(?!#)(.*)$/.exec(line);
+    if (h2) {
+      finishRelease();
+      const heading = h2[1];
+      const slug = heading.startsWith(" ") ? heading.slice(1) : "";
+      if (!slug || heading !== ` ${slug}` || !PLUGIN_SLUG.test(slug)) {
+        errors.push(`Changelog:${lineNumber}: plugin heading must be exactly '## <lowercase-plugin-slug>'; got ${JSON.stringify(line)}.`);
+        currentSection = null;
+        continue;
+      }
+      const section = { slug, line: lineNumber, releases: new Map(), versions: [] };
+      if (sections.has(slug)) {
+        errors.push(`Changelog:${lineNumber}: duplicate plugin section '## ${slug}'; each plugin may appear once.`);
+      } else {
+        sections.set(slug, section);
+      }
+      currentSection = section;
+      continue;
+    }
+
+    const h3 = /^###(?!#)(.*)$/.exec(line);
+    if (h3) {
+      finishRelease();
+      const releaseMatch = /^ ((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))(?:[ \t].*)?$/.exec(h3[1]);
+      if (!releaseMatch) {
+        errors.push(`Changelog:${lineNumber}: release heading must start with strict semver as '### MAJOR.MINOR.PATCH' and any suffix must follow whitespace; legacy provider-prefixed or combined headings are not supported.`);
+        currentRelease = null;
+        continue;
+      }
+      const version = releaseMatch[1];
+      const suffix = h3[1].slice(` ${version}`.length);
+      const combinedRelease = /^[ \t]*(?:\/|\+|&|and\b)[ \t]*(?:[a-z0-9]+(?:-[a-z0-9]+)*[ \t]+)?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:[ \t]|$)/i;
+      if (combinedRelease.test(suffix)) {
+        errors.push(`Changelog:${lineNumber}: combined release heading '${line.trim()}' is not supported; use one release per plugin section.`);
+        currentRelease = null;
+        continue;
+      }
+      if (!currentSection) {
+        errors.push(`Changelog:${lineNumber}: orphan release heading '### ${version}' must follow an exact plugin section.`);
+        currentRelease = null;
+        continue;
+      }
+      if (currentSection.releases.has(version)) {
+        errors.push(`Changelog:${lineNumber}: duplicate release '${version}' in plugin '${currentSection.slug}'.`);
+      } else {
+        const previous = currentSection.versions.at(-1);
+        if (previous && compareVersions(previous, version) <= 0) {
+          errors.push(`Changelog:${lineNumber}: releases in plugin '${currentSection.slug}' must be strictly descending; '${version}' must be lower than '${previous}'.`);
+        }
+        const release = { version, line: lineNumber, body: [] };
+        currentSection.releases.set(version, release);
+        currentSection.versions.push(version);
+        currentRelease = release;
+      }
+      continue;
+    }
+
+    if (currentRelease) currentRelease.body.push(line);
+  }
+  finishRelease();
+  return { sections, errors };
 }
 
 function highestVersion(versions) {
@@ -150,7 +245,7 @@ function pluginExistsAtBase(base, name) {
   }
 }
 
-function validatePlugin(base, changelog, name) {
+function validatePlugin(base, changelogSections, name) {
   const pluginDir = path.join("plugins", name);
   if (!fs.existsSync(pluginDir)) {
     return { errors: [], skipped: `Plugin '${name}' was deleted; no HEAD manifest to validate.` };
@@ -209,8 +304,8 @@ function validatePlugin(base, changelog, name) {
 
   if (versions.length === 0) errors.push(`plugins/${name}: no plugin manifest exists at HEAD.`);
   for (const version of new Set(versions)) {
-    if (!hasChangelogHeading(changelog, version)) {
-      errors.push(`Changelog: missing heading '### ${version}' for plugin '${name}'.`);
+    if (!changelogSections.get(name)?.releases.has(version)) {
+      errors.push(`Changelog: missing heading '### ${version}' under exact section '## ${name}'.`);
     }
   }
   return { errors, skipped: null };
@@ -221,11 +316,11 @@ function validatePluginChanges({ base, changelogPath }) {
   if (changedPlugins.size === 0) return { errors: [], skipped: [] };
   if (!fs.existsSync(changelogPath)) return { errors: [`Changelog not found: ${changelogPath}`], skipped: [] };
 
-  const changelog = fs.readFileSync(changelogPath, "utf8");
-  const errors = [];
+  const changelog = parseChangelog(fs.readFileSync(changelogPath, "utf8"));
+  const errors = [...changelog.errors];
   const skipped = [];
   for (const name of [...changedPlugins].sort()) {
-    const result = validatePlugin(base, changelog, name);
+    const result = validatePlugin(base, changelog.sections, name);
     errors.push(...result.errors);
     if (result.skipped) skipped.push(result.skipped);
   }
@@ -257,10 +352,10 @@ module.exports = {
   changedMarketplacePlugins,
   changedPluginPaths,
   compareVersions,
-  hasChangelogHeading,
   highestVersion,
   isGreaterVersion,
   parseArgs,
+  parseChangelog,
   parseVersion,
   requiredBaseVersion,
   validatePluginChanges,
