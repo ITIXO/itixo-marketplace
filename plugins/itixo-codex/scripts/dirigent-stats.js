@@ -8,15 +8,14 @@ const INVOCATION = /(^|\s)(?:\/|\$)(?:dirigent-stats|itixo-codex:dirigent-stats)
 const STATE_SCHEMA = 2;
 const CACHE_SCHEMA = 1;
 const DEFAULT_STOP_BUDGET_MS = 1500;
-const REPORT_BEGIN = "<!-- dirigent-stats:begin -->";
-const REPORT_END = "<!-- dirigent-stats:end -->";
+const NO_DATA = "No token usage available yet.";
 const REPORT_HEADING = "## Dirigent Stats";
 const AGENT_HEADER = "| Agent | Model | Runs | Tokens | Share |";
 const AGENT_SEPARATOR = "| --- | --- | ---: | ---: | ---: |";
 const MODEL_HEADER = "| Model | Runs | Tokens | Share |";
 const MODEL_SEPARATOR = "| --- | ---: | ---: | ---: |";
-const SNAPSHOT = "Snapshot: reporting response excluded; active values exact so far.";
-const INSTRUCTION = "Instruction: reproduce this report verbatim; do not recalculate or estimate.";
+const AGENT_ROW = /^\| [^|\n]+ \| [^|\n]* \| \d+ \| \d+ \| \d+\.\d% \|$/;
+const MODEL_ROW = /^\| [^|\n]+ \| \d+ \| \d+ \| \d+\.\d% \|$/;
 
 function stopBudgetMs(raw) {
   if (raw === undefined) return DEFAULT_STOP_BUDGET_MS;
@@ -54,23 +53,25 @@ function sessionState(sessionId) {
 
 function validReport(reportText) {
   if (typeof reportText !== "string") return false;
+  if (reportText === NO_DATA) return true;
+  if (/<!--|Snapshot:|Instruction:/.test(reportText)) return false;
   const lines = reportText.split("\n");
-  if (lines[0] !== REPORT_BEGIN || lines[1] !== REPORT_HEADING || lines[2] !== ""
-      || lines[3] !== AGENT_HEADER || lines[4] !== AGENT_SEPARATOR
-      || lines[lines.length - 1] !== REPORT_END) return false;
-  const agentEnd = lines.indexOf("", 5);
-  if (agentEnd < 5 || lines[agentEnd + 1] !== MODEL_HEADER || lines[agentEnd + 2] !== MODEL_SEPARATOR) return false;
+  if (lines[0] !== REPORT_HEADING || lines[1] !== ""
+      || lines[2] !== AGENT_HEADER || lines[3] !== AGENT_SEPARATOR) return false;
+  const agentEnd = lines.indexOf("", 4);
+  if (agentEnd <= 4 || !lines.slice(4, agentEnd).every((line) => AGENT_ROW.test(line))
+      || lines[agentEnd + 1] !== MODEL_HEADER || lines[agentEnd + 2] !== MODEL_SEPARATOR) return false;
   const modelEnd = lines.indexOf("", agentEnd + 3);
-  if (modelEnd < agentEnd + 3 || !/^Exact known total: \d+ tokens\.$/.test(lines[modelEnd + 1])
-      || lines[modelEnd + 2] !== SNAPSHOT) return false;
-  let index = modelEnd + 3;
+  if (modelEnd <= agentEnd + 3 || !lines.slice(agentEnd + 3, modelEnd).every((line) => MODEL_ROW.test(line))
+      || !/^Exact known total: [1-9]\d* tokens\.$/.test(lines[modelEnd + 1])) return false;
+  let index = modelEnd + 2;
   if (lines[index] === "Warnings:") {
     index += 1;
     const firstWarning = index;
     while (typeof lines[index] === "string" && lines[index].startsWith("- ")) index += 1;
     if (index === firstWarning) return false;
   }
-  return lines[index] === INSTRUCTION && lines[index + 1] === REPORT_END && index + 2 === lines.length;
+  return index === lines.length;
 }
 
 function cachedReport(state, sessionId) {
@@ -81,10 +82,15 @@ function cachedReport(state, sessionId) {
 }
 
 function noData() {
-  return [REPORT_BEGIN, REPORT_HEADING, "", AGENT_HEADER, AGENT_SEPARATOR, "", MODEL_HEADER, MODEL_SEPARATOR, "", "Exact known total: 0 tokens.", SNAPSHOT, "Warnings:", "- No completed token usage available yet.", INSTRUCTION, REPORT_END].join("\n");
+  return NO_DATA;
 }
 
-function writeState(sessionId, anchor, reportText, turnId) {
+function sameAnchor(left, right) {
+  return Boolean(left && right && left.schema === right.schema && left.sessionId === right.sessionId
+    && left.transcriptPath === right.transcriptPath && left.cwd === right.cwd && left.source === right.source);
+}
+
+function writeState(sessionId, anchor, reportText, turnId, resolvedTranscriptPath = null) {
   let temporary = null;
   try {
     const dir = stateDir();
@@ -93,13 +99,20 @@ function writeState(sessionId, anchor, reportText, turnId) {
     // Re-read immediately before write: preserve a newer SessionStart anchor.
     const current = sessionState(sessionId);
     const source = current || anchor || {};
+    const mayApplyResolution = typeof resolvedTranscriptPath === "string"
+      && (!current || current.transcriptPath === resolvedTranscriptPath || sameAnchor(current, anchor)
+        || (current.transcriptPath === null && current.cache && current.cache.turnId === turnId));
+    if (typeof resolvedTranscriptPath === "string" && !mayApplyResolution) return;
+    const transcriptPath = mayApplyResolution
+      ? resolvedTranscriptPath
+      : source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null;
     const state = {
       schema: STATE_SCHEMA,
       sessionId,
-      transcriptPath: source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null,
+      transcriptPath,
       cwd: typeof source.cwd === "string" ? source.cwd : null,
       source: typeof source.source === "string" ? source.source : "stop",
-      cache: { schema: CACHE_SCHEMA, sessionId, transcriptPath: source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null, report: reportText, updatedAt: Date.now(), ...(typeof turnId === "string" && turnId ? { turnId } : {}) },
+      cache: { schema: CACHE_SCHEMA, sessionId, transcriptPath, report: reportText, updatedAt: Date.now(), ...(typeof turnId === "string" && turnId ? { turnId } : {}) },
     };
     temporary = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`);
     fs.writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
@@ -134,8 +147,9 @@ function jsonlFiles(dir, result = [], deadline = Infinity) {
   if (Date.now() > deadline) return result;
   let entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return result; }
-  for (const entry of entries) {
-    if (Date.now() > deadline) break;
+  for (let index = 0; index < entries.length; index += 1) {
+    if (index % 32 === 0 && Date.now() > deadline) break;
+    const entry = entries[index];
     const item = path.join(dir, entry.name);
     if (entry.isDirectory()) jsonlFiles(item, result, deadline);
     else if (entry.isFile() && entry.name.endsWith(".jsonl")) result.push(item);
@@ -147,8 +161,10 @@ function records(file, deadline = Infinity) {
   let text;
   try { text = fs.readFileSync(file, "utf8"); } catch { return null; }
   const result = [];
-  for (const line of text.split("\n")) {
-    if (Date.now() > deadline) return null;
+  const lines = text.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    if (index > 0 && index % 256 === 0 && Date.now() > deadline) return null;
+    const line = lines[index];
     if (!line.trim()) continue;
     try { result.push(JSON.parse(line)); } catch { /* tolerate incomplete trailing JSONL */ }
   }
@@ -164,14 +180,27 @@ function rolloutId(metaRecord) {
   return payload && typeof payload.id === "string" ? payload.id : null;
 }
 
-function resolveTranscript(event, sessionsDir, deadline = Infinity) {
+function prioritizedFiles(files, deadline = Infinity) {
+  const modified = new Map();
+  for (let index = 0; index < files.length; index += 1) {
+    if (index % 12 === 0 && Date.now() > deadline) break;
+    const file = files[index];
+    try { modified.set(file, fs.statSync(file).mtimeMs); } catch { modified.set(file, 0); }
+  }
+  return [...modified.keys()].sort((left, right) => modified.get(right) - modified.get(left) || left.localeCompare(right));
+}
+
+function resolveTranscript(event, files, deadline = Infinity) {
   if (typeof event.transcript_path === "string" && event.transcript_path) {
-    try { return fs.statSync(event.transcript_path).isFile() ? event.transcript_path : null; } catch { return null; }
+    const transcript = path.resolve(event.transcript_path);
+    try { return fs.statSync(transcript).isFile() ? transcript : null; } catch { return null; }
   }
   const id = event.session_id || event.thread_id;
   if (typeof id !== "string" || !id) return null;
-  for (const file of jsonlFiles(sessionsDir, [], deadline)) {
-    if (Date.now() > deadline) return null;
+  const candidates = prioritizedFiles(files, deadline);
+  for (let index = 0; index < candidates.length; index += 1) {
+    if (index % 16 === 0 && Date.now() > deadline) return null;
+    const file = candidates[index];
     const metadata = meta(records(file, deadline));
     if (rolloutId(metadata) === id) return file;
   }
@@ -191,8 +220,9 @@ function parseRollout(file, deadline = Infinity) {
   let previousCumulative = 0;
   let total = null;
 
-  items.forEach((item) => {
-    if (Date.now() > deadline) return;
+  for (let index = 0; index < items.length; index += 1) {
+    if (index > 0 && index % 256 === 0 && Date.now() > deadline) return null;
+    const item = items[index];
     const payload = item && item.payload && typeof item.payload === "object" ? item.payload : {};
     if (item.type === "turn_context") {
       const id = payload.turn_id || payload.id || item.turn_id;
@@ -233,7 +263,7 @@ function parseRollout(file, deadline = Infinity) {
     } else if (latest !== null) {
       warnings.add("A token event has no cumulative identity; model usage is unavailable.");
     }
-  });
+  }
 
   if (total !== null) {
     const attributed = [...models.values()].reduce((sum, tokens) => sum + tokens, 0);
@@ -253,13 +283,15 @@ function currentReport(event, state, deadline = Infinity) {
   const sessionsDir = process.env.DIRIGENT_STATS_CODEX_SESSIONS_DIR || path.join(process.env.HOME || "", ".codex", "sessions");
   const sessionId = event.session_id || event.thread_id;
   if (typeof sessionId !== "string" || !sessionId || Date.now() > deadline) return null;
-  const transcript = state && state.transcriptPath !== null ? state.transcriptPath : resolveTranscript(event, sessionsDir, deadline);
+  const files = jsonlFiles(sessionsDir, [], deadline);
+  const transcript = state && state.transcriptPath !== null ? state.transcriptPath : resolveTranscript(event, files, deadline);
   const selected = transcript && parseRollout(transcript, deadline);
   if (!selected || selected.id !== sessionId || Date.now() > deadline) return null;
   const children = new Map();
   if (selected.parentId) children.set(selected.parentId, [selected]);
-  for (const file of jsonlFiles(sessionsDir, [], deadline)) {
-    if (Date.now() > deadline) return null;
+  for (let index = 0; index < files.length; index += 1) {
+    if (index % 16 === 0 && Date.now() > deadline) return null;
+    const file = files[index];
     if (file === transcript) continue;
     const rollout = parseRollout(file, deadline);
     if (!rollout) continue;
@@ -280,7 +312,7 @@ function currentReport(event, state, deadline = Infinity) {
       pending.push(child.id);
     }
   }
-  return report(selected, rollouts);
+  return { reportText: report(selected, rollouts), transcriptPath: path.resolve(transcript) };
 }
 
 function report(root, rollouts) {
@@ -311,8 +343,8 @@ function report(root, rollouts) {
   const share = (tokens) => `${(total ? tokens * 100 / total : 0).toFixed(1)}%`;
   const agentRows = [...agents.entries()].sort(([a], [b]) => (a === "orchestrator" ? -1 : b === "orchestrator" ? 1 : agents.get(b).tokens - agents.get(a).tokens || a.localeCompare(b)));
   const modelRows = [...models.entries()].sort(([a], [b]) => models.get(b).tokens - models.get(a).tokens || a.localeCompare(b));
+  if (total === 0) return noData();
   const lines = [
-    REPORT_BEGIN,
     REPORT_HEADING,
     "",
     AGENT_HEADER,
@@ -324,10 +356,8 @@ function report(root, rollouts) {
     ...modelRows.map(([model, row]) => `| ${model} | ${row.runs.size} | ${row.tokens} | ${share(row.tokens)} |`),
     "",
     `Exact known total: ${total} tokens.`,
-    SNAPSHOT,
   ];
   if (warnings.size) lines.push("Warnings:", ...[...warnings].sort().map((warning) => `- ${warning}`));
-  lines.push(INSTRUCTION, REPORT_END);
   return lines.join("\n");
 }
 
@@ -345,9 +375,9 @@ async function main() {
     // Invalidate prior totals before unstable transcript parsing. Timeout/error
     // then leaves a current deterministic snapshot for this completed turn.
     writeState(sessionId, state, fallback, event.turn_id);
-    let reportText = null;
-    try { reportText = currentReport(event, state, deadline); } catch { /* Keep current no-data cache. */ }
-    if (reportText) writeState(sessionId, state, reportText, event.turn_id);
+    let result = null;
+    try { result = currentReport(event, state, deadline); } catch { /* Keep current no-data cache. */ }
+    if (result) writeState(sessionId, state, result.reportText, event.turn_id, result.transcriptPath);
     return;
   }
   const prompt = event && (event.prompt || event.user_prompt || event.message || "");
@@ -357,9 +387,10 @@ async function main() {
   let reportText = cachedReport(state, sessionId);
   if (!reportText) {
     // Schema-1/corrupt caches recover once on demand; normal requests never parse.
-    try { reportText = currentReport(event, state, Date.now() + STOP_BUDGET_MS); } catch { /* Use deterministic no-data report. */ }
-    reportText ||= noData();
-    writeState(sessionId, state, reportText, event.turn_id);
+    let result = null;
+    try { result = currentReport(event, state, Date.now() + STOP_BUDGET_MS); } catch { /* Use deterministic no-data report. */ }
+    reportText = result ? result.reportText : noData();
+    writeState(sessionId, state, reportText, event.turn_id, result && result.transcriptPath);
   }
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: reportText } }));
 }

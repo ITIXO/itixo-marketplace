@@ -9,6 +9,14 @@ const path = require("path");
 
 const SOURCES = new Set(["startup", "resume", "clear", "compact"]);
 const SCHEMA = 2;
+const NO_DATA = "No token usage available yet.";
+const REPORT_HEADING = "## Dirigent Stats";
+const AGENT_HEADER = "| Agent | Model | Runs | Tokens | Share |";
+const AGENT_SEPARATOR = "| --- | --- | ---: | ---: | ---: |";
+const MODEL_HEADER = "| Model | Runs | Tokens | Share |";
+const MODEL_SEPARATOR = "| --- | ---: | ---: | ---: |";
+const AGENT_ROW = /^\| [^|\n]+ \| [^|\n]* \| \d+ \| \d+ \| \d+\.\d% \|$/;
+const MODEL_ROW = /^\| [^|\n]+ \| \d+ \| \d+ \| \d+\.\d% \|$/;
 
 function safeId(value) {
   return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0") ? value : null;
@@ -24,6 +32,29 @@ function cleanupTemporary(file) {
     if (error && error.code === "ENOENT") return;
     // SessionStart must fail open, including cleanup failures.
   }
+}
+
+function validReport(reportText) {
+  if (typeof reportText !== "string") return false;
+  if (reportText === NO_DATA) return true;
+  if (/<!--|Snapshot:|Instruction:/.test(reportText)) return false;
+  const lines = reportText.split("\n");
+  if (lines[0] !== REPORT_HEADING || lines[1] !== ""
+      || lines[2] !== AGENT_HEADER || lines[3] !== AGENT_SEPARATOR) return false;
+  const agentEnd = lines.indexOf("", 4);
+  if (agentEnd <= 4 || !lines.slice(4, agentEnd).every((line) => AGENT_ROW.test(line))
+      || lines[agentEnd + 1] !== MODEL_HEADER || lines[agentEnd + 2] !== MODEL_SEPARATOR) return false;
+  const modelEnd = lines.indexOf("", agentEnd + 3);
+  if (modelEnd <= agentEnd + 3 || !lines.slice(agentEnd + 3, modelEnd).every((line) => MODEL_ROW.test(line))
+      || !/^Exact known total: [1-9]\d* tokens\.$/.test(lines[modelEnd + 1])) return false;
+  let index = modelEnd + 2;
+  if (lines[index] === "Warnings:") {
+    index += 1;
+    const firstWarning = index;
+    while (typeof lines[index] === "string" && lines[index].startsWith("- ")) index += 1;
+    if (index === firstWarning) return false;
+  }
+  return index === lines.length;
 }
 
 function input() {
@@ -59,9 +90,7 @@ async function main() {
     const cache = existingAnchor && existingAnchor.schema === SCHEMA
       && existingAnchor.cache && existingAnchor.cache.sessionId === sessionId
       && existingAnchor.cache.transcriptPath === transcriptPath
-      && typeof existingAnchor.cache.report === "string"
-      && existingAnchor.cache.report.includes("<!-- dirigent-stats:begin -->")
-      && existingAnchor.cache.report.includes("<!-- dirigent-stats:end -->") ? existingAnchor.cache : null;
+      && validReport(existingAnchor.cache.report) ? existingAnchor.cache : null;
     const state = {
       schema: SCHEMA,
       sessionId,
