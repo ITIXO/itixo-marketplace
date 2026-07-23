@@ -512,7 +512,7 @@ if (fs.existsSync(codexAgentsPath)) {
   for (const required of [
     "installed custom TOML agent",
     "itixo-codex:install-agents",
-    "model or reasoning-effort override",
+    "per-agent override",
     "substitute a generic agent",
   ]) {
     if (!codexAgents.includes(required)) fail(`${codexAgentsRel}: missing custom-agent dispatch requirement '${required}'`);
@@ -757,7 +757,7 @@ if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claud
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  const expectedVersion = plugin === "itixo-codex" ? "0.2.10" : "0.2.9";
+  const expectedVersion = plugin === "itixo-codex" ? "0.2.11" : "0.2.10";
   if (manifest && manifest.version !== expectedVersion) fail(`${manifestRel}: version '${manifest.version}', expected '${expectedVersion}'`);
 }
 
