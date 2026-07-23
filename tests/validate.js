@@ -342,8 +342,8 @@ for (const [plugin, text] of dirigentContents) {
     if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
       fail(`${rel}: must load itixo-github-issues role instructions`);
     }
-    if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
-      fail(`${rel}: must select mid-tier itixo-github-issues model from delegation rules`);
+    if (!/\buser\s+explicitly\s+requested\s+a\s+model\s+and\/or\s+effort\s+override\s+for\s+this\s+invocation\b[\s\S]{0,120}\brelay\s+those\s+matching\s+fields\b[\s\S]{0,120}\botherwise\s+use\s+the\s+generated\s+sonnet\/mid\s+default\b/i.test(text)) {
+      fail(`${rel}: must honor matching GitHub-issues overrides or use the generated Sonnet/mid default`);
     }
   } else {
     if (!/\binvoke\s+the\s+installed\s+custom\s+toml\s+agent\s+by\s+(?:that\s+)?canonical\s+id\b/i.test(text)) {
@@ -369,11 +369,11 @@ if (failures === 0) ok("dirigent delegates GitHub issue work with provider-speci
 const githubIssueRuleFiles = [
   {
     rel: "base/rules/agents.md",
-    model: /\bselect\s+(?:the\s+)?provider\s+model\s+in\s+(?:the\s+)?`?mid`?\s+tier\b/i,
+    model: /\bhonor\s+a\s+matching\s+explicit\s+per-invocation\s+model\s+and\/or\s+effort\s+override\b[\s\S]{0,120}\botherwise\s+use\s+the\s+`?mid`?-tier\s+sonnet\s+default\b/i,
   },
   {
     rel: "plugins/itixo-claude/rules/agents.md",
-    model: /\bselect\s+`?sonnet`?[\s\S]{0,80}\b`?mid`?\b/i,
+    model: /\bhonor\s+a\s+matching\s+explicit\s+per-invocation\s+model\s+and\/or\s+effort\s+override\b[\s\S]{0,120}\botherwise\s+select\s+`?sonnet`?\s*,\s*the\s+`?mid`?\s+model\b[\s\S]{0,120}\bgenerated\s+default\s+effort\b/i,
   },
   {
     rel: "plugins/itixo-codex/rules/agents.md",
@@ -408,7 +408,7 @@ for (const { rel, model, codexToml } of githubIssueRuleFiles) {
       fail(`${rel}: must load itixo-github-issues role instructions before delegation`);
     }
     if (!model.test(text)) {
-      fail(`${rel}: must select its mid-tier itixo-github-issues model`);
+      fail(`${rel}: must honor matching GitHub-issues overrides or use its prescribed Sonnet/mid default`);
     }
   }
   if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*(?:target\s+)?repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*(?:and\s+)?expected\s+output\b/i.test(text)) {
