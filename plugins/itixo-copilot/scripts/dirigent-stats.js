@@ -41,7 +41,7 @@ function attribute(span, names) {
   return null;
 }
 
-function usage(span, names) {
+function usage(span, names, required = false) {
   const attrs = attributes(span);
   const values = [];
   for (const name of names) {
@@ -50,7 +50,8 @@ function usage(span, names) {
     if (number(value) === null || Object.is(value, -0)) return null;
     values.push(value);
   }
-  return values.length && values.some((value) => value !== values[0]) ? null : (values[0] || 0);
+  if (!values.length) return required ? null : 0;
+  return values.some((value) => value !== values[0]) ? null : values[0];
 }
 
 function stableSpan(span) {
@@ -134,13 +135,24 @@ function modelName(span) {
     || "unknown";
 }
 
-function spanUsage(span) {
-  const input = usage(span, ["gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens"]);
-  const output = usage(span, ["gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens"]);
+function spanUsage(span, requireInputOutput = false) {
+  const input = usage(span, ["gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens"], requireInputOutput);
+  const output = usage(span, ["gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens"], requireInputOutput);
   const cacheRead = usage(span, ["gen_ai.usage.cache_read_tokens", "gen_ai.usage.cache_read_input_tokens", "gen_ai.usage.cache_read.input_tokens"]);
   const cacheCreate = usage(span, ["gen_ai.usage.cache_creation_tokens", "gen_ai.usage.cache_write_tokens", "gen_ai.usage.cache_create_tokens", "gen_ai.usage.cache_creation.input_tokens"]);
   if (input === null || output === null || cacheRead === null || cacheCreate === null) return null;
   return { input, output, cacheRead, cacheCreate, total: input + output };
+}
+
+function countedSpans(spans) {
+  const counted = [];
+  for (const span of spans) {
+    const measured = spanUsage(span);
+    if (measured.total === 0) continue;
+    if (!spanUsage(span, true)) return null;
+    counted.push(span);
+  }
+  return counted;
 }
 
 function add(map, key, item) {
@@ -171,8 +183,10 @@ function correlate(sessionId, spans) {
       const correlation = conversationId(span);
       if (correlation !== null && correlation !== sessionId) return null;
     }
-    const usableChats = tree.filter((span) => isChat(span) && spanUsage(span).total > 0);
-    const sourceSpans = usableChats.length ? usableChats : tree.filter((span) => isAgent(span) && spanUsage(span).total > 0);
+    const usableChats = countedSpans(tree.filter(isChat));
+    if (!usableChats) return null;
+    const sourceSpans = usableChats.length ? usableChats : countedSpans(tree.filter(isAgent));
+    if (!sourceSpans) return null;
     for (const span of sourceSpans) {
       let owner = isAgent(span) ? span : null;
       let current = span;
