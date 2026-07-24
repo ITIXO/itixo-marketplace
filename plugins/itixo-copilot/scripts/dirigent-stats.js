@@ -147,10 +147,11 @@ function spanUsage(span, requireInputOutput = false) {
 function countedSpans(spans) {
   const counted = [];
   for (const span of spans) {
-    const measured = spanUsage(span);
-    if (measured.total === 0) continue;
-    if (!spanUsage(span, true)) return null;
-    counted.push(span);
+    if (spanUsage(span, true)) {
+      counted.push(span);
+    } else if (spanUsage(span).total > 0) {
+      return null;
+    }
   }
   return counted;
 }
