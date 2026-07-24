@@ -163,13 +163,17 @@ function correlate(sessionId, spans) {
   const sourceSpans = usableChats.length ? usableChats : tree.filter((span) => isAgent(span) && spanUsage(span).total > 0);
   if (!sourceSpans.length) return null;
   for (const span of sourceSpans) {
-    let owner = root;
+    let owner = isAgent(span) ? span : null;
     let current = span;
     const byId = new Map(tree.map((candidate) => [candidate.spanId, candidate]));
     while (current.parentSpanId && byId.has(current.parentSpanId)) {
       current = byId.get(current.parentSpanId);
-      if (isAgent(current)) owner = current;
+      if (isAgent(current)) {
+        owner = current;
+        break;
+      }
     }
+    if (!owner) return null;
     add(rows, `${agentName(owner)}\u0000${modelName(span)}`, spanUsage(span));
   }
   return rows;
