@@ -898,3 +898,58 @@ test("Copilot stats exact-name routing and invalid OTel inputs fail open", () =>
     fs.rmSync(telemetry.directory, { recursive: true, force: true });
   }
 });
+
+test("Copilot aggregates separate current-session invoke_agent trace trees", () => {
+  const telemetry = writeCopilotTelemetry([
+    otelSpan({ traceId: "d".repeat(32), spanId: "ddddddddddddddd1", name: "invoke_agent", sessionId: "copilot-multi", agent: "orchestrator", model: "root-model", input: 0, output: 0, cache: 0 }),
+    otelSpan({ traceId: "d".repeat(32), spanId: "ddddddddddddddd2", parentSpanId: "ddddddddddddddd1", name: "chat", sessionId: "copilot-multi", agent: "orchestrator", model: "root-model", input: 2, output: 3, cache: 5 }),
+    otelSpan({ traceId: "e".repeat(32), spanId: "eeeeeeeeeeeeeee1", name: "invoke_agent", sessionId: "copilot-multi", agent: "builder", model: "builder-model", input: 0, output: 0, cache: 0 }),
+    otelSpan({ traceId: "e".repeat(32), spanId: "eeeeeeeeeeeeeee2", parentSpanId: "eeeeeeeeeeeeeee1", name: "chat", sessionId: "copilot-multi", agent: "builder", model: "builder-model", input: 7, output: 11, cache: 13 }),
+  ]);
+  try {
+    const output = copilotContext(copilotStats({
+      hookEventName: "userPromptTransformed", sessionId: "copilot-multi", prompt: "/itixo-copilot/dirigent-stats", transformedPrompt: "/itixo-copilot/dirigent-stats",
+    }, telemetry.file));
+    assert.match(output, /\| orchestrator \| root-model \| 1 \| 2 \| 3 \| 5 \| 0 \| 5 \|/);
+    assert.match(output, /\| builder \| builder-model \| 1 \| 7 \| 11 \| 13 \| 0 \| 18 \|/);
+    assert.match(output, /\| root-model \| 1 \| 2 \| 3 \| 5 \| 0 \| 5 \|/);
+    assert.match(output, /\| builder-model \| 1 \| 7 \| 11 \| 13 \| 0 \| 18 \|/);
+    assert.match(output, /Exact recorded total: 23 tokens\./);
+    assert.match(output, /Cache values are recorded separately and are not added to Tokens/);
+  } finally {
+    fs.rmSync(telemetry.directory, { recursive: true, force: true });
+  }
+});
+
+test("Copilot fails closed for malformed spans but ignores metric and log records", () => {
+  const unavailable = /Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated\./;
+  const validTree = [
+    otelSpan({ traceId: "f".repeat(32), spanId: "fffffffffffffff1", name: "invoke_agent", sessionId: "copilot-malformed", agent: "orchestrator", model: "root-model", input: 0, output: 0, cache: 0 }),
+    otelSpan({ traceId: "f".repeat(32), spanId: "fffffffffffffff2", parentSpanId: "fffffffffffffff1", name: "chat", sessionId: "copilot-malformed", agent: "orchestrator", model: "root-model", input: 4, output: 6, cache: 8 }),
+  ];
+  const event = {
+    hookEventName: "userPromptTransformed", sessionId: "copilot-malformed", prompt: "/itixo-copilot/dirigent-stats", transformedPrompt: "/itixo-copilot/dirigent-stats",
+  };
+  const ignored = writeCopilotTelemetry([...validTree, { type: "metric", name: "process.cpu", value: 999 }, { type: "log", body: "unrelated" }]);
+  try {
+    const output = copilotContext(copilotStats(event, ignored.file));
+    assert.match(output, /Exact recorded total: 10 tokens\./);
+    assert.doesNotMatch(output, /999|process\.cpu|unrelated/);
+  } finally {
+    fs.rmSync(ignored.directory, { recursive: true, force: true });
+  }
+  for (const malformed of [
+    { type: "span", traceId: "f".repeat(32), name: "chat", attributes: {} },
+    { type: "span", traceId: "f".repeat(32), spanId: "fffffffffffffff3", attributes: {} },
+    { type: "span", traceId: "f".repeat(32), spanId: "fffffffffffffff4", name: "chat" },
+    // Same stable ID with conflicting parentage must never be attributed speculatively.
+    { ...validTree[1], parentSpanId: "fffffffffffffff9" },
+  ]) {
+    const telemetry = writeCopilotTelemetry([...validTree, malformed]);
+    try {
+      assert.match(copilotContext(copilotStats(event, telemetry.file)), unavailable);
+    } finally {
+      fs.rmSync(telemetry.directory, { recursive: true, force: true });
+    }
+  }
+});
