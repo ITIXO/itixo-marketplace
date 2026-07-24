@@ -1021,3 +1021,53 @@ test("Copilot treats absent optional cache attributes as exact zero", () => {
     fs.rmSync(telemetry.directory, { recursive: true, force: true });
   }
 });
+
+test("Copilot requires counted chat input and output token attributes", () => {
+  const unavailable = /Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated\./;
+  const event = {
+    hookEventName: "userPromptTransformed", sessionId: "copilot-required-tokens", prompt: "/itixo-copilot/dirigent-stats", transformedPrompt: "/itixo-copilot/dirigent-stats",
+  };
+  const validTree = () => [
+    otelSpan({ traceId: "i".repeat(32), spanId: "iiiiiiiiiiiiiii1", name: "invoke_agent", sessionId: event.sessionId, agent: "orchestrator", model: "root-model", input: 0, output: 0, cache: undefined }),
+    otelSpan({ traceId: "i".repeat(32), spanId: "iiiiiiiiiiiiiii2", parentSpanId: "iiiiiiiiiiiiiii1", name: "chat", sessionId: event.sessionId, agent: "orchestrator", model: "root-model", input: 0, output: 0, cache: undefined }),
+  ];
+  const required = [
+    ["input", ["gen_ai.usage.input_tokens"]],
+    ["output", ["gen_ai.usage.output_tokens"]],
+    ["input and output", ["gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens"]],
+  ];
+
+  const validTelemetry = writeCopilotTelemetry(validTree());
+  try {
+    const output = copilotContext(copilotStats(event, validTelemetry.file));
+    assert.match(output, /\| orchestrator \| root-model \| 1 \| 0 \| 0 \| 0 \| 0 \| 0 \|/);
+    assert.match(output, /Exact recorded total: 0 tokens\./);
+  } finally {
+    fs.rmSync(validTelemetry.directory, { recursive: true, force: true });
+  }
+
+  for (const [label, attributes] of required) {
+    const tree = validTree();
+    for (const attribute of attributes) delete tree[1].attributes[attribute];
+    const telemetry = writeCopilotTelemetry(tree);
+    try {
+      assert.match(copilotContext(copilotStats(event, telemetry.file)), unavailable, `missing ${label}`);
+    } finally {
+      fs.rmSync(telemetry.directory, { recursive: true, force: true });
+    }
+  }
+
+  const aliasTree = validTree();
+  delete aliasTree[1].attributes["gen_ai.usage.input_tokens"];
+  delete aliasTree[1].attributes["gen_ai.usage.output_tokens"];
+  aliasTree[1].attributes["gen_ai.usage.prompt_tokens"] = 2;
+  aliasTree[1].attributes["gen_ai.usage.completion_tokens"] = 3;
+  const aliasTelemetry = writeCopilotTelemetry(aliasTree);
+  try {
+    const output = copilotContext(copilotStats(event, aliasTelemetry.file));
+    assert.match(output, /\| orchestrator \| root-model \| 1 \| 2 \| 3 \| 0 \| 0 \| 5 \|/);
+    assert.match(output, /Exact recorded total: 5 tokens\./);
+  } finally {
+    fs.rmSync(aliasTelemetry.directory, { recursive: true, force: true });
+  }
+});
