@@ -43,11 +43,14 @@ function attribute(span, names) {
 
 function usage(span, names) {
   const attrs = attributes(span);
+  const values = [];
   for (const name of names) {
-    const value = number(attrs[name]);
-    if (value !== null) return value;
+    if (!Object.prototype.hasOwnProperty.call(attrs, name)) continue;
+    const value = attrs[name];
+    if (number(value) === null || Object.is(value, -0)) return null;
+    values.push(value);
   }
-  return 0;
+  return values.length && values.some((value) => value !== values[0]) ? null : (values[0] || 0);
 }
 
 function stableSpan(span) {
@@ -75,7 +78,7 @@ function readSpans(file) {
     try { value = JSON.parse(line); } catch { return null; }
     if (!value || typeof value !== "object" || value.type !== "span") continue;
     const span = stableSpan(value);
-    if (!span) return null;
+    if (!span || !spanUsage(span)) return null;
     const key = `${span.traceId}:${span.spanId}`;
     const canonical = JSON.stringify(value);
     const previous = spans.get(key);
@@ -136,6 +139,7 @@ function spanUsage(span) {
   const output = usage(span, ["gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens"]);
   const cacheRead = usage(span, ["gen_ai.usage.cache_read_tokens", "gen_ai.usage.cache_read_input_tokens", "gen_ai.usage.cache_read.input_tokens"]);
   const cacheCreate = usage(span, ["gen_ai.usage.cache_creation_tokens", "gen_ai.usage.cache_write_tokens", "gen_ai.usage.cache_create_tokens", "gen_ai.usage.cache_creation.input_tokens"]);
+  if (input === null || output === null || cacheRead === null || cacheCreate === null) return null;
   return { input, output, cacheRead, cacheCreate, total: input + output };
 }
 
