@@ -953,3 +953,71 @@ test("Copilot fails closed for malformed spans but ignores metric and log record
     }
   }
 });
+
+test("Copilot rejects present invalid or conflicting token attributes", () => {
+  const unavailable = /Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated\./;
+  const event = {
+    hookEventName: "userPromptTransformed", sessionId: "copilot-token-validation", prompt: "/itixo-copilot/dirigent-stats", transformedPrompt: "/itixo-copilot/dirigent-stats",
+  };
+  const validTree = () => [
+    otelSpan({ traceId: "g".repeat(32), spanId: "ggggggggggggggg1", name: "invoke_agent", sessionId: event.sessionId, agent: "orchestrator", model: "root-model", input: 0, output: 0, cache: 0 }),
+    otelSpan({ traceId: "g".repeat(32), spanId: "ggggggggggggggg2", parentSpanId: "ggggggggggggggg1", name: "chat", sessionId: event.sessionId, agent: "orchestrator", model: "root-model", input: 4, output: 6, cache: 8 }),
+  ];
+  const invalidValues = [
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["non-number", "invalid"],
+  ];
+  const tokenAttributes = [
+    "gen_ai.usage.input_tokens",
+    "gen_ai.usage.output_tokens",
+    "gen_ai.usage.cache_read_input_tokens",
+    "gen_ai.usage.cache_creation_tokens",
+  ];
+
+  for (const attribute of tokenAttributes) {
+    for (const [kind, value] of invalidValues) {
+      const tree = validTree();
+      tree[1].attributes[attribute] = value;
+      const telemetry = writeCopilotTelemetry(tree);
+      try {
+        assert.match(copilotContext(copilotStats(event, telemetry.file)), unavailable, `${attribute} ${kind}`);
+      } finally {
+        fs.rmSync(telemetry.directory, { recursive: true, force: true });
+      }
+    }
+  }
+
+  for (const [first, second] of [
+    ["gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens"],
+    ["gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens"],
+    ["gen_ai.usage.cache_read_tokens", "gen_ai.usage.cache_read_input_tokens"],
+    ["gen_ai.usage.cache_creation_tokens", "gen_ai.usage.cache_write_tokens"],
+  ]) {
+    const tree = validTree();
+    tree[1].attributes[first] = 17;
+    tree[1].attributes[second] = 19;
+    const telemetry = writeCopilotTelemetry(tree);
+    try {
+      assert.match(copilotContext(copilotStats(event, telemetry.file)), unavailable, `${first} conflicts with ${second}`);
+    } finally {
+      fs.rmSync(telemetry.directory, { recursive: true, force: true });
+    }
+  }
+});
+
+test("Copilot treats absent optional cache attributes as exact zero", () => {
+  const event = {
+    hookEventName: "userPromptTransformed", sessionId: "copilot-no-cache", prompt: "/itixo-copilot/dirigent-stats", transformedPrompt: "/itixo-copilot/dirigent-stats",
+  };
+  const root = otelSpan({ traceId: "h".repeat(32), spanId: "hhhhhhhhhhhhhhh1", name: "invoke_agent", sessionId: event.sessionId, agent: "orchestrator", model: "root-model", input: 0, output: 0, cache: undefined });
+  const chat = otelSpan({ traceId: "h".repeat(32), spanId: "hhhhhhhhhhhhhhh2", parentSpanId: "hhhhhhhhhhhhhhh1", name: "chat", sessionId: event.sessionId, agent: "orchestrator", model: "root-model", input: 12, output: 9, cache: undefined });
+  const telemetry = writeCopilotTelemetry([root, chat]);
+  try {
+    const output = copilotContext(copilotStats(event, telemetry.file));
+    assert.match(output, /\| orchestrator \| root-model \| 1 \| 12 \| 9 \| 0 \| 0 \| 21 \|/);
+    assert.match(output, /Exact recorded total: 21 tokens\./);
+  } finally {
+    fs.rmSync(telemetry.directory, { recursive: true, force: true });
+  }
+});
