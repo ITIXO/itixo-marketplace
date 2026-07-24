@@ -24,5 +24,5 @@ The file exporter is selected automatically from the path according to Copilot's
 ## Reporting rules
 
 - Present the hook-injected report exactly as provided. Do not recalculate, reformat, summarize, or improvise values.
-- If telemetry is missing, malformed, unrelated to the current session, or ambiguous, report `unavailable` and explain only that the recorded session data cannot be correlated reliably.
+- If telemetry is missing, malformed, unrelated to the current session, or ambiguous, report exactly: `Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated.`
 - Never substitute estimates, a private database, or conversation transcripts.
