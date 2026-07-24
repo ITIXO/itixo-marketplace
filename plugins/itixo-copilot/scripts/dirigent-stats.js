@@ -55,9 +55,12 @@ function stableSpan(span) {
   const traceId = text(span.traceId);
   const spanId = text(span.spanId);
   const name = text(span.name);
-  if (!traceId || !spanId || !name) return null;
+  if (!traceId || !spanId || !name || !span.attributes || typeof span.attributes !== "object" || Array.isArray(span.attributes)) return null;
   const parentSpanId = span.parentSpanId === undefined || span.parentSpanId === null ? null : text(span.parentSpanId);
   if (span.parentSpanId !== undefined && span.parentSpanId !== null && !parentSpanId) return null;
+  const correlation = [span.attributes["gen_ai.conversation.id"], span.attributes["gen_ai.conversation_id"]]
+    .filter((value) => value !== undefined && value !== null);
+  if (correlation.some((value) => !text(value)) || new Set(correlation.map((value) => text(value))).size > 1) return null;
   return { ...span, traceId, spanId, parentSpanId, name };
 }
 
@@ -70,8 +73,9 @@ function readSpans(file) {
     if (!line.trim()) continue;
     let value;
     try { value = JSON.parse(line); } catch { return null; }
+    if (!value || typeof value !== "object" || value.type !== "span") continue;
     const span = stableSpan(value);
-    if (!span) continue;
+    if (!span) return null;
     const key = `${span.traceId}:${span.spanId}`;
     const canonical = JSON.stringify(value);
     const previous = spans.get(key);
@@ -147,36 +151,43 @@ function add(map, key, item) {
 }
 
 function correlate(sessionId, spans) {
-  const roots = spans.filter((span) => isAgent(span) && conversationId(span) === sessionId
-    && (!span.parentSpanId || !spans.some((candidate) => candidate.traceId === span.traceId && candidate.spanId === span.parentSpanId)));
-  if (roots.length !== 1) return null;
-  const root = roots[0];
-  const linked = descendants(root, spans);
-  if (!linked) return null;
-  const tree = [root, ...linked];
-  // Any separately correlated agent root makes attribution ambiguous.
-  if (spans.some((span) => span !== root && isAgent(span) && conversationId(span) === sessionId
-    && span.traceId !== root.traceId)) return null;
-
+  const roots = spans.filter((span) => isAgent(span) && conversationId(span) === sessionId && !span.parentSpanId);
+  if (!roots.length) return null;
   const rows = new Map();
-  const usableChats = tree.filter((span) => isChat(span) && spanUsage(span).total > 0);
-  const sourceSpans = usableChats.length ? usableChats : tree.filter((span) => isAgent(span) && spanUsage(span).total > 0);
-  if (!sourceSpans.length) return null;
-  for (const span of sourceSpans) {
-    let owner = isAgent(span) ? span : null;
-    let current = span;
-    const byId = new Map(tree.map((candidate) => [candidate.spanId, candidate]));
-    while (current.parentSpanId && byId.has(current.parentSpanId)) {
-      current = byId.get(current.parentSpanId);
-      if (isAgent(current)) {
-        owner = current;
-        break;
-      }
+  const linkedSpans = new Set();
+  let recorded = false;
+  for (const root of roots) {
+    const linked = descendants(root, spans);
+    if (!linked) return null;
+    const tree = [root, ...linked];
+    for (const span of tree) {
+      const key = `${span.traceId}:${span.spanId}`;
+      if (linkedSpans.has(key)) return null;
+      linkedSpans.add(key);
+      const correlation = conversationId(span);
+      if (correlation !== null && correlation !== sessionId) return null;
     }
-    if (!owner) return null;
-    add(rows, `${agentName(owner)}\u0000${modelName(span)}`, spanUsage(span));
+    const usableChats = tree.filter((span) => isChat(span) && spanUsage(span).total > 0);
+    const sourceSpans = usableChats.length ? usableChats : tree.filter((span) => isAgent(span) && spanUsage(span).total > 0);
+    for (const span of sourceSpans) {
+      let owner = isAgent(span) ? span : null;
+      let current = span;
+      const byId = new Map(tree.map((candidate) => [candidate.spanId, candidate]));
+      while (current.parentSpanId && byId.has(current.parentSpanId)) {
+        current = byId.get(current.parentSpanId);
+        if (isAgent(current)) {
+          owner = current;
+          break;
+        }
+      }
+      if (!owner) return null;
+      add(rows, `${agentName(owner)}\u0000${modelName(span)}`, spanUsage(span));
+      recorded = true;
+    }
   }
-  return rows;
+  if (!recorded) return null;
+  // Any current-session correlation outside one complete root tree is ambiguous.
+  return spans.some((span) => conversationId(span) === sessionId && !linkedSpans.has(`${span.traceId}:${span.spanId}`)) ? null : rows;
 }
 
 function escapeCell(value) {
