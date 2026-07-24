@@ -144,12 +144,12 @@ function spanUsage(span, requireInputOutput = false) {
   return { input, output, cacheRead, cacheCreate, total: input + output };
 }
 
-function countedSpans(spans) {
+function countedSpans(spans, requireInputOutput = false) {
   const counted = [];
   for (const span of spans) {
     if (spanUsage(span, true)) {
       counted.push(span);
-    } else if (spanUsage(span).total > 0) {
+    } else if (requireInputOutput || spanUsage(span).total > 0) {
       return null;
     }
   }
@@ -184,7 +184,7 @@ function correlate(sessionId, spans) {
       const correlation = conversationId(span);
       if (correlation !== null && correlation !== sessionId) return null;
     }
-    const usableChats = countedSpans(tree.filter(isChat));
+    const usableChats = countedSpans(tree.filter(isChat), true);
     if (!usableChats) return null;
     const sourceSpans = usableChats.length ? usableChats : countedSpans(tree.filter(isAgent));
     if (!sourceSpans) return null;
