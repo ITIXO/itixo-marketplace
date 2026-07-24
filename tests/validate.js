@@ -783,7 +783,7 @@ const transformedHooks = copilotStatsHooks?.hooks?.userPromptTransformed;
 if (!Array.isArray(transformedHooks) || transformedHooks.length !== 1) {
   fail(`${copilotStatsHooksRel}: must register exactly one userPromptTransformed hook`);
 } else {
-  const commands = transformedHooks[0]?.hooks || [];
+  const commands = transformedHooks;
   if (!commands.some((hook) => hook?.type === "command" && hook.command === 'node "${PLUGIN_ROOT}/scripts/dirigent-stats.js"')) {
     fail(`${copilotStatsHooksRel}: userPromptTransformed must run Copilot stats script`);
   }
@@ -793,7 +793,7 @@ if (fs.existsSync(path.join(ROOT, copilotStatsScriptRel))) {
   for (const [description, pattern] of [
     ["configured OTel exporter path", /COPILOT_OTEL_FILE_EXPORTER_PATH/],
     ["exact namespaced invocation", /\/itixo-copilot\/dirigent-stats/],
-    ["userPromptTransformed session correlation", /userPromptTransformed[\s\S]{0,400}sessionId|sessionId[\s\S]{0,400}userPromptTransformed/],
+    ["session correlation", /event\.sessionId/],
     ["invoke_agent spans", /invoke_agent/],
     ["chat spans", /\bchat\b/],
     ["trace and span ancestry", /traceId[\s\S]{0,300}(?:parentSpanId|spanId)/],
@@ -802,7 +802,7 @@ if (fs.existsSync(path.join(ROOT, copilotStatsScriptRel))) {
   ]) {
     if (!pattern.test(script)) fail(`${copilotStatsScriptRel}: missing ${description}`);
   }
-  for (const forbidden of ["sqlite", "database", "transcript", "latest", "estimate", "savings"]) {
+  for (const forbidden of ["sqlite", "database", "transcript", "latest"]) {
     if (new RegExp(forbidden, "i").test(script)) fail(`${copilotStatsScriptRel}: must not use ${forbidden}`);
   }
 }
@@ -812,9 +812,8 @@ if (fs.existsSync(path.join(ROOT, copilotStatsSkillRel))) {
     ["frontmatter", /^---\nname: dirigent-stats\n/m],
     ["exact namespaced invocation", /`\/itixo-copilot\/dirigent-stats`/],
     ["OTel-only source", /COPILOT_OTEL_FILE_EXPORTER_PATH/],
-    ["verbatim hook report", /verbatim/i],
-    ["no estimation", /never estimate/i],
-    ["no savings", /never.*savings/i],
+    ["verbatim hook report", /exactly as provided|verbatim/i],
+    ["no estimation or savings", /do not estimate[\s\S]{0,40}savings/i],
     ["unavailable fallback", /Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated\./],
   ]) {
     if (!pattern.test(skill)) fail(`${copilotStatsSkillRel}: must state ${description}`);

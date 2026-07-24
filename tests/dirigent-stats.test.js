@@ -785,34 +785,24 @@ test("Codex stats hook fails open for non-trigger and malformed input", () => {
   }
 });
 
-function copilotExporterLine(spans) {
-  return JSON.stringify({
-    resourceSpans: [{
-      resource: { attributes: [{ key: "service.name", value: { stringValue: "copilot-cli" } }] },
-      scopeSpans: [{
-        scope: { name: "github.copilot" },
-        spans,
-      }],
-    }],
-  });
-}
-
 function otelSpan({ traceId, spanId, parentSpanId, name, sessionId, agent, model, input, output, cache }) {
-  const attributes = [
-    ["copilot.session_id", sessionId],
-    ["gen_ai.agent.name", agent],
-    ["gen_ai.request.model", model],
-    ["gen_ai.usage.input_tokens", input],
-    ["gen_ai.usage.output_tokens", output],
-    ["gen_ai.usage.cache_read_input_tokens", cache],
-  ].map(([key, value]) => ({ key, value: Number.isFinite(value) ? { intValue: String(value) } : { stringValue: String(value) } }));
-  return { traceId, spanId, parentSpanId, name, attributes };
+  return {
+    type: "span", traceId, spanId, parentSpanId, name,
+    attributes: {
+      "gen_ai.conversation.id": sessionId,
+      "gen_ai.agent.name": agent,
+      "gen_ai.request.model": model,
+      "gen_ai.usage.input_tokens": input,
+      "gen_ai.usage.output_tokens": output,
+      "gen_ai.usage.cache_read_input_tokens": cache,
+    },
+  };
 }
 
 function writeCopilotTelemetry(lines) {
   const directory = temporaryDirectory();
   const file = path.join(directory, "copilot-otel.jsonl");
-  fs.writeFileSync(file, lines.join("\n") + "\n");
+  fs.writeFileSync(file, lines.map((line) => typeof line === "string" ? line : JSON.stringify(line)).join("\n") + "\n");
   return { directory, file };
 }
 
@@ -827,7 +817,7 @@ function copilotStats(input, telemetryPath) {
 function copilotContext(result) {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, "");
-  return JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+  return JSON.parse(result.stdout).modifiedTransformedPrompt;
 }
 
 function copilotStatsConcurrently(input, telemetryPath) {
@@ -849,34 +839,35 @@ function copilotStatsConcurrently(input, telemetryPath) {
 test("Copilot derives exact OTel stats only for userPromptTransformed sessionId", async () => {
   const rootId = "0123456789abcdef";
   const telemetry = writeCopilotTelemetry([
-    copilotExporterLine([
-      otelSpan({ traceId: "a".repeat(32), spanId: rootId, name: "chat", sessionId: "copilot-root", agent: "orchestrator", model: "root-model", input: 11, output: 5, cache: 3 }),
-      otelSpan({ traceId: "a".repeat(32), spanId: "1111111111111111", parentSpanId: rootId, name: "invoke_agent", sessionId: "copilot-root", agent: "builder", model: "builder-model", input: 7, output: 13, cache: 2 }),
-      otelSpan({ traceId: "a".repeat(32), spanId: "1212121212121212", parentSpanId: "1111111111111111", name: "chat", sessionId: "copilot-root", agent: "reviewer", model: "reviewer-model", input: 3, output: 2, cache: 1 }),
-      // Repeated exporter batch must not count the same span twice.
-      otelSpan({ traceId: "a".repeat(32), spanId: "1111111111111111", parentSpanId: rootId, name: "invoke_agent", sessionId: "copilot-root", agent: "builder", model: "builder-model", input: 7, output: 13, cache: 2 }),
-      // Same trace but no ancestry and a separate session are excluded.
-      otelSpan({ traceId: "a".repeat(32), spanId: "2222222222222222", name: "chat", sessionId: "other-session", agent: "leak", model: "leak-model", input: 999, output: 999, cache: 999 }),
-    ]),
+    otelSpan({ traceId: "a".repeat(32), spanId: rootId, name: "invoke_agent", sessionId: "copilot-root", agent: "orchestrator", model: "root-model", input: 0, output: 0, cache: 0 }),
+    otelSpan({ traceId: "a".repeat(32), spanId: "1010101010101010", parentSpanId: rootId, name: "chat", sessionId: "copilot-root", agent: "orchestrator", model: "root-model", input: 11, output: 5, cache: 3 }),
+    otelSpan({ traceId: "a".repeat(32), spanId: "1111111111111111", parentSpanId: rootId, name: "invoke_agent", sessionId: "copilot-root", agent: "builder", model: "builder-model", input: 0, output: 0, cache: 0 }),
+    otelSpan({ traceId: "a".repeat(32), spanId: "1111111111111112", parentSpanId: "1111111111111111", name: "chat", sessionId: "copilot-root", agent: "builder", model: "builder-model", input: 7, output: 13, cache: 2 }),
+    otelSpan({ traceId: "a".repeat(32), spanId: "1212121212121212", parentSpanId: "1111111111111111", name: "invoke_agent", sessionId: "copilot-root", agent: "reviewer", model: "reviewer-model", input: 0, output: 0, cache: 0 }),
+    otelSpan({ traceId: "a".repeat(32), spanId: "1212121212121213", parentSpanId: "1212121212121212", name: "chat", sessionId: "copilot-root", agent: "reviewer", model: "reviewer-model", input: 3, output: 2, cache: 1 }),
+    // Repeated exporter record must not count the same span twice.
+    otelSpan({ traceId: "a".repeat(32), spanId: "1111111111111112", parentSpanId: "1111111111111111", name: "chat", sessionId: "copilot-root", agent: "builder", model: "builder-model", input: 7, output: 13, cache: 2 }),
+    // Same trace but no ancestry and a separate session are excluded.
+    otelSpan({ traceId: "a".repeat(32), spanId: "2222222222222222", name: "chat", sessionId: "other-session", agent: "leak", model: "leak-model", input: 999, output: 999, cache: 999 }),
   ]);
   try {
-    const result = copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" }, telemetry.file);
+    const result = copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats", transformedPrompt: "/itixo-copilot/dirigent-stats" }, telemetry.file);
     const output = copilotContext(result);
     assert.match(output, /<!-- itixo-dirigent-stats-report:start -->/);
-    assert.match(output, /### Agents/);
-    assert.match(output, /\| Agent \| Model \| Runs \| Input \| Output \| Cache \| Tokens \| Share \|/);
-    assert.match(output, /\| orchestrator \| root-model \| 1 \| 11 \| 5 \| 3 \| 19 \|/);
-    assert.match(output, /\| builder \| builder-model \| 1 \| 7 \| 13 \| 2 \| 22 \|/);
-    assert.match(output, /\| reviewer \| reviewer-model \| 1 \| 3 \| 2 \| 1 \| 6 \|/);
-    assert.match(output, /\| root-model \| 1 \| 11 \| 5 \| 3 \| 19 \|/);
-    assert.match(output, /\| builder-model \| 1 \| 7 \| 13 \| 2 \| 22 \|/);
-    assert.match(output, /\| reviewer-model \| 1 \| 3 \| 2 \| 1 \| 6 \|/);
-    assert.match(output, /Exact known total: 47 tokens\./);
+    assert.match(output, /\| Agent \| Model \| Runs \| Input \| Output \| Cache Read \| Cache Create \| Tokens \|/);
+    assert.match(output, /\| orchestrator \| root-model \| 1 \| 11 \| 5 \| 3 \| 0 \| 16 \|/);
+    assert.match(output, /\| builder \| builder-model \| 1 \| 7 \| 13 \| 2 \| 0 \| 20 \|/);
+    assert.match(output, /\| reviewer \| reviewer-model \| 1 \| 3 \| 2 \| 1 \| 0 \| 5 \|/);
+    assert.match(output, /\| root-model \| 1 \| 11 \| 5 \| 3 \| 0 \| 16 \|/);
+    assert.match(output, /\| builder-model \| 1 \| 7 \| 13 \| 2 \| 0 \| 20 \|/);
+    assert.match(output, /\| reviewer-model \| 1 \| 3 \| 2 \| 1 \| 0 \| 5 \|/);
+    assert.match(output, /Exact recorded total: 41 tokens\./);
+    assert.match(output, /Cache values are recorded separately and are not added to Tokens/);
     assert.doesNotMatch(output, /leak-model|999/);
     const concurrent = await Promise.all(Array.from({ length: 10 }, () => copilotStatsConcurrently(
-      { hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" }, telemetry.file,
+      { hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats", transformedPrompt: "/itixo-copilot/dirigent-stats" }, telemetry.file,
     )));
-    for (const response of concurrent) assert.match(copilotContext(response), /Exact known total: 47 tokens\./);
+    for (const response of concurrent) assert.match(copilotContext(response), /Exact recorded total: 41 tokens\./);
   } finally {
     fs.rmSync(telemetry.directory, { recursive: true, force: true });
   }
@@ -887,23 +878,22 @@ test("Copilot stats exact-name routing and invalid OTel inputs fail open", () =>
   const telemetry = writeCopilotTelemetry([
     "{", // malformed JSONL is ignored, never emitted.
     JSON.stringify({ resourceSpans: "invalid" }),
-    copilotExporterLine([
-      otelSpan({ traceId: "b".repeat(32), spanId: "3333333333333333", name: "chat", sessionId: "copilot-root", agent: "orchestrator", model: "bad-model", input: -1, output: 1.5, cache: 0 }),
-      // Matching session without a root trace/span correlation is ambiguous.
-      otelSpan({ traceId: "c".repeat(32), spanId: "4444444444444444", name: "invoke_agent", sessionId: "copilot-root", agent: "builder", model: "ambiguous-model", input: 1, output: 1, cache: 0 }),
-    ]),
+    otelSpan({ traceId: "b".repeat(32), spanId: "3333333333333333", name: "invoke_agent", sessionId: "copilot-root", agent: "orchestrator", model: "bad-model", input: 0, output: 0, cache: 0 }),
+    otelSpan({ traceId: "b".repeat(32), spanId: "3333333333333334", parentSpanId: "3333333333333333", name: "chat", sessionId: "copilot-root", agent: "orchestrator", model: "bad-model", input: -1, output: 1.5, cache: 0 }),
+    // A second matching root on another trace makes correlation ambiguous.
+    otelSpan({ traceId: "c".repeat(32), spanId: "4444444444444444", name: "invoke_agent", sessionId: "copilot-root", agent: "builder", model: "ambiguous-model", input: 1, output: 1, cache: 0 }),
   ]);
   try {
     for (const prompt of ["/dirigent-stats", "$dirigent-stats", "/itixo-copilot/dirigent-stats-now", "show /itixo-copilot/dirigent-stats please"]) {
-      const result = copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt }, telemetry.file);
+      const result = copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt, transformedPrompt: prompt }, telemetry.file);
       assert.equal(result.status, 0, result.stderr);
       assert.equal(result.stderr, "");
       assert.equal(result.stdout, "", `must pass through '${prompt}'`);
     }
-    const exact = copilotContext(copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" }, telemetry.file));
-    assert.equal(exact, unavailable);
-    assert.equal(copilotContext(copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" })), unavailable);
-    assert.equal(copilotContext(copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" }, path.join(telemetry.directory, "missing.jsonl"))), unavailable);
+    const exactEvent = { hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats", transformedPrompt: "/itixo-copilot/dirigent-stats" };
+    assert.match(copilotContext(copilotStats(exactEvent, telemetry.file)), new RegExp(unavailable.replaceAll(".", "\\.")));
+    assert.match(copilotContext(copilotStats(exactEvent)), new RegExp(unavailable.replaceAll(".", "\\.")));
+    assert.match(copilotContext(copilotStats(exactEvent, path.join(telemetry.directory, "missing.jsonl"))), new RegExp(unavailable.replaceAll(".", "\\.")));
   } finally {
     fs.rmSync(telemetry.directory, { recursive: true, force: true });
   }
