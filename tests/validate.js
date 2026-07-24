@@ -765,6 +765,63 @@ for (const [rel, rootVariable, preservedEvents] of [
 }
 if (failures === 0) ok("dirigent-stats provider parity, metadata, hooks, and accounting contract valid");
 
+// --- 9a. Copilot Dirigent Stats is OTel-only and explicit-only ---
+const copilotStatsPlugin = "itixo-copilot";
+const copilotStatsManifestRel = `plugins/${copilotStatsPlugin}/plugin.json`;
+const copilotStatsHooksRel = `plugins/${copilotStatsPlugin}/hooks/hooks.json`;
+const copilotStatsScriptRel = `plugins/${copilotStatsPlugin}/scripts/dirigent-stats.js`;
+const copilotStatsSkillRel = `plugins/${copilotStatsPlugin}/skills/dirigent-stats/SKILL.md`;
+const copilotStatsManifest = readJson(copilotStatsManifestRel);
+if (copilotStatsManifest && copilotStatsManifest.version !== "0.1.1") {
+  fail(`${copilotStatsManifestRel}: version '${copilotStatsManifest.version}', expected '0.1.1'`);
+}
+for (const rel of [copilotStatsHooksRel, copilotStatsScriptRel, copilotStatsSkillRel]) {
+  if (!fs.existsSync(path.join(ROOT, rel))) fail(`${rel} missing`);
+}
+const copilotStatsHooks = fs.existsSync(path.join(ROOT, copilotStatsHooksRel)) ? readJson(copilotStatsHooksRel) : null;
+const transformedHooks = copilotStatsHooks?.hooks?.userPromptTransformed;
+if (!Array.isArray(transformedHooks) || transformedHooks.length !== 1) {
+  fail(`${copilotStatsHooksRel}: must register exactly one userPromptTransformed hook`);
+} else {
+  const commands = transformedHooks[0]?.hooks || [];
+  if (!commands.some((hook) => hook?.type === "command" && hook.command === 'node "${PLUGIN_ROOT}/scripts/dirigent-stats.js"')) {
+    fail(`${copilotStatsHooksRel}: userPromptTransformed must run Copilot stats script`);
+  }
+}
+if (fs.existsSync(path.join(ROOT, copilotStatsScriptRel))) {
+  const script = readFile(copilotStatsScriptRel);
+  for (const [description, pattern] of [
+    ["configured OTel exporter path", /COPILOT_OTEL_FILE_EXPORTER_PATH/],
+    ["exact namespaced invocation", /\/itixo-copilot\/dirigent-stats/],
+    ["userPromptTransformed session correlation", /userPromptTransformed[\s\S]{0,400}sessionId|sessionId[\s\S]{0,400}userPromptTransformed/],
+    ["invoke_agent spans", /invoke_agent/],
+    ["chat spans", /\bchat\b/],
+    ["trace and span ancestry", /traceId[\s\S]{0,300}(?:parentSpanId|spanId)/],
+    ["stable span deduplication", /(?:traceId|spanId)[\s\S]{0,400}(?:dedup|seen|Set)/i],
+    ["deterministic unavailable response", /Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated\./],
+  ]) {
+    if (!pattern.test(script)) fail(`${copilotStatsScriptRel}: missing ${description}`);
+  }
+  for (const forbidden of ["sqlite", "database", "transcript", "latest", "estimate", "savings"]) {
+    if (new RegExp(forbidden, "i").test(script)) fail(`${copilotStatsScriptRel}: must not use ${forbidden}`);
+  }
+}
+if (fs.existsSync(path.join(ROOT, copilotStatsSkillRel))) {
+  const skill = readFile(copilotStatsSkillRel);
+  for (const [description, pattern] of [
+    ["frontmatter", /^---\nname: dirigent-stats\n/m],
+    ["exact namespaced invocation", /`\/itixo-copilot\/dirigent-stats`/],
+    ["OTel-only source", /COPILOT_OTEL_FILE_EXPORTER_PATH/],
+    ["verbatim hook report", /verbatim/i],
+    ["no estimation", /never estimate/i],
+    ["no savings", /never.*savings/i],
+    ["unavailable fallback", /Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated\./],
+  ]) {
+    if (!pattern.test(skill)) fail(`${copilotStatsSkillRel}: must state ${description}`);
+  }
+}
+if (failures === 0) ok("Copilot OTel-only dirigent-stats contract valid");
+
 // --- result ---
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);

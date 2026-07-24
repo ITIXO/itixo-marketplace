@@ -784,3 +784,127 @@ test("Codex stats hook fails open for non-trigger and malformed input", () => {
     assert.equal(result.stderr, "");
   }
 });
+
+function copilotExporterLine(spans) {
+  return JSON.stringify({
+    resourceSpans: [{
+      resource: { attributes: [{ key: "service.name", value: { stringValue: "copilot-cli" } }] },
+      scopeSpans: [{
+        scope: { name: "github.copilot" },
+        spans,
+      }],
+    }],
+  });
+}
+
+function otelSpan({ traceId, spanId, parentSpanId, name, sessionId, agent, model, input, output, cache }) {
+  const attributes = [
+    ["copilot.session_id", sessionId],
+    ["gen_ai.agent.name", agent],
+    ["gen_ai.request.model", model],
+    ["gen_ai.usage.input_tokens", input],
+    ["gen_ai.usage.output_tokens", output],
+    ["gen_ai.usage.cache_read_input_tokens", cache],
+  ].map(([key, value]) => ({ key, value: Number.isFinite(value) ? { intValue: String(value) } : { stringValue: String(value) } }));
+  return { traceId, spanId, parentSpanId, name, attributes };
+}
+
+function writeCopilotTelemetry(lines) {
+  const directory = temporaryDirectory();
+  const file = path.join(directory, "copilot-otel.jsonl");
+  fs.writeFileSync(file, lines.join("\n") + "\n");
+  return { directory, file };
+}
+
+function copilotStats(input, telemetryPath) {
+  return spawnSync(process.execPath, [path.join(root, "plugins", "itixo-copilot", "scripts", "dirigent-stats.js")], {
+    encoding: "utf8",
+    input: JSON.stringify(input),
+    env: telemetryPath === undefined ? process.env : { ...process.env, COPILOT_OTEL_FILE_EXPORTER_PATH: telemetryPath },
+  });
+}
+
+function copilotContext(result) {
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  return JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
+}
+
+function copilotStatsConcurrently(input, telemetryPath) {
+  const child = spawn(process.execPath, [path.join(root, "plugins", "itixo-copilot", "scripts", "dirigent-stats.js")], {
+    env: { ...process.env, COPILOT_OTEL_FILE_EXPORTER_PATH: telemetryPath },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  child.stdin.end(JSON.stringify(input));
+  return new Promise((resolve, reject) => {
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (status) => resolve({ status, stdout, stderr }));
+  });
+}
+
+test("Copilot derives exact OTel stats only for userPromptTransformed sessionId", async () => {
+  const rootId = "0123456789abcdef";
+  const telemetry = writeCopilotTelemetry([
+    copilotExporterLine([
+      otelSpan({ traceId: "a".repeat(32), spanId: rootId, name: "chat", sessionId: "copilot-root", agent: "orchestrator", model: "root-model", input: 11, output: 5, cache: 3 }),
+      otelSpan({ traceId: "a".repeat(32), spanId: "1111111111111111", parentSpanId: rootId, name: "invoke_agent", sessionId: "copilot-root", agent: "builder", model: "builder-model", input: 7, output: 13, cache: 2 }),
+      otelSpan({ traceId: "a".repeat(32), spanId: "1212121212121212", parentSpanId: "1111111111111111", name: "chat", sessionId: "copilot-root", agent: "reviewer", model: "reviewer-model", input: 3, output: 2, cache: 1 }),
+      // Repeated exporter batch must not count the same span twice.
+      otelSpan({ traceId: "a".repeat(32), spanId: "1111111111111111", parentSpanId: rootId, name: "invoke_agent", sessionId: "copilot-root", agent: "builder", model: "builder-model", input: 7, output: 13, cache: 2 }),
+      // Same trace but no ancestry and a separate session are excluded.
+      otelSpan({ traceId: "a".repeat(32), spanId: "2222222222222222", name: "chat", sessionId: "other-session", agent: "leak", model: "leak-model", input: 999, output: 999, cache: 999 }),
+    ]),
+  ]);
+  try {
+    const result = copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" }, telemetry.file);
+    const output = copilotContext(result);
+    assert.match(output, /<!-- itixo-dirigent-stats-report:start -->/);
+    assert.match(output, /### Agents/);
+    assert.match(output, /\| Agent \| Model \| Runs \| Input \| Output \| Cache \| Tokens \| Share \|/);
+    assert.match(output, /\| orchestrator \| root-model \| 1 \| 11 \| 5 \| 3 \| 19 \|/);
+    assert.match(output, /\| builder \| builder-model \| 1 \| 7 \| 13 \| 2 \| 22 \|/);
+    assert.match(output, /\| reviewer \| reviewer-model \| 1 \| 3 \| 2 \| 1 \| 6 \|/);
+    assert.match(output, /\| root-model \| 1 \| 11 \| 5 \| 3 \| 19 \|/);
+    assert.match(output, /\| builder-model \| 1 \| 7 \| 13 \| 2 \| 22 \|/);
+    assert.match(output, /\| reviewer-model \| 1 \| 3 \| 2 \| 1 \| 6 \|/);
+    assert.match(output, /Exact known total: 47 tokens\./);
+    assert.doesNotMatch(output, /leak-model|999/);
+    const concurrent = await Promise.all(Array.from({ length: 10 }, () => copilotStatsConcurrently(
+      { hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" }, telemetry.file,
+    )));
+    for (const response of concurrent) assert.match(copilotContext(response), /Exact known total: 47 tokens\./);
+  } finally {
+    fs.rmSync(telemetry.directory, { recursive: true, force: true });
+  }
+});
+
+test("Copilot stats exact-name routing and invalid OTel inputs fail open", () => {
+  const unavailable = "Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated.";
+  const telemetry = writeCopilotTelemetry([
+    "{", // malformed JSONL is ignored, never emitted.
+    JSON.stringify({ resourceSpans: "invalid" }),
+    copilotExporterLine([
+      otelSpan({ traceId: "b".repeat(32), spanId: "3333333333333333", name: "chat", sessionId: "copilot-root", agent: "orchestrator", model: "bad-model", input: -1, output: 1.5, cache: 0 }),
+      // Matching session without a root trace/span correlation is ambiguous.
+      otelSpan({ traceId: "c".repeat(32), spanId: "4444444444444444", name: "invoke_agent", sessionId: "copilot-root", agent: "builder", model: "ambiguous-model", input: 1, output: 1, cache: 0 }),
+    ]),
+  ]);
+  try {
+    for (const prompt of ["/dirigent-stats", "$dirigent-stats", "/itixo-copilot/dirigent-stats-now", "show /itixo-copilot/dirigent-stats please"]) {
+      const result = copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt }, telemetry.file);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stderr, "");
+      assert.equal(result.stdout, "", `must pass through '${prompt}'`);
+    }
+    const exact = copilotContext(copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" }, telemetry.file));
+    assert.equal(exact, unavailable);
+    assert.equal(copilotContext(copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" })), unavailable);
+    assert.equal(copilotContext(copilotStats({ hookEventName: "userPromptTransformed", sessionId: "copilot-root", prompt: "/itixo-copilot/dirigent-stats" }, path.join(telemetry.directory, "missing.jsonl"))), unavailable);
+  } finally {
+    fs.rmSync(telemetry.directory, { recursive: true, force: true });
+  }
+});
