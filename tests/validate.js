@@ -654,6 +654,7 @@ if (copilotMarketplace) {
 if (failures === 0) ok("Copilot-native manifests valid and consistent");
 
 // --- 8. itixo-codex: default runtime-model reporting hook ---
+const claudePluginManifestRel = "plugins/itixo-claude/.claude-plugin/plugin.json";
 const codexPluginManifestRel = "plugins/itixo-codex/.codex-plugin/plugin.json";
 const claudePluginManifest = readJson(claudePluginManifestRel);
 const codexPluginManifest = readJson(codexPluginManifestRel);
