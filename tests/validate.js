@@ -762,7 +762,7 @@ if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claud
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  const expectedVersion = plugin === "itixo-codex" ? "0.3.0" : "0.3.0";
+  const expectedVersion = plugin === "itixo-codex" ? "0.3.1" : "0.3.1";
   if (manifest && manifest.version !== expectedVersion) fail(`${manifestRel}: version '${manifest.version}', expected '${expectedVersion}'`);
 }
 
