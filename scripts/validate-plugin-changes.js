@@ -11,6 +11,7 @@ const MARKETPLACE_FILES = [
 const PLUGIN_MANIFESTS = [
   ".claude-plugin/plugin.json",
   ".codex-plugin/plugin.json",
+  "plugin.json",
 ];
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const PLUGIN_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
