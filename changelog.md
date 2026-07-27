@@ -70,16 +70,6 @@ Breaking changes:
 - Codex custom agents now require explicit installation with `itixo-codex:install-agents` before they can be discovered.
 - `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
 
-## itixo-copilot
-
-### 0.2.0 — Full Dirigent orchestration parity (2026-07-27)
-
-Copilot removed `/dirigent-stats`. Dirigent now enforces full orchestration parity with Claude and Codex.
-
-### 0.1.1 — Exact Copilot Dirigent statistics (2026-07-24)
-
-Copilot now documents `/itixo-copilot/dirigent-stats`, which reports exact recorded token usage for the current session and correlated recursive subagents. OpenTelemetry JSONL export must be enabled before starting a session; missing, malformed, unrelated, or ambiguous telemetry is reported as unavailable, with no estimates or transcript/database fallback.
-
 ## itixo-codex
 
 ### 0.4.0 — Remove Dirigent statistics (2026-07-27)
@@ -159,3 +149,13 @@ Breaking changes:
   Mappings: `builder` → `itixo-builder`; `docs-updater` → `itixo-docs-updater`; `github-issues` → `itixo-github-issues`; `investigator` → `itixo-investigator`; `planner` → `itixo-planner`; `reviewer` → `itixo-reviewer`; `tester` → `itixo-tester`.
 - Codex custom agents now require explicit installation with `itixo-codex:install-agents` before they can be discovered.
 - `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
+
+## itixo-copilot
+
+### 0.2.0 — Full Dirigent orchestration parity (2026-07-27)
+
+Copilot removed `/dirigent-stats`. Dirigent now enforces full orchestration parity with Claude and Codex.
+
+### 0.1.1 — Exact Copilot Dirigent statistics (2026-07-24)
+
+Copilot now documents `/itixo-copilot/dirigent-stats`, which reports exact recorded token usage for the current session and correlated recursive subagents. OpenTelemetry JSONL export must be enabled before starting a session; missing, malformed, unrelated, or ambiguous telemetry is reported as unavailable, with no estimates or transcript/database fallback.
