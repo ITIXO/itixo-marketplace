@@ -1,0 +1,38 @@
+name: Wiki update
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  update-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Update Wiki changelog
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git clone --branch master --single-branch \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" \
+            wiki
+
+          if cmp -s changelog.md wiki/Changelog.md; then
+            echo "Wiki changelog already current."
+            exit 0
+          fi
+
+          cp changelog.md wiki/Changelog.md
+          git -C wiki config user.name "github-actions[bot]"
+          git -C wiki config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C wiki add Changelog.md
+          git -C wiki diff --cached --quiet && exit 0
+          git -C wiki commit -m "docs: sync changelog"
+          git -C wiki push origin HEAD:master
