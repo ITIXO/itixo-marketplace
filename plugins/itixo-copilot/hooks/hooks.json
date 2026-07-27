@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "userPromptTransformed": [
+      {
+        "type": "command",
+        "command": "node \"${PLUGIN_ROOT}/scripts/dirigent-stats.js\"",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

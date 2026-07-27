@@ -19,10 +19,13 @@ function ok(msg) {
   console.log(`ok: ${msg}`);
 }
 
+function readFile(rel) {
+  return fs.readFileSync(path.join(ROOT, rel), "utf8").replace(/\r\n/g, "\n");
+}
+
 function readJson(rel) {
-  const p = path.join(ROOT, rel);
   try {
-    return JSON.parse(fs.readFileSync(p, "utf8"));
+    return JSON.parse(readFile(rel));
   } catch (e) {
     fail(`${rel}: invalid JSON (${e.message})`);
     return null;
@@ -45,7 +48,8 @@ const CODEX_MODEL = {
   mid: "gpt-5.6-terra",
   orchestrator: "user-selected",
 };
-const ORCHESTRATION_PLUGINS = ["itixo-claude", "itixo-codex"];
+const COPILOT_MODEL = { cheap: "claude-haiku-4.5", mid: "claude-sonnet-4.6" }; // orchestrator inherits (no model field)
+const ORCHESTRATION_PLUGINS = ["itixo-claude", "itixo-codex", "itixo-copilot"];
 
 // --- 1. Claude marketplace registrations have valid Claude manifests ---
 const marketplace = readJson(".claude-plugin/marketplace.json");
@@ -83,6 +87,11 @@ const agentRoles = (directory) => fs
   .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
   .map((entry) => entry.name.slice(0, -3))
   .sort();
+const copilotAgentRoles = (directory) => fs
+  .readdirSync(path.join(ROOT, directory), { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith(".agent.md"))
+  .map((entry) => entry.name.slice(0, -".agent.md".length))
+  .sort();
 const baseAgents = agentRoles("base/agents");
 const codexTemplateRoles = fs
   .readdirSync(path.join(ROOT, "plugins/itixo-codex/templates/agents"), { withFileTypes: true })
@@ -94,6 +103,7 @@ for (const [label, actualRoles] of [
   ["base/agents", baseAgents],
   ["plugins/itixo-claude/agents", agentRoles("plugins/itixo-claude/agents")],
   ["plugins/itixo-codex/templates/agents", codexTemplateRoles],
+  ["plugins/itixo-copilot/agents", copilotAgentRoles("plugins/itixo-copilot/agents")],
 ]) {
   if (JSON.stringify(actualRoles) !== JSON.stringify(expectedRoles)) {
     fail(`${label}: role set ${JSON.stringify(actualRoles)}, expected ${JSON.stringify(expectedRoles)}`);
@@ -165,7 +175,7 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
     fail(`${rel} missing`);
     continue;
   }
-  const text = fs.readFileSync(p, "utf8");
+  const text = readFile(rel);
   if (!/^---\nname: dirigent\n/m.test(text)) fail(`${rel}: invalid dirigent frontmatter`);
   if (!text.includes("../../rules/agents.md")) fail(`${rel}: must load delegation rules`);
   for (const agent of expectedRoles) {
@@ -189,6 +199,10 @@ if (!codexDirigent.includes("substitute a generic agent")) {
 const claudeDirigent = dirigentContents.get("itixo-claude") || "";
 if (!claudeDirigent.includes("native Claude plugin agent")) {
   fail("plugins/itixo-claude/skills/dirigent/SKILL.md: must retain native Claude dispatch");
+}
+const copilotDirigent = dirigentContents.get("itixo-copilot") || "";
+if (!copilotDirigent.includes("native Copilot plugin agent")) {
+  fail("plugins/itixo-copilot/skills/dirigent/SKILL.md: must retain native Copilot dispatch");
 }
 if (failures === 0) ok("dirigent skills use provider-specific canonical dispatch");
 
@@ -312,7 +326,7 @@ function checkGithubIssueClassification(text, rel) {
 if (!fs.existsSync(githubIssuesAgentPath)) {
   fail(`${githubIssuesAgentRel} missing`);
 } else {
-  const text = fs.readFileSync(githubIssuesAgentPath, "utf8");
+  const text = readFile(githubIssuesAgentRel);
   checkGithubIssueClassification(text, githubIssuesAgentRel);
   if (!/\broot\b[\s\S]{0,180}(?:`?\bfeature\b`?)[\s\S]{0,180}\bread\s+it\s+back\b/i.test(text)) {
     fail(`${githubIssuesAgentRel}: root Feature must be read back`);
@@ -344,6 +358,13 @@ for (const [plugin, text] of dirigentContents) {
     }
     if (!/\buser\s+explicitly\s+requested\s+a\s+model\s+and\/or\s+effort\s+override\s+for\s+this\s+invocation\b[\s\S]{0,120}\brelay\s+those\s+matching\s+fields\b[\s\S]{0,120}\botherwise\s+use\s+the\s+generated\s+sonnet\/mid\s+default\b/i.test(text)) {
       fail(`${rel}: must honor matching GitHub-issues overrides or use the generated Sonnet/mid default`);
+    }
+  } else if (plugin === "itixo-copilot") {
+    if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.agent\.md`?\s+role\s+instructions\b/i.test(text)) {
+      fail(`${rel}: must load itixo-github-issues role instructions`);
+    }
+    if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
+      fail(`${rel}: must select mid-tier itixo-github-issues model from delegation rules`);
     }
   } else {
     if (!/\binvoke\s+the\s+installed\s+custom\s+toml\s+agent\s+by\s+(?:that\s+)?canonical\s+id\b/i.test(text)) {
@@ -379,6 +400,10 @@ const githubIssueRuleFiles = [
     rel: "plugins/itixo-codex/rules/agents.md",
     codexToml: true,
   },
+  {
+    rel: "plugins/itixo-copilot/rules/agents.md",
+    model: /\bselect\s+`?claude-sonnet-4\.6`?[\s\S]{0,80}\b`?mid`?\b/i,
+  },
 ];
 for (const { rel, model, codexToml } of githubIssueRuleFiles) {
   const p = path.join(ROOT, rel);
@@ -386,7 +411,7 @@ for (const { rel, model, codexToml } of githubIssueRuleFiles) {
     fail(`${rel} missing`);
     continue;
   }
-  const text = fs.readFileSync(p, "utf8");
+  const text = readFile(rel);
   if (!/\bdelegate\s+all\s+(?:github\s+)?issue\s+assessment\s*,\s*structuring\s*,\s*and\s+creation\s+work\s+to\s+exactly\s+one\s+`?itixo-github-issues`?\s+agent\b/i.test(text)) {
     fail(`${rel}: must assign all GitHub issue assessment, structuring, and creation to exactly one itixo-github-issues agent`);
   }
@@ -404,7 +429,8 @@ for (const { rel, model, codexToml } of githubIssueRuleFiles) {
       fail(`${rel}: must not require unavailable Markdown issue-agent instructions`);
     }
   } else {
-    if (!/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
+    // support both .md (claude) and .agent.md (copilot) paths
+    if (!/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues(?:\.agent)?\.md`?\s+role\s+instructions\b/i.test(text)) {
       fail(`${rel}: must load itixo-github-issues role instructions before delegation`);
     }
     if (!model.test(text)) {
@@ -426,7 +452,7 @@ for (const agent of Object.keys(TIERS)) {
   const rel = `plugins/itixo-claude/agents/${agent}.md`;
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) continue; // already reported
-  const text = fs.readFileSync(p, "utf8");
+  const text = readFile(rel);
   const fm = text.match(/^---\n([\s\S]*?)\n---/);
   if (!fm) {
     fail(`${rel}: missing frontmatter`);
@@ -443,12 +469,37 @@ for (const agent of Object.keys(TIERS)) {
 }
 if (failures === 0) ok("itixo-claude agent models match tiers");
 
+// --- 4b. itixo-copilot: .agent.md frontmatter model matches tier ---
+for (const agent of Object.keys(TIERS)) {
+  const rel = `plugins/itixo-copilot/agents/${agent}.agent.md`;
+  const p = path.join(ROOT, rel);
+  if (!fs.existsSync(p)) continue;
+  const text = readFile(rel);
+  const fm = text.match(/^---\n([\s\S]*?)\n---/);
+  if (!fm) {
+    fail(`${rel}: missing frontmatter`);
+    continue;
+  }
+  // model field uses quoted value: model: "claude-sonnet-4.6"
+  const model = (fm[1].match(/^model:\s*"?([^"\n]+)"?/m) || [])[1];
+  if (TIERS[agent] === "orchestrator") {
+    if (model) fail(`${rel}: orchestrator must not set model (inherits default)`);
+  } else {
+    const expected = COPILOT_MODEL[TIERS[agent]];
+    if (model !== expected) fail(`${rel}: model '${model}', expected '${expected}' (tier ${TIERS[agent]})`);
+  }
+  for (const field of ["description", "tools"]) {
+    if (!new RegExp(`^${field}:`, "m").test(fm[1])) fail(`${rel}: frontmatter missing '${field}'`);
+  }
+}
+if (failures === 0) ok("itixo-copilot agent models match tiers");
+
 // --- 5. itixo-codex: custom TOML templates model tiers ---
 for (const agent of Object.keys(TIERS)) {
   const rel = `plugins/itixo-codex/templates/agents/${agent}.toml`;
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) continue;
-  const text = fs.readFileSync(p, "utf8");
+  const text = readFile(rel);
   if (!text.startsWith("# Itixo-managed custom agent. Do not edit.\n")) {
     fail(`${rel}: missing Itixo-managed marker`);
   }
@@ -484,14 +535,14 @@ for (const rel of [installerScriptRel, installerSkillRel]) {
   if (!fs.existsSync(path.join(ROOT, rel))) fail(`${rel} missing`);
 }
 if (fs.existsSync(path.join(ROOT, installerScriptRel))) {
-  const installerScript = fs.readFileSync(path.join(ROOT, installerScriptRel), "utf8");
+  const installerScript = readFile(installerScriptRel);
   if (!installerScript.startsWith("#!/usr/bin/env node\n")) fail(`${installerScriptRel}: missing Node shebang`);
   if (!installerScript.includes("--scope") || !installerScript.includes("--project-root")) {
     fail(`${installerScriptRel}: missing explicit scope arguments`);
   }
 }
 if (fs.existsSync(path.join(ROOT, installerSkillRel))) {
-  const installerSkill = fs.readFileSync(path.join(ROOT, installerSkillRel), "utf8");
+  const installerSkill = readFile(installerSkillRel);
   if (!/^---\nname: install-agents\n/m.test(installerSkill)) {
     fail(`${installerSkillRel}: invalid install-agents frontmatter`);
   }
@@ -505,7 +556,7 @@ if (failures === 0) ok("itixo-codex custom-agent installer packaged");
 const codexAgentsRel = "plugins/itixo-codex/AGENTS.md";
 const codexAgentsPath = path.join(ROOT, codexAgentsRel);
 if (fs.existsSync(codexAgentsPath)) {
-  const codexAgents = fs.readFileSync(codexAgentsPath, "utf8");
+  const codexAgents = readFile(codexAgentsRel);
   for (const agent of expectedRoles) {
     if (!codexAgents.includes(agent)) fail(`${codexAgentsRel}: missing canonical agent ID '${agent}'`);
   }
@@ -529,6 +580,7 @@ for (const rel of [
   "plugins/itixo-claude/rules/agents.md",
   "plugins/itixo-codex/rules/agents.md",
   "plugins/itixo-codex/AGENTS.md",
+  "plugins/itixo-copilot/rules/agents.md",
 ]) {
   if (!fs.existsSync(path.join(ROOT, rel))) fail(`${rel} missing`);
 }
@@ -568,8 +620,40 @@ if (codexMarketplace) {
 }
 if (failures === 0) ok("Codex-native manifests valid and consistent");
 
-// --- 8. Provider manifest metadata remains complete and shared where applicable ---
-const claudePluginManifestRel = "plugins/itixo-claude/.claude-plugin/plugin.json";
+// --- 7b. Copilot-native marketplace ---
+const copilotMarketplace = readJson(".github/plugin/marketplace.json");
+if (copilotMarketplace) {
+  const registered = (copilotMarketplace.plugins || []).map((p) => p.name);
+  if (new Set(registered).size !== registered.length) {
+    fail(".github/plugin/marketplace.json: duplicate plugin registrations");
+  }
+  for (const entry of copilotMarketplace.plugins || []) {
+    const src = entry.source || "";
+    const dir = path.join(ROOT, src);
+    if (!fs.existsSync(dir)) {
+      fail(`.github/plugin/marketplace.json: plugin '${entry.name}' source '${src}' does not exist`);
+    }
+    if (!entry.description) {
+      fail(`.github/plugin/marketplace.json: plugin '${entry.name}' has no description`);
+    }
+    const manifestRel = path.join(src, "plugin.json");
+    const manifest = readJson(manifestRel);
+    if (!manifest) continue;
+    for (const field of ["name", "description", "version"]) {
+      if (!manifest[field]) fail(`${manifestRel}: missing '${field}'`);
+    }
+    if (manifest.name !== entry.name) {
+      fail(`${manifestRel}: name '${manifest.name}' does not match marketplace entry '${entry.name}'`);
+    }
+  }
+  const copilotEntry = (copilotMarketplace.plugins || []).find((p) => p.name === "itixo-copilot");
+  if (!copilotEntry) {
+    fail(".github/plugin/marketplace.json: itixo-copilot not registered");
+  }
+}
+if (failures === 0) ok("Copilot-native manifests valid and consistent");
+
+// --- 8. itixo-codex: default runtime-model reporting hook ---
 const codexPluginManifestRel = "plugins/itixo-codex/.codex-plugin/plugin.json";
 const claudePluginManifest = readJson(claudePluginManifestRel);
 const codexPluginManifest = readJson(codexPluginManifestRel);
@@ -692,7 +776,7 @@ const runtimeModelHook = readJson(runtimeModelHookRel);
 if (!fs.existsSync(path.join(ROOT, runtimeModelScriptRel))) {
   fail(`${runtimeModelScriptRel} missing`);
 } else {
-  const runtimeModelScript = fs.readFileSync(path.join(ROOT, runtimeModelScriptRel), "utf8");
+  const runtimeModelScript = readFile(runtimeModelScriptRel);
   if (!runtimeModelScript.includes('hookEventName: "SubagentStart"')) {
     fail(`${runtimeModelScriptRel}: missing SubagentStart hook output`);
   }
@@ -812,6 +896,62 @@ if (!Array.isArray(claudeExpansion) || claudeExpansion.length !== 1
   fail(`${claudeHooksRel}: must register exact stats-command UserPromptExpansion handler`);
 }
 if (failures === 0) ok("dirigent-stats provider parity, metadata, hooks, and accounting contract valid");
+
+// --- 9a. Copilot Dirigent Stats is OTel-only and explicit-only ---
+const copilotStatsPlugin = "itixo-copilot";
+const copilotStatsManifestRel = `plugins/${copilotStatsPlugin}/plugin.json`;
+const copilotStatsHooksRel = `plugins/${copilotStatsPlugin}/hooks/hooks.json`;
+const copilotStatsScriptRel = `plugins/${copilotStatsPlugin}/scripts/dirigent-stats.js`;
+const copilotStatsSkillRel = `plugins/${copilotStatsPlugin}/skills/dirigent-stats/SKILL.md`;
+const copilotStatsManifest = readJson(copilotStatsManifestRel);
+if (copilotStatsManifest && copilotStatsManifest.version !== "0.1.1") {
+  fail(`${copilotStatsManifestRel}: version '${copilotStatsManifest.version}', expected '0.1.1'`);
+}
+for (const rel of [copilotStatsHooksRel, copilotStatsScriptRel, copilotStatsSkillRel]) {
+  if (!fs.existsSync(path.join(ROOT, rel))) fail(`${rel} missing`);
+}
+const copilotStatsHooks = fs.existsSync(path.join(ROOT, copilotStatsHooksRel)) ? readJson(copilotStatsHooksRel) : null;
+const transformedHooks = copilotStatsHooks?.hooks?.userPromptTransformed;
+if (!Array.isArray(transformedHooks) || transformedHooks.length !== 1) {
+  fail(`${copilotStatsHooksRel}: must register exactly one userPromptTransformed hook`);
+} else {
+  const commands = transformedHooks;
+  if (!commands.some((hook) => hook?.type === "command" && hook.command === 'node "${PLUGIN_ROOT}/scripts/dirigent-stats.js"')) {
+    fail(`${copilotStatsHooksRel}: userPromptTransformed must run Copilot stats script`);
+  }
+}
+if (fs.existsSync(path.join(ROOT, copilotStatsScriptRel))) {
+  const script = readFile(copilotStatsScriptRel);
+  for (const [description, pattern] of [
+    ["configured OTel exporter path", /COPILOT_OTEL_FILE_EXPORTER_PATH/],
+    ["exact namespaced invocation", /\/itixo-copilot\/dirigent-stats/],
+    ["session correlation", /event\.sessionId/],
+    ["invoke_agent spans", /invoke_agent/],
+    ["chat spans", /\bchat\b/],
+    ["trace and span ancestry", /traceId[\s\S]{0,300}(?:parentSpanId|spanId)/],
+    ["stable span deduplication", /(?:traceId|spanId)[\s\S]{0,400}(?:dedup|seen|Set)/i],
+    ["deterministic unavailable response", /Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated\./],
+  ]) {
+    if (!pattern.test(script)) fail(`${copilotStatsScriptRel}: missing ${description}`);
+  }
+  for (const forbidden of ["sqlite", "database", "transcript", "latest"]) {
+    if (new RegExp(forbidden, "i").test(script)) fail(`${copilotStatsScriptRel}: must not use ${forbidden}`);
+  }
+}
+if (fs.existsSync(path.join(ROOT, copilotStatsSkillRel))) {
+  const skill = readFile(copilotStatsSkillRel);
+  for (const [description, pattern] of [
+    ["frontmatter", /^---\nname: dirigent-stats\n/m],
+    ["exact namespaced invocation", /`\/itixo-copilot\/dirigent-stats`/],
+    ["OTel-only source", /COPILOT_OTEL_FILE_EXPORTER_PATH/],
+    ["verbatim hook report", /exactly as provided|verbatim/i],
+    ["no estimation or savings", /do not estimate[\s\S]{0,40}savings/i],
+    ["unavailable fallback", /Unavailable: exact current-session Copilot telemetry is absent, invalid, or cannot be correlated\./],
+  ]) {
+    if (!pattern.test(skill)) fail(`${copilotStatsSkillRel}: must state ${description}`);
+  }
+}
+if (failures === 0) ok("Copilot OTel-only dirigent-stats contract valid");
 
 // --- result ---
 if (failures > 0) {
