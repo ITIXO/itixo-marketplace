@@ -110,6 +110,18 @@ test("policy checker accepts bumped version with matching Wiki heading", () => w
   assert.equal(result.status, 0, result.output);
 }));
 
+test("policy checker accepts changed root-layout manifest with matching Wiki heading", () => withRepository((root) => {
+  writeJson(root, "plugins/copilot/plugin.json", plugin("copilot", "1.0.0"));
+  const base = commit(root, "baseline");
+  writeJson(root, "plugins/copilot/plugin.json", plugin("copilot", "1.0.1"));
+  fs.writeFileSync(path.join(root, "plugins/copilot/README.md"), "updated plugin content\n");
+  commit(root, "bump root-layout plugin");
+
+  const result = runChecker(root, base, release("copilot", "1.0.1", "— Copilot update"));
+
+  assert.equal(result.status, 0, result.output);
+}));
+
 test("policy checker rejects bumped version without matching Wiki heading", () => withRepository((root) => {
   writeBaselinePlugin(root);
   const base = commit(root, "baseline");
