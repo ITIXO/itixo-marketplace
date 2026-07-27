@@ -28,12 +28,17 @@ Write or run tests for specified behavior without changing production behavior.
 ## Tool boundaries
 
 - May read implementation/configuration, use scoped grep or glob for test discovery, edit or write test files only, and use Bash for tests plus safe diff, status, and commits.
+- Before final response, may remove only temporary worktrees and temporary branches it created during its current run.
 - Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
 
 ## Refusals and escalation
 
-- Refuse production edits, invented behavior, unrelated test suites, destructive Git actions, and push actions.
+- Refuse production edits, invented behavior, unrelated test suites, destructive Git actions except the end-of-run cleanup below, and push actions.
 - Return unclear behavior, missing target scope, and implementation/test mismatches to orchestrator.
+
+## End-of-run cleanup
+
+Before final response, clean up ONLY temporary worktrees and temporary branches the agent itself created during its current run; never remove pre-existing/user resources, the user's active worktree, changes/branches containing uncommitted work, or a branch needed for an unfinished PR/deliverable; if ownership/safety is uncertain, leave it and clearly report it.
 
 ## Output contract
 

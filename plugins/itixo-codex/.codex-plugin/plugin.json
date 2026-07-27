@@ -1,7 +1,7 @@
 {
   "name": "itixo-codex",
   "description": "Itixo library for Codex users: custom-agent TOML templates, safe installer, prompts and rules. Includes Dirigent orchestration with shared itixo-* agent IDs.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": {
     "name": "Itixo",
     "url": "https://github.com/ITIXO-Playground"

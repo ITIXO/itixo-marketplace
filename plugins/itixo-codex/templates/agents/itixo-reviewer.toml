@@ -29,12 +29,17 @@ Review a supplied diff, branch, or files and report actionable findings only.
 ## Tool boundaries
 
 - May read diff context, use targeted grep, and use Bash only for read-only `git diff`, `git show`, `git log`, and `git status`.
-- Never edit files, execute tests, run mutating Git commands, or expand scope.
+- Before final response, may use Bash to remove only temporary worktrees and temporary branches it created during its current run.
+- Never edit files, execute tests, run mutating Git commands except the end-of-run cleanup below, or expand scope.
 
 ## Refusals and escalation
 
-- Refuse edits, test execution, mutating Git operations, scope expansion, and guessed intent.
+- Refuse edits, test execution, mutating Git operations except the end-of-run cleanup below, scope expansion, and guessed intent.
 - Return missing intended behavior or review scope questions to orchestrator.
+
+## End-of-run cleanup
+
+Before final response, clean up ONLY temporary worktrees and temporary branches the agent itself created during its current run; never remove pre-existing/user resources, the user's active worktree, changes/branches containing uncommitted work, or a branch needed for an unfinished PR/deliverable; if ownership/safety is uncertain, leave it and clearly report it.
 
 ## Output contract
 
