@@ -42,6 +42,8 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 
 The canonical IDs above are shared by all three platforms. `itixo-planner` inherits the main task's model and effort. The `0.2.0` release renamed the former generic IDs; no aliases are provided.
 
+Claude supports an optional model (`opus|sonnet|haiku|fable|inherit`) and effort (`low|medium|high|xhigh|max`) override for one matching agent invocation. Omitted values keep generated defaults. An explicit Opus override can exceed the caller model.
+
 ## Developing agent roles
 
 `base/agents` is the canonical source for agent roles. Edit those files only; never hand-edit generated Claude agents under `plugins/itixo-claude/agents/` or Codex templates under `plugins/itixo-codex/templates/agents/`. Generate and commit provider copies with:
@@ -84,9 +86,11 @@ codex plugin marketplace add ITIXO-Playground/itixo-marketplace
 
 Then install `itixo-codex` via the `/plugins` browser. It is published only in the native `.agents/plugins/marketplace.json` marketplace; the Claude marketplace publishes only `itixo-claude`.
 
-Before using `dirigent`, invoke `itixo-codex:install-agents`. It asks for both required choices: personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. Luna + low is the cheap-role default; choose `--cheap-model terra` when Luna workers are unavailable to install Terra + low instead. Mid roles use Terra + medium.
+Before using `dirigent`, invoke `itixo-codex:install-agents`. Personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. Without overrides, cheap roles use Luna + high, mid roles use Terra + medium, and the planner inherits. Terra + low remains the cheap-role fallback.
 
-The installer creates or replaces only TOML files with its exact Itixo-managed marker, refuses unmanaged conflicts, and skips unchanged managed files on reinstall. Start a new task or restart Codex after installation so custom agents are discovered.
+Any of the seven agents can instead receive an install-time override with repeatable `--agent-model id=sol|terra|luna` and `--agent-effort id=none|low|medium|high|xhigh|max` options. Model and effort are independent, and each per-agent field wins over the corresponding cheap-tier flag. An explicit planner Sol override can exceed the caller model.
+
+The installer creates or replaces only TOML files with its exact Itixo-managed marker, refuses unmanaged conflicts, and skips unchanged managed files on reinstall. Its sorted summary adds `agent-models=` and `agent-efforts=` only when those overrides were supplied. Start a new task or restart Codex after installation so custom agents are discovered. Provider or organization restrictions may constrain available overrides.
 
 ## Usage (Copilot CLI)
 

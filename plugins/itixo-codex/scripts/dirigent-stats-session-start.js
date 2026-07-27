@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SessionStart hook: persist a per-session, provider-local stats anchor.
+// SessionStart: create (or preserve on resume) the root-only stats cache.
 "use strict";
 
 const crypto = require("crypto");
@@ -7,22 +7,33 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
+const SCHEMA = 3;
 const SOURCES = new Set(["startup", "resume", "clear", "compact"]);
-const SCHEMA = 2;
 
-function safeId(value) {
-  return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0") ? value : null;
+function safeString(value) {
+  return typeof value === "string" && value && value.length <= 512 && !value.includes("\0") ? value : null;
 }
 
-function stateFile(dir, sessionId) {
-  return path.join(dir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
+function stateDir() {
+  return process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.PLUGIN_DATA || path.join(os.homedir(), ".codex"), "dirigent-stats");
 }
 
-function cleanupTemporary(file) {
-  if (!file) return;
-  try { fs.unlinkSync(file); } catch (error) {
-    if (error && error.code === "ENOENT") return;
-    // SessionStart must fail open, including cleanup failures.
+function stateFile(sessionId) {
+  return path.join(stateDir(), `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
+}
+
+function validCache(cache, sessionId) {
+  return cache && cache.schema === SCHEMA && cache.rootSessionId === sessionId
+    && cache.runs && typeof cache.runs === "object" && !Array.isArray(cache.runs);
+}
+
+function write(file, state) {
+  const temp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.tmp`);
+  try {
+    fs.writeFileSync(temp, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
+    fs.renameSync(temp, file);
+  } finally {
+    try { fs.unlinkSync(temp); } catch { /* already renamed */ }
   }
 }
 
@@ -40,40 +51,27 @@ async function main() {
   let event;
   try { event = JSON.parse(await input()); } catch { return; }
   if (!SOURCES.has(event && event.source)) return;
-  const sessionId = safeId(event && event.session_id);
+  const sessionId = safeString(event && event.session_id);
   if (!sessionId) return;
-  const stateDir = process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.PLUGIN_DATA || path.join(os.homedir(), ".codex"), "dirigent-stats");
-  const suppliedTranscriptPath = typeof event.transcript_path === "string" && event.transcript_path ? path.resolve(event.transcript_path) : null;
-  let temporary = null;
   try {
-    fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
-    const file = stateFile(stateDir, sessionId);
-    // A resume/compact must not discard Stop's report while hooks race.
+    fs.mkdirSync(stateDir(), { recursive: true, mode: 0o700 });
+    const file = stateFile(sessionId);
     let existing = null;
-    try { existing = JSON.parse(fs.readFileSync(file, "utf8")); } catch { /* fresh state */ }
-    const existingAnchor = existing && (existing.schema === 1 || existing.schema === SCHEMA)
-      && existing.sessionId === sessionId
-      && (existing.transcriptPath === null || typeof existing.transcriptPath === "string") ? existing : null;
-    const preserveAnchor = event.source === "resume" || event.source === "compact";
-    const transcriptPath = suppliedTranscriptPath || (preserveAnchor && existingAnchor ? existingAnchor.transcriptPath : null);
-    const cache = existingAnchor && existingAnchor.schema === SCHEMA
-      && existingAnchor.cache && existingAnchor.cache.sessionId === sessionId
-      && existingAnchor.cache.transcriptPath === transcriptPath
-      && typeof existingAnchor.cache.report === "string"
-      && existingAnchor.cache.report.includes("<!-- dirigent-stats:begin -->")
-      && existingAnchor.cache.report.includes("<!-- dirigent-stats:end -->") ? existingAnchor.cache : null;
-    const state = {
+    try { existing = JSON.parse(fs.readFileSync(file, "utf8")); } catch { /* new cache */ }
+    // No schema migration. Resume/compact retain only an already-valid v3 cache.
+    if ((event.source === "resume" || event.source === "compact") && validCache(existing, sessionId)) return;
+    const rootModel = safeString(event && event.model) || "<assumed>";
+    write(file, {
       schema: SCHEMA,
-      sessionId,
-      transcriptPath,
-      cwd: typeof event.cwd === "string" ? event.cwd : null,
-      source: event.source,
-      ...(cache ? { cache } : {}),
-    };
-    temporary = path.join(stateDir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`);
-    fs.writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
-    fs.renameSync(temporary, file);
-  } catch { /* SessionStart must never block. */ } finally { cleanupTemporary(temporary); }
+      rootSessionId: sessionId,
+      runs: {
+        [sessionId]: {
+          role: "orchestrator", provider: "Codex", model: rootModel,
+          offset: 0, tokens: null,
+        },
+      },
+    });
+  } catch { /* Hooks fail open. */ }
 }
 
 main().catch(() => {});

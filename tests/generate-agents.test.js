@@ -37,7 +37,7 @@ const CAPABILITIES_BY_ROLE = {
   "itixo-docs-updater": ["read", "edit", "write", "grep", "glob", "bash", "skill"],
   "itixo-github-issues": ["read", "grep", "glob", "bash", "skill", "github"],
   "itixo-investigator": ["read", "grep", "glob", "bash"],
-  "itixo-planner": ["read", "grep", "glob"],
+  "itixo-planner": ["read", "grep", "glob", "bash"],
   "itixo-reviewer": ["read", "grep", "bash"],
   "itixo-tester": ["read", "edit", "write", "grep", "glob", "bash", "skill"],
 };
@@ -57,7 +57,10 @@ const ROLE_SENTINELS = {
   "itixo-docs-updater": ["Refuse code, configuration, or test edits", "unsupported claims"],
   "itixo-github-issues": ["Use GitHub connector or MCP first", "Never implement work or mutate repository files", "unverifiable type, label, or hierarchy evidence"],
   "itixo-investigator": ["Never edit or write files", "mutating shell commands", "Refuse edits, fixes, design, test work"],
-  "itixo-planner": ["Never run commands, edit or write files", "Refuse implementation, edits, commands, and assumptions"],
+  "itixo-planner": [
+    "Never run commands except that end-of-run cleanup, edit or write files",
+    "Refuse implementation, edits, commands except the end-of-run cleanup below, and assumptions",
+  ],
   "itixo-reviewer": ["Never edit files, execute tests, run mutating Git commands", "Refuse edits, test execution, mutating Git operations"],
   "itixo-tester": ["without changing production behavior", "Refuse production edits", "never change production code to make tests pass"],
 };

@@ -356,8 +356,8 @@ for (const [plugin, text] of dirigentContents) {
     if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
       fail(`${rel}: must load itixo-github-issues role instructions`);
     }
-    if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
-      fail(`${rel}: must select mid-tier itixo-github-issues model from delegation rules`);
+    if (!/\buser\s+explicitly\s+requested\s+a\s+model\s+and\/or\s+effort\s+override\s+for\s+this\s+invocation\b[\s\S]{0,120}\brelay\s+those\s+matching\s+fields\b[\s\S]{0,120}\botherwise\s+use\s+the\s+generated\s+sonnet\/mid\s+default\b/i.test(text)) {
+      fail(`${rel}: must honor matching GitHub-issues overrides or use the generated Sonnet/mid default`);
     }
   } else if (plugin === "itixo-copilot") {
     if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.agent\.md`?\s+role\s+instructions\b/i.test(text)) {
@@ -390,11 +390,11 @@ if (failures === 0) ok("dirigent delegates GitHub issue work with provider-speci
 const githubIssueRuleFiles = [
   {
     rel: "base/rules/agents.md",
-    model: /\bselect\s+(?:the\s+)?provider\s+model\s+in\s+(?:the\s+)?`?mid`?\s+tier\b/i,
+    model: /\bhonor\s+a\s+matching\s+explicit\s+per-invocation\s+model\s+and\/or\s+effort\s+override\b[\s\S]{0,120}\botherwise\s+use\s+the\s+`?mid`?-tier\s+sonnet\s+default\b/i,
   },
   {
     rel: "plugins/itixo-claude/rules/agents.md",
-    model: /\bselect\s+`?sonnet`?[\s\S]{0,80}\b`?mid`?\b/i,
+    model: /\bhonor\s+a\s+matching\s+explicit\s+per-invocation\s+model\s+and\/or\s+effort\s+override\b[\s\S]{0,120}\botherwise\s+select\s+`?sonnet`?\s*,\s*the\s+`?mid`?\s+model\b[\s\S]{0,120}\bgenerated\s+default\s+effort\b/i,
   },
   {
     rel: "plugins/itixo-codex/rules/agents.md",
@@ -434,7 +434,7 @@ for (const { rel, model, codexToml } of githubIssueRuleFiles) {
       fail(`${rel}: must load itixo-github-issues role instructions before delegation`);
     }
     if (!model.test(text)) {
-      fail(`${rel}: must select its mid-tier itixo-github-issues model`);
+      fail(`${rel}: must honor matching GitHub-issues overrides or use its prescribed Sonnet/mid default`);
     }
   }
   if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*(?:target\s+)?repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*(?:and\s+)?expected\s+output\b/i.test(text)) {
@@ -515,7 +515,7 @@ for (const agent of Object.keys(TIERS)) {
     if (model || effort) fail(`${rel}: planner must inherit model and effort`);
   } else {
     const expected = CODEX_MODEL[TIERS[agent]];
-    const expectedEffort = TIERS[agent] === "cheap" ? "low" : "medium";
+    const expectedEffort = TIERS[agent] === "cheap" ? "high" : "medium";
     if (model !== expected) fail(`${rel}: model '${model}', expected '${expected}'`);
     if (effort !== expectedEffort) fail(`${rel}: effort '${effort}', expected '${expectedEffort}'`);
   }
@@ -563,7 +563,7 @@ if (fs.existsSync(codexAgentsPath)) {
   for (const required of [
     "installed custom TOML agent",
     "itixo-codex:install-agents",
-    "model or reasoning-effort override",
+    "per-agent override",
     "substitute a generic agent",
   ]) {
     if (!codexAgents.includes(required)) fail(`${codexAgentsRel}: missing custom-agent dispatch requirement '${required}'`);
@@ -655,7 +655,117 @@ if (failures === 0) ok("Copilot-native manifests valid and consistent");
 
 // --- 8. itixo-codex: default runtime-model reporting hook ---
 const codexPluginManifestRel = "plugins/itixo-codex/.codex-plugin/plugin.json";
+const claudePluginManifest = readJson(claudePluginManifestRel);
 const codexPluginManifest = readJson(codexPluginManifestRel);
+const sharedManifestFields = ["author", "homepage", "repository", "skills", "keywords"];
+
+function isHttpsUrl(value) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isNonEmptyStringArray(value) {
+  return Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+function validateMarketplacePngIcon(manifestRel, field, assetRel) {
+  const icon = fs.readFileSync(path.join(ROOT, assetRel));
+  const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (icon.length < 24 || !icon.subarray(0, 8).equals(pngSignature)) {
+    fail(`${manifestRel}: interface ${field} must reference a PNG file`);
+    return;
+  }
+  if (icon.readUInt32BE(8) !== 13 || icon.toString("ascii", 12, 16) !== "IHDR") {
+    fail(`${manifestRel}: interface ${field} PNG must contain an IHDR header`);
+    return;
+  }
+  const width = icon.readUInt32BE(16);
+  const height = icon.readUInt32BE(20);
+  if (width !== height || width < 128 || width > 2048) {
+    fail(`${manifestRel}: interface ${field} PNG must be square and 128-2048px, got ${width}x${height}`);
+  }
+}
+
+if (claudePluginManifest && codexPluginManifest) {
+  for (const field of sharedManifestFields) {
+    if (!Object.hasOwn(claudePluginManifest, field)) fail(`${claudePluginManifestRel}: missing shared '${field}'`);
+    if (!Object.hasOwn(codexPluginManifest, field)) fail(`${codexPluginManifestRel}: missing shared '${field}'`);
+    if (field !== "keywords" && JSON.stringify(claudePluginManifest[field]) !== JSON.stringify(codexPluginManifest[field])) {
+      fail(`plugin manifests: shared '${field}' must match exactly`);
+    }
+  }
+
+  const author = claudePluginManifest.author;
+  if (!author || typeof author !== "object" || !isHttpsUrl(author.url)) {
+    fail("plugin manifests: shared author.url must be an HTTPS URL");
+  }
+  if (!isHttpsUrl(claudePluginManifest.homepage)) fail("plugin manifests: shared homepage must be an HTTPS URL");
+  if (typeof claudePluginManifest.repository !== "string" || claudePluginManifest.repository.length === 0) {
+    fail("plugin manifests: shared repository must be a non-empty string");
+  }
+  if (typeof claudePluginManifest.skills !== "string" || claudePluginManifest.skills.length === 0) {
+    fail("plugin manifests: shared skills must be a non-empty string path");
+  }
+  for (const [manifestRel, manifest] of [[claudePluginManifestRel, claudePluginManifest], [codexPluginManifestRel, codexPluginManifest]]) {
+    if (!isNonEmptyStringArray(manifest.keywords)) fail(`${manifestRel}: keywords must be a non-empty string array`);
+  }
+  for (const [manifestRel, manifest, providerTag] of [
+    [claudePluginManifestRel, claudePluginManifest, "claude"],
+    [codexPluginManifestRel, codexPluginManifest, "codex"],
+  ]) {
+    for (const keyword of [providerTag, "orchestration", "agents", "skills", "developer-tools", "dirigent"]) {
+      if (!manifest.keywords?.includes(keyword)) fail(`${manifestRel}: keywords must include '${keyword}'`);
+    }
+  }
+
+  if (claudePluginManifest.displayName !== "Itixo Claude") {
+    fail(`${claudePluginManifestRel}: displayName must be 'Itixo Claude'`);
+  }
+  if (Object.hasOwn(claudePluginManifest, "interface")) {
+    fail(`${claudePluginManifestRel}: must not define Codex interface metadata`);
+  }
+
+  const codexInterface = codexPluginManifest.interface;
+  if (!codexInterface || typeof codexInterface !== "object" || Array.isArray(codexInterface)) {
+    fail(`${codexPluginManifestRel}: missing interface metadata`);
+  } else {
+    for (const field of ["displayName", "shortDescription", "longDescription", "developerName", "category", "capabilities", "websiteURL", "defaultPrompt", "composerIcon", "logo"]) {
+      if (!Object.hasOwn(codexInterface, field)) fail(`${codexPluginManifestRel}: interface missing '${field}'`);
+    }
+    for (const field of ["displayName", "shortDescription", "longDescription"]) {
+      if (typeof codexInterface[field] !== "string" || codexInterface[field].trim().length === 0) {
+        fail(`${codexPluginManifestRel}: interface '${field}' must be a non-empty string`);
+      }
+    }
+    if (codexInterface.developerName !== "Itixo") fail(`${codexPluginManifestRel}: interface developerName must be 'Itixo'`);
+    if (codexInterface.category !== "Developer Tools") fail(`${codexPluginManifestRel}: interface category must be 'Developer Tools'`);
+    if (JSON.stringify(codexInterface.capabilities) !== JSON.stringify(["Read", "Write"])) {
+      fail(`${codexPluginManifestRel}: interface capabilities must be exactly Read/Write`);
+    }
+    if (!isHttpsUrl(codexInterface.websiteURL)) fail(`${codexPluginManifestRel}: interface websiteURL must be an HTTPS URL`);
+    if (!Array.isArray(codexInterface.defaultPrompt) || codexInterface.defaultPrompt.length < 1 || codexInterface.defaultPrompt.length > 3 ||
+      codexInterface.defaultPrompt.some((prompt) => typeof prompt !== "string" || prompt.length === 0 || prompt.length > 128)) {
+      fail(`${codexPluginManifestRel}: interface defaultPrompt must contain 1-3 non-empty prompts of at most 128 characters`);
+    }
+    for (const field of ["composerIcon", "logo"]) {
+      if (codexInterface[field] !== "./assets/icon.png") {
+        fail(`${codexPluginManifestRel}: interface ${field} must be './assets/icon.png'`);
+      }
+      const assetRel = path.join("plugins/itixo-codex", codexInterface[field] || "");
+      if (!fs.existsSync(path.join(ROOT, assetRel))) {
+        fail(`${codexPluginManifestRel}: interface ${field} references missing '${assetRel}'`);
+      } else {
+        validateMarketplacePngIcon(codexPluginManifestRel, field, assetRel);
+      }
+    }
+  }
+}
+if (failures === 0) ok("provider manifest metadata valid and consistent");
+
+// --- 9. itixo-codex: default runtime-model reporting hook ---
 if (codexPluginManifest && Object.hasOwn(codexPluginManifest, "hooks")) {
   fail(`${codexPluginManifestRel}: hooks must be auto-discovered from hooks/hooks.json`);
 }
@@ -681,7 +791,7 @@ if (runtimeModelHook?.hooks?.SubagentStart?.some((entry) => entry.matcher !== "*
 }
 if (failures === 0) ok("itixo-codex runtime-model hook configured");
 
-// --- 9. Dirigent Stats remains a shared, safe, exact-accounting skill ---
+// --- 10. Dirigent Stats remains a shared, safe, exact-accounting skill ---
 const statsPlugins = ["itixo-claude", "itixo-codex"];
 const statsSkillRel = "skills/dirigent-stats/SKILL.md";
 const statsMetadataRel = "skills/dirigent-stats/agents/openai.yaml";
@@ -698,15 +808,23 @@ for (const plugin of statsPlugins) {
     const skill = fs.readFileSync(skillPath, "utf8");
     statsSkills.set(plugin, skill);
     if (!/^---\nname: dirigent-stats\n/m.test(skill)) fail(`${skillRel}: invalid dirigent-stats frontmatter`);
-    for (const [description, pattern] of [
+    const requiredSkillContract = [
       ["explicit slash invocation", /`\/dirigent-stats`/],
       ["explicit dollar invocation", /`\$dirigent-stats`/],
-      ["hook-provided report only", /hook-provided report/i],
+      ["view choices", /`--view agents\|models\|both`/],
+      ["default both view", /default to `both`/i],
+      ["exact invalid-view fallback", /exactly `Invalid stats view\. Use agents, models, or both\.`/],
+      ["cached report only", /selected cached report/i],
       ["verbatim reporting", /verbatim/i],
-      ["no estimates", /never estimate/i],
-      ["unknown-value preservation", /unknown values and warnings/i],
-      ["unavailable fallback", /unavailable rather than estimating/i],
-    ]) {
+      ["no recalculation or double sums", /never recalculate, estimate, or double-sum/i],
+      ["exact no-data fallback", /exactly `No token usage available yet\.`/i],
+      ["kToks units", /exact `kToks`/i],
+      ["trimmed three-decimal formatting", /at most three decimals and trailing zeros removed/i],
+      ["mToks suppression", /never convert to `mToks`/i],
+      ["recursive agent accounting", /root orchestrator plus recursive agents/i],
+      ["grouping invariant", /alternate groupings of the same total/i],
+    ];
+    for (const [description, pattern] of requiredSkillContract) {
       if (!pattern.test(skill)) fail(`${skillRel}: must state ${description}`);
     }
   }
@@ -722,16 +840,14 @@ for (const plugin of statsPlugins) {
     if (/implicit_invocation:\s*true/.test(metadata)) fail(`${metadataRel}: implicit invocation must be false`);
   }
 }
-if (statsSkills.size === statsPlugins.length && statsSkills.get("itixo-claude") !== statsSkills.get("itixo-codex")) {
-  fail("dirigent-stats SKILL.md must be byte-identical across providers");
-}
 if (statsMetadata.size === statsPlugins.length && statsMetadata.get("itixo-claude") !== statsMetadata.get("itixo-codex")) {
   fail("dirigent-stats openai.yaml must be byte-identical across providers");
 }
 for (const plugin of statsPlugins) {
   const manifestRel = `plugins/${plugin}/.${plugin === "itixo-claude" ? "claude" : "codex"}-plugin/plugin.json`;
   const manifest = readJson(manifestRel);
-  if (manifest && manifest.version !== "0.2.7") fail(`${manifestRel}: version '${manifest.version}', expected '0.2.7'`);
+  const expectedVersion = plugin === "itixo-codex" ? "0.3.1" : "0.3.1";
+  if (manifest && manifest.version !== expectedVersion) fail(`${manifestRel}: version '${manifest.version}', expected '${expectedVersion}'`);
 }
 
 const claudeHooksRel = "plugins/itixo-claude/hooks/hooks.json";
@@ -762,6 +878,22 @@ for (const [rel, rootVariable, preservedEvents] of [
   if (!sessionStartCommands.some((hook) => hook?.type === "command" && hook.command === expectedSessionStart)) {
     fail(`${rel}: must use provider SessionStart state script`);
   }
+}
+const claudeHooks = readJson(claudeHooksRel);
+const claudeStatsCommand = 'node "${CLAUDE_PLUGIN_ROOT}/scripts/dirigent-stats.js"';
+const claudeSubmit = claudeHooks?.hooks?.UserPromptSubmit;
+if (!Array.isArray(claudeSubmit) || !claudeSubmit.some((entry) => (entry?.hooks || [])
+  .some((hook) => hook?.type === "command" && hook.command === claudeStatsCommand))) {
+  fail(`${claudeHooksRel}: must retain UserPromptSubmit dirigent-stats handler`);
+}
+const claudeExpansion = claudeHooks?.hooks?.UserPromptExpansion;
+if (!Array.isArray(claudeExpansion) || claudeExpansion.length !== 1
+  || claudeExpansion[0]?.matcher !== "^(dirigent-stats|itixo-claude:dirigent-stats)$"
+  || !Array.isArray(claudeExpansion[0]?.hooks)
+  || claudeExpansion[0].hooks.length !== 1
+  || claudeExpansion[0].hooks[0]?.type !== "command"
+  || claudeExpansion[0].hooks[0]?.command !== claudeStatsCommand) {
+  fail(`${claudeHooksRel}: must register exact stats-command UserPromptExpansion handler`);
 }
 if (failures === 0) ok("dirigent-stats provider parity, metadata, hooks, and accounting contract valid");
 

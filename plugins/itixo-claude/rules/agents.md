@@ -2,7 +2,7 @@
 
 Derived from `base/rules/agents.md` — edit there, sync here.
 
-Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to a subagent on a cheaper model.
+Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to its prescribed agent role and, without a matching explicit user-requested per-invocation override, its prescribed model tier. Orchestrator never invents or broadens an override.
 
 ## Model tiers (Claude)
 
@@ -14,9 +14,11 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 
 ## Rules
 
-- Claude invokes the native plugin agent using its canonical `itixo-*` ID and the definition's prescribed tier.
-- itixo-investigator (haiku) locates first; itixo-builder (sonnet) gets exact file:line targets.
-- Subagent prompt: goal, files, constraints, expected output format.
+- Claude invokes the native plugin agent using its canonical `itixo-*` ID and the definition's prescribed default tier.
+- Generated definitions own default model and effort. Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
+- Never infer an override or apply it to another invocation. Provider or organization restrictions may constrain requested models or effort.
+- `itixo-investigator` locates first on its configured invocation model, defaulting to cheap-tier Haiku absent a matching explicit user override; `itixo-builder` gets exact file:line targets on its configured invocation model, defaulting to mid-tier Sonnet under the same constraint.
+- Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested model or effort override.
 - Subagents never expand scope; scope change returns to orchestrator.
 - Parallelize independent subagent runs.
 - **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least three safe independent executable units exist, launch exactly three direct worker subagents in one parallel batch before awaiting any result. Orchestrator is not a worker.
@@ -29,7 +31,7 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 ## GitHub issue delegation (mandatory)
 
 - Delegate all GitHub issue assessment, structuring, and creation work to exactly one `itixo-github-issues` agent. Do not split checks and creation between agents.
-- Before delegating, load matching `agents/itixo-github-issues.md` role instructions. Select `sonnet`, the `mid` model in the table above.
+- Before delegating, load matching `agents/itixo-github-issues.md` role instructions. Honor a matching explicit per-invocation model and/or effort override; otherwise select `sonnet`, the `mid` model in the table above, with its generated default effort.
 - Prompt that agent with requested outcome, target repository and owner context, constraints, expected output, and known IssueType or project conventions. Require it to determine whether native GitHub IssueTypes are available; the fallback below applies only when they are unavailable in a personal repository.
 - The `itixo-github-issues` agent owns duplicate, native-IssueType availability, fallback-label, linked-sub-issue/depth, and repository-convention checks, then reports or creates the issue result.
 - With native IssueTypes, it classifies the root as `Feature` when appropriate, direct children as `Task` by default, and a direct child as `Feature` only when that large child is split into executable children. It allows at most two parent-child edges: `Feature -> Feature -> Task`.

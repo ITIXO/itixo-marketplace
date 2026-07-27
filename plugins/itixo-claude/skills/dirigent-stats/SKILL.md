@@ -1,8 +1,14 @@
 ---
 name: dirigent-stats
-description: Show exact task token usage by agent. Use only when the user explicitly invokes `/dirigent-stats` or `$dirigent-stats`.
+description: Show exact current-task token usage grouped by agent, model, or both. Use only when the user explicitly invokes `/dirigent-stats` or `$dirigent-stats`.
 ---
 
 # Dirigent Stats
 
-Report only current session, including root orchestrator and recursive subagents. Consume hook-provided report from `dirigent-stats.js`; return marked Markdown verbatim. Reproduce tables without recalculation. Never estimate tokens or savings; preserve unknown values and warnings. If unavailable, say unavailable rather than estimating.
+Use `--view agents|models|both`; default to `both`. Examples: `/dirigent-stats --view agents`, `$dirigent-stats --view models`, `/itixo-claude:dirigent-stats --view both`.
+
+For malformed, missing, duplicate, or unknown view values, return exactly `Invalid stats view. Use agents, models, or both.`
+
+Return the selected cached report verbatim. Never recalculate, estimate, or double-sum. If usage is unavailable or zero, return exactly `No token usage available yet.` with no table.
+
+Usage and total values are exact `kToks`, rendered with at most three decimals and trailing zeros removed; never convert to `mToks`. Totals include root orchestrator plus recursive agents and each agent's own input, cache-creation, cache-read, and output work, so aggregates can be large. Agent and model tables are alternate groupings of the same total; never add them together.
