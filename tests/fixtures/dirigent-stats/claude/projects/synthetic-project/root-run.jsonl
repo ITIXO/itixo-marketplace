@@ -1,4 +1,0 @@
-{"type":"user","sessionId":"root-run","message":{"role":"user","content":"Synthetic root request"}}
-{"type":"assistant","sessionId":"root-run","message":{"id":"root-message","model":"root-model","usage":{"input_tokens":10,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":5}}}
-{"type":"user","sessionId":"root-run","message":{"role":"user","content":"/dirigent-stats"}}
-{"type":"assistant","sessionId":"root-run","isSummary":true,"message":{"id":"root-summary","model":"root-model","usage":{"input_tokens":99,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}}

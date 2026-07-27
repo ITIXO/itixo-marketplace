@@ -110,6 +110,18 @@ test("policy checker accepts bumped version with matching Wiki heading", () => w
   assert.equal(result.status, 0, result.output);
 }));
 
+test("policy checker accepts changed root-layout manifest with matching Wiki heading", () => withRepository((root) => {
+  writeJson(root, "plugins/copilot/plugin.json", plugin("copilot", "1.0.0"));
+  const base = commit(root, "baseline");
+  writeJson(root, "plugins/copilot/plugin.json", plugin("copilot", "1.0.1"));
+  fs.writeFileSync(path.join(root, "plugins/copilot/README.md"), "updated plugin content\n");
+  commit(root, "bump root-layout plugin");
+
+  const result = runChecker(root, base, release("copilot", "1.0.1", "— Copilot update"));
+
+  assert.equal(result.status, 0, result.output);
+}));
+
 test("policy checker rejects bumped version without matching Wiki heading", () => withRepository((root) => {
   writeBaselinePlugin(root);
   const base = commit(root, "baseline");
@@ -426,21 +438,27 @@ test("validation workflow runs required checks for PR and manual dispatch", () =
   assert.match(workflow, /node scripts\/generate-agents\.js --check/);
   assert.match(workflow, /node --test tests\/\*\.test\.js/);
   assert.match(workflow, /node tests\/validate\.js/);
-  assert.match(workflow, /\.wiki\.git/);
   assert.match(workflow, /node scripts\/validate-plugin-changes\.js --base/);
 });
 
-test("validation workflow authenticates the Wiki clone without persisting credentials", () => {
+test("validation workflow validates root changelog without Wiki access", () => {
   const workflow = fs.readFileSync(path.join(ROOT, ".github/workflows/validate-plugins.yml"), "utf8");
 
-  assert.match(workflow, /GITHUB_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/);
-  assert.match(workflow, /x-access-token/);
-  assert.match(workflow, /AUTHORIZATION:\s*basic/i);
-  assert.match(workflow, /::add-mask::/);
-  assert.match(workflow, /fs\.writeFileSync\([\s\S]*?\{\s*mode:\s*0o600\s*\}/);
-  assert.match(workflow, /fs\.chmodSync\(\s*authConfig\s*,\s*0o600\s*\)/);
-  assert.match(workflow, /trap\s+['"][^'"]*(?:rm|unset)[^'"]*['"]/i);
-  assert.match(workflow, /git(?:\s+-c)?[^\n]*include\.path/);
-  assert.doesNotMatch(workflow, /https:\/\/x-access-token:\s*\$\{\{?\s*(?:env\.)?GITHUB_TOKEN\s*\}?\}@github\.com/i);
-  assert.doesNotMatch(workflow, /git config(?:\s+--global)?\s+http\.[^\s]+\.extraheader=\s*(?:#.*)?$/im);
+  assert.match(workflow, /node scripts\/validate-plugin-changes\.js --base[\s\S]*?--changelog changelog\.md/);
+  assert.doesNotMatch(workflow, /\.wiki\.git/);
+  assert.doesNotMatch(workflow, /x-access-token|AUTHORIZATION:\s*basic|include\.path/i);
+});
+
+test("Wiki update workflow syncs root changelog to Wiki master", () => {
+  const workflow = fs.readFileSync(path.join(ROOT, ".github/workflows/wiki-update.yml"), "utf8");
+
+  assert.match(workflow, /^name:\s*Wiki update\s*$/m);
+  assert.match(workflow, /^\s*push:\s*\n\s*branches:\s*\n\s*- main\s*$/m);
+  assert.match(workflow, /git clone --branch master --single-branch[\s\S]*?\.wiki\.git[\s\S]*?\s+wiki/);
+  assert.match(workflow, /cmp -s changelog\.md wiki\/Changelog\.md/);
+  assert.match(workflow, /Wiki changelog already current\.[\s\S]*?exit 0/);
+  assert.match(workflow, /cp changelog\.md wiki\/Changelog\.md/);
+  assert.match(workflow, /git -C wiki add Changelog\.md/);
+  assert.match(workflow, /git -C wiki commit -m "docs: sync changelog"/);
+  assert.match(workflow, /git -C wiki push origin HEAD:master/);
 });

@@ -1,4 +1,0 @@
-{"type":"session_meta","payload":{"id":"child-two","parent_thread_id":"child-one","agent_role":"builder"}}
-{"type":"turn_context","payload":{"turn_id":"child-two-turn","model":"worker-model-b"}}
-{"type":"response_item","payload":{"info":{"total_token_usage":{"total_tokens":15},"last_token_usage":{"total_tokens":10}}}}
-{ incomplete JSONL

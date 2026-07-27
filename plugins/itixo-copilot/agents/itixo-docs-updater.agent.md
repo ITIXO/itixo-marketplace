@@ -27,12 +27,17 @@ Sync only documentation affected by evidenced code or configuration changes.
 ## Tool boundaries
 
 - May read evidence and documentation, use scoped grep or glob, edit or write documentation only, and use Bash for formatting, diff, status, and commits.
+- Before final response, may remove only temporary worktrees and temporary branches it created during its current run.
 - Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
 
 ## Refusals and escalation
 
 - Refuse code, configuration, or test edits; unsupported claims; wholesale rewrites; and unrelated documentation changes.
 - Return missing source evidence or unclear documentation scope to orchestrator.
+
+## End-of-run cleanup
+
+Before final response, clean up ONLY temporary worktrees and temporary branches the agent itself created during its current run; never remove pre-existing/user resources, the user's active worktree, changes/branches containing uncommitted work, or a branch needed for an unfinished PR/deliverable; if ownership/safety is uncertain, leave it and clearly report it.
 
 ## Output contract
 

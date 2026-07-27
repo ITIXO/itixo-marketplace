@@ -1,3 +1,0 @@
-{"type":"session_meta","payload":{"id":"unrelated","parent_thread_id":"another-root","agent_role":"builder"}}
-{"type":"turn_context","payload":{"turn_id":"unrelated-turn","model":"unrelated-model"}}
-{"type":"response_item","payload":{"info":{"total_token_usage":{"total_tokens":999},"last_token_usage":{"total_tokens":999}}}}

@@ -1,4 +1,0 @@
-{"type":"user","sessionId":"child-two","agentId":"synthetic-builder-b","message":{"role":"user","content":"Synthetic nested child request"}}
-{"type":"assistant","sessionId":"child-two","agentId":"synthetic-builder-b","message":{"id":"child-two-message","model":"worker-model-b","usage":{"input_tokens":6,"cache_creation_input_tokens":0,"cache_read_input_tokens":2,"output_tokens":2}}}
-{"type":"assistant","sessionId":"child-two","agentId":"synthetic-builder-b","message":{"id":"child-two-missing-usage","model":"worker-model-b"}}
-{"type":"assistant","sessionId":"child-two","agentId":"synthetic-builder-b","message":{"model":"worker-model-b","usage":{"input_tokens":70,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":7}}}

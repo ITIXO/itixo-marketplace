@@ -2,7 +2,7 @@
   "name": "itixo-claude",
   "displayName": "Itixo Claude",
   "description": "Itixo library for Claude users: agents, skills, rules and prompts shared across the company. Includes orchestration module (orchestrator on user-selected model delegates precise steps to cheaper-model subagents).",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "author": {
     "name": "Itixo",
     "url": "https://github.com/ITIXO-Playground"
