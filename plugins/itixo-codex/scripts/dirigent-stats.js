@@ -1,207 +1,116 @@
 #!/usr/bin/env node
+// Cache-only Codex stats. Lifecycle hooks append latest cumulative totals.
+"use strict";
 
-const fs = require("fs");
 const crypto = require("crypto");
+const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const INVOCATION = /(^|\s)(?:\/|\$)(?:dirigent-stats|itixo-codex:dirigent-stats)(?=$|\s|[.,!?;:](?=$|\s))/;
-const STATE_SCHEMA = 2;
-const CACHE_SCHEMA = 2;
-const DEFAULT_STOP_BUDGET_MS = 1500;
+
+const SCHEMA = 3;
 const NO_DATA = "No token usage available yet.";
-const REPORT_HEADING = "## Dirigent Stats";
 const INVALID_VIEW = "Invalid stats view. Use agents, models, or both.";
+const INVOCATION = /(^|\s)(?:\/|\$)(?:dirigent-stats|itixo-codex:dirigent-stats)(?=$|\s|[.,!?;:](?=$|\s))/;
 const VIEWS = ["both", "agents", "models"];
-const AGENT_HEADER = "| Agent | Model | Runs | Usage | Share |";
-const AGENT_SEPARATOR = "| --- | --- | ---: | ---: | ---: |";
-const MODEL_HEADER = "| Model | Runs | Usage | Share |";
-const MODEL_SEPARATOR = "| --- | ---: | ---: | ---: |";
-const USAGE = String.raw`(?:0|[1-9]\d{0,2}(?:,\d{3})*)(?:\.\d{1,3})? kToks`;
-const AGENT_ROW = new RegExp(String.raw`^\| [^|\n]+ \| [^|\n]* \| \d+ \| ${USAGE} \| \d+\.\d% \|$`);
-const MODEL_ROW = new RegExp(String.raw`^\| [^|\n]+ \| \d+ \| ${USAGE} \| \d+\.\d% \|$`);
+const MAX_READ_BYTES = 256 * 1024;
 
-function stopBudgetMs(raw) {
-  if (raw === undefined) return DEFAULT_STOP_BUDGET_MS;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed)) return DEFAULT_STOP_BUDGET_MS;
-  return Math.min(5000, Math.max(100, Math.trunc(parsed)));
+function safeString(value) {
+  return typeof value === "string" && value && value.length <= 4096 && !value.includes("\0") ? value : null;
 }
-
-const STOP_BUDGET_MS = stopBudgetMs(process.env.DIRIGENT_STATS_STOP_BUDGET_MS);
 
 function stateDir() {
   return process.env.DIRIGENT_STATS_STATE_DIR || path.join(process.env.PLUGIN_DATA || path.join(os.homedir(), ".codex"), "dirigent-stats");
 }
 
 function stateFile(sessionId) {
-  const dir = stateDir();
-  return path.join(dir, `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
+  return path.join(stateDir(), `${crypto.createHash("sha256").update(sessionId).digest("hex")}.json`);
 }
 
-function cleanupTemporary(file) {
-  if (!file) return;
-  try { fs.unlinkSync(file); } catch (error) {
-    if (error && error.code === "ENOENT") return;
-    // Stats hooks fail open, including cleanup failures.
-  }
+function validRun(run) {
+  return run && typeof run === "object" && typeof run.role === "string" && run.role
+    && run.provider === "Codex" && typeof run.model === "string" && run.model
+    && Number.isSafeInteger(run.offset) && run.offset >= 0
+    && (run.tokens === null || (Number.isSafeInteger(run.tokens) && run.tokens >= 0));
 }
 
-function sessionState(sessionId) {
+function readCache(sessionId) {
   try {
-    const state = JSON.parse(fs.readFileSync(stateFile(sessionId), "utf8"));
-    return state && (state.schema === 1 || state.schema === STATE_SCHEMA) && state.sessionId === sessionId
-      && (state.transcriptPath === null || typeof state.transcriptPath === "string") ? state : null;
+    const cache = JSON.parse(fs.readFileSync(stateFile(sessionId), "utf8"));
+    if (cache.schema !== SCHEMA || cache.rootSessionId !== sessionId || !cache.runs
+      || typeof cache.runs !== "object" || Array.isArray(cache.runs)
+      || !Object.values(cache.runs).every(validRun)) return null;
+    return cache;
   } catch { return null; }
 }
 
-function validReport(reportText, view) {
-  if (typeof reportText !== "string") return false;
-  if (reportText === NO_DATA) return true;
-  if (/<!--|Snapshot:|Instruction:/.test(reportText)) return false;
-  const lines = reportText.split("\n");
-  if (lines[0] !== REPORT_HEADING || lines[1] !== "") return false;
-  let index = 2;
-  const table = (header, separator, rowPattern) => {
-    if (lines[index] !== header || lines[index + 1] !== separator) return false;
-    index += 2;
-    const first = index;
-    while (typeof lines[index] === "string" && rowPattern.test(lines[index])) index += 1;
-    if (index === first || lines[index] !== "") return false;
-    index += 1;
-    return true;
-  };
-  if (view !== "models" && !table(AGENT_HEADER, AGENT_SEPARATOR, AGENT_ROW)) return false;
-  if (view !== "agents" && !table(MODEL_HEADER, MODEL_SEPARATOR, MODEL_ROW)) return false;
-  if (!new RegExp(String.raw`^Exact known total: ${USAGE}\.$`).test(lines[index])) return false;
-  index += 1;
-  if (lines[index] === "Warnings:") {
-    index += 1;
-    const firstWarning = index;
-    while (typeof lines[index] === "string" && lines[index].startsWith("- ")) index += 1;
-    if (index === firstWarning) return false;
-  }
-  return index === lines.length;
-}
-
-function usageTokens(usage) {
-  const match = /^((?:0|[1-9]\d{0,2}(?:,\d{3})*))(?:\.(\d{1,3}))? kToks$/.exec(usage);
-  if (!match) return null;
-  const whole = Number(match[1].replace(/,/g, ""));
-  const fraction = Number((match[2] || "").padEnd(3, "0"));
-  const tokens = (whole * 1000) + fraction;
-  return Number.isSafeInteger(tokens) ? tokens : null;
-}
-
-function validReports(reports) {
-  if (!reports || typeof reports !== "object") return false;
-  const zero = VIEWS.map((view) => reports[view] === NO_DATA);
-  if (zero.some(Boolean)) return zero.every(Boolean);
-  if (!VIEWS.every((view) => validReport(reports[view], view))) return false;
-  const parts = (report) => {
-    const lines = report.split("\n");
-    const table = (header, usageCell) => {
-      const start = lines.indexOf(header);
-      if (start < 0) return { text: null, tokens: null };
-      const end = lines.indexOf("", start);
-      let tokens = 0;
-      for (const row of lines.slice(start + 2, end)) {
-        const cells = row.slice(1, -1).split("|").map((cell) => cell.trim());
-        const rowTokens = usageTokens(cells[usageCell]);
-        if (rowTokens === null || tokens > Number.MAX_SAFE_INTEGER - rowTokens) return null;
-        tokens += rowTokens;
-      }
-      return { text: lines.slice(start, end).join("\n"), tokens };
-    };
-    const agent = table(AGENT_HEADER, 3);
-    const model = table(MODEL_HEADER, 2);
-    const totalLine = lines.find((line) => line.startsWith("Exact known total: "));
-    const total = totalLine && usageTokens(totalLine.slice("Exact known total: ".length, -1));
-    const warningStart = lines.indexOf("Warnings:");
-    return agent && model && total !== null ? {
-      agent,
-      model,
-      total,
-      warnings: warningStart < 0 ? "" : lines.slice(warningStart).join("\n"),
-    } : null;
-  };
-  const both = parts(reports.both);
-  const agents = parts(reports.agents);
-  const models = parts(reports.models);
-  const arithmeticMatches = (report) => report
-    && [report.agent, report.model].every((table) => table.tokens === null || table.tokens === report.total);
-  return arithmeticMatches(both) && arithmeticMatches(agents) && arithmeticMatches(models)
-    && both.total === agents.total && both.total === models.total
-    && both.warnings === agents.warnings && both.warnings === models.warnings
-    && both.agent.text === agents.agent.text && both.model.text === models.model.text;
-}
-
-function cachedReport(state, sessionId) {
-  const cache = state && state.schema === STATE_SCHEMA && state.cache;
-  return cache && cache.schema === CACHE_SCHEMA && cache.sessionId === sessionId
-    && cache.transcriptPath === state.transcriptPath && Number.isSafeInteger(cache.updatedAt) && cache.updatedAt >= 0
-    && validReports(cache.reports) ? cache.reports : null;
-}
-
-function noData() {
-  return NO_DATA;
-}
-
-function noDataReports() {
-  return { both: NO_DATA, agents: NO_DATA, models: NO_DATA };
-}
-
-function formatUsage(tokens) {
-  const whole = Math.floor(tokens / 1000).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  const remainder = Math.trunc(tokens % 1000);
-  const fraction = remainder ? `.${String(remainder).padStart(3, "0").replace(/0+$/, "")}` : "";
-  return `${whole}${fraction} kToks`;
-}
-
-function requestedView(text) {
-  const tokens = typeof text === "string" ? text.trim().split(/\s+/).filter(Boolean) : [];
-  const positions = tokens.flatMap((token, index) => token === "--view" ? [index] : []);
-  if (positions.length === 0) return "both";
-  if (positions.length !== 1) return null;
-  const value = tokens[positions[0] + 1];
-  return VIEWS.includes(value) ? value : null;
-}
-
-function sameAnchor(left, right) {
-  return Boolean(left && right && left.schema === right.schema && left.sessionId === right.sessionId
-    && left.transcriptPath === right.transcriptPath && left.cwd === right.cwd && left.source === right.source);
-}
-
-function writeState(sessionId, anchor, reports, turnId, resolvedTranscriptPath = null) {
-  let temporary = null;
+function writeCache(sessionId, cache) {
+  const file = stateFile(sessionId);
+  const temp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.tmp`);
   try {
-    const dir = stateDir();
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const file = stateFile(sessionId);
-    // Re-read immediately before write: preserve a newer SessionStart anchor.
-    const current = sessionState(sessionId);
-    const source = current || anchor || {};
-    const mayApplyResolution = typeof resolvedTranscriptPath === "string"
-      && (!current || current.transcriptPath === resolvedTranscriptPath || sameAnchor(current, anchor)
-        || (current.transcriptPath === null && current.cache && current.cache.turnId === turnId));
-    if (typeof resolvedTranscriptPath === "string" && !mayApplyResolution) return;
-    const transcriptPath = mayApplyResolution
-      ? resolvedTranscriptPath
-      : source.transcriptPath === null || typeof source.transcriptPath === "string" ? source.transcriptPath : null;
-    const state = {
-      schema: STATE_SCHEMA,
-      sessionId,
-      transcriptPath,
-      cwd: typeof source.cwd === "string" ? source.cwd : null,
-      source: typeof source.source === "string" ? source.source : "stop",
-      cache: { schema: CACHE_SCHEMA, sessionId, transcriptPath, reports, report: reports.both, updatedAt: Date.now(), ...(typeof turnId === "string" && turnId ? { turnId } : {}) },
-    };
-    temporary = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`);
-    fs.writeFileSync(temporary, JSON.stringify(state), { encoding: "utf8", mode: 0o600 });
-    fs.renameSync(temporary, file);
-  } catch { /* Hooks must fail open. */ } finally { cleanupTemporary(temporary); }
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(temp, JSON.stringify(cache), { encoding: "utf8", mode: 0o600 });
+    fs.renameSync(temp, file);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { fs.unlinkSync(temp); } catch { /* already renamed */ }
+  }
 }
 
-function stdin() {
+function reclaimDeadLock(lock) {
+  let owner;
+  try {
+    owner = JSON.parse(fs.readFileSync(lock, "utf8"));
+  } catch { /* malformed/incomplete lock has no owner to protect */ }
+  if (owner && Number.isSafeInteger(owner.pid) && owner.pid > 0 && safeString(owner.token)) {
+    try {
+      process.kill(owner.pid, 0);
+      return false;
+    } catch (error) {
+      if (!error || error.code !== "ESRCH") return false;
+    }
+  }
+  const reclaimed = `${lock}.stale.${process.pid}.${crypto.randomBytes(8).toString("hex")}`;
+  try {
+    // Rename claims old lock before deletion; old owner cannot release a new one.
+    fs.renameSync(lock, reclaimed);
+    fs.unlinkSync(reclaimed);
+    return true;
+  } catch { return false; }
+}
+
+function withCacheLock(sessionId, action) {
+  const file = stateFile(sessionId);
+  const lock = `${file}.lock`;
+  let token = null;
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    for (;;) {
+      const candidate = `${lock}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`;
+      try {
+        token = crypto.randomBytes(16).toString("hex");
+        fs.writeFileSync(candidate, JSON.stringify({ pid: process.pid, token }), { encoding: "utf8", mode: 0o600, flag: "wx" });
+        fs.linkSync(candidate, lock);
+        return action();
+      } catch (error) {
+        if (!error || error.code !== "EEXIST") return null;
+        if (reclaimDeadLock(lock)) continue;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+      } finally {
+        try { fs.unlinkSync(candidate); } catch { /* candidate already removed */ }
+      }
+    }
+  } finally {
+    if (token !== null) {
+      try {
+        if (JSON.parse(fs.readFileSync(lock, "utf8")).token === token) fs.unlinkSync(lock);
+      } catch { /* lock reclaimed or released */ }
+    }
+  }
+}
+
+function input() {
   return new Promise((resolve) => {
     let text = "";
     process.stdin.setEncoding("utf8");
@@ -211,282 +120,164 @@ function stdin() {
   });
 }
 
-function numeric(value) {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+function totalTokens(record) {
+  const payload = record && record.payload;
+  if (!record || record.type !== "event_msg" || !payload || payload.type !== "token_count") return null;
+  const total = payload.info && payload.info.total_token_usage && payload.info.total_token_usage.total_tokens;
+  return Number.isSafeInteger(total) && total >= 0 ? total : null;
 }
 
-function at(object, keys) {
-  let value = object;
-  for (const key of keys) {
-    if (!value || typeof value !== "object") return undefined;
-    value = value[key];
-  }
-  return value;
-}
-
-function jsonlFiles(dir, result = [], deadline = Infinity) {
-  if (Date.now() > deadline) return result;
-  let entries;
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return result; }
-  for (let index = 0; index < entries.length; index += 1) {
-    if (index % 32 === 0 && Date.now() > deadline) break;
-    const entry = entries[index];
-    const item = path.join(dir, entry.name);
-    if (entry.isDirectory()) jsonlFiles(item, result, deadline);
-    else if (entry.isFile() && entry.name.endsWith(".jsonl")) result.push(item);
-  }
-  return result;
-}
-
-function records(file, deadline = Infinity) {
+// Read only newly appended bytes. On first observation, tail a bounded window;
+// token_count is cumulative, so latest complete snapshot is sufficient.
+function latestTokenSnapshot(transcriptPath, offset) {
+  let stat;
+  try { stat = fs.statSync(transcriptPath); } catch { return null; }
+  if (!stat.isFile()) return null;
+  if (stat.size < offset) return { offset: 0, tokens: null, invalid: true };
+  const start = offset === 0 ? Math.max(0, stat.size - MAX_READ_BYTES) : offset;
+  const length = Math.min(MAX_READ_BYTES, stat.size - start);
+  if (length === 0) return { offset: stat.size, tokens: null };
   let text;
-  try { text = fs.readFileSync(file, "utf8"); } catch { return null; }
-  const result = [];
-  const lines = text.split("\n");
-  for (let index = 0; index < lines.length; index += 1) {
-    if (index > 0 && index % 256 === 0 && Date.now() > deadline) return null;
-    const line = lines[index];
-    if (!line.trim()) continue;
-    try { result.push(JSON.parse(line)); } catch { /* tolerate incomplete trailing JSONL */ }
+  try {
+    const fd = fs.openSync(transcriptPath, "r");
+    const buffer = Buffer.alloc(length);
+    fs.readSync(fd, buffer, 0, length, start);
+    fs.closeSync(fd);
+    text = buffer.toString("utf8");
+  } catch { return null; }
+  const atEnd = start + length === stat.size;
+  const newline = text.lastIndexOf("\n");
+  const complete = newline < 0 ? "" : text.slice(0, newline + 1);
+  let consumed = complete ? Buffer.byteLength(complete, "utf8") : 0;
+  let latest = null;
+  const parse = (line) => {
+    try {
+      const value = totalTokens(JSON.parse(line));
+      if (value !== null) latest = value;
+      return true;
+    } catch { return false; }
+  };
+  for (const line of complete.split("\n")) parse(line);
+  const trailing = text.slice(newline + 1);
+  // An EOF line may be a complete JSONL record without its final newline.
+  if (atEnd && trailing && parse(trailing)) {
+    consumed = length;
   }
-  return result;
+  // Never skip bytes beyond a complete JSONL record when a capped read ends.
+  return { offset: start + consumed, tokens: latest };
 }
 
-function meta(items) {
-  return items && items.find((item) => item && item.type === "session_meta");
+function role(event, root) {
+  if (root) return "orchestrator";
+  return safeString(event.agent_type) || safeString(event.agent_role) || "unknown";
 }
 
-function rolloutId(metaRecord) {
-  const payload = metaRecord && metaRecord.payload;
-  return payload && typeof payload.id === "string" ? payload.id : null;
+function model(event, knownRole) {
+  return safeString(event.model) || (knownRole ? "<assumed>" : "unknown");
 }
 
-function prioritizedFiles(files, deadline = Infinity) {
-  const modified = new Map();
-  for (let index = 0; index < files.length; index += 1) {
-    if (index % 12 === 0 && Date.now() > deadline) break;
-    const file = files[index];
-    try { modified.set(file, fs.statSync(file).mtimeMs); } catch { modified.set(file, 0); }
+function updateRun(event, root) {
+  const rootSessionId = safeString(event && (event.session_id || event.thread_id));
+  if (!rootSessionId) return;
+  const agentId = root ? rootSessionId : safeString(event.agent_id);
+  const transcriptPath = root ? safeString(event.transcript_path) : safeString(event.agent_transcript_path);
+  if (!agentId || !transcriptPath) return;
+  for (;;) {
+    const observed = readCache(rootSessionId);
+    if (!observed) return; // Old/malformed cache is unavailable; never rebuild it.
+    const prior = observed.runs[agentId];
+    const priorOffset = prior && validRun(prior) ? prior.offset : 0;
+    const snapshot = latestTokenSnapshot(path.resolve(transcriptPath), priorOffset);
+    if (!snapshot) return;
+    const fallbackRole = role(event, root);
+    const fallbackModel = model(event, fallbackRole !== "unknown");
+    const result = withCacheLock(rootSessionId, () => {
+      const cache = readCache(rootSessionId);
+      if (!cache) return "done";
+      const current = cache.runs[agentId];
+      if ((current && validRun(current) ? current.offset : 0) !== priorOffset) return "retry";
+      const run = current && validRun(current) ? current : { role: fallbackRole, model: fallbackModel, tokens: null };
+      cache.runs[agentId] = {
+        role: run.role,
+        provider: "Codex",
+        model: run.model,
+        offset: snapshot.offset,
+        // A reset/truncated transcript invalidates its earlier cumulative total.
+        tokens: snapshot.invalid ? null : (snapshot.tokens === null ? run.tokens : snapshot.tokens),
+      };
+      return writeCache(rootSessionId, cache) ? "done" : "failed";
+    });
+    if (result !== "retry") return;
   }
-  return [...modified.keys()].sort((left, right) => modified.get(right) - modified.get(left) || left.localeCompare(right));
 }
 
-function resolveTranscript(event, files, deadline = Infinity) {
-  if (typeof event.transcript_path === "string" && event.transcript_path) {
-    const transcript = path.resolve(event.transcript_path);
-    try { return fs.statSync(transcript).isFile() ? transcript : null; } catch { return null; }
+function recordSubagentMetadata(event) {
+  const rootSessionId = safeString(event && (event.session_id || event.thread_id));
+  const agentId = safeString(event && event.agent_id);
+  if (!rootSessionId || !agentId) return;
+  const runRole = role(event, false);
+  const run = { role: runRole, provider: "Codex", model: model(event, runRole !== "unknown"), offset: 0, tokens: null };
+  for (;;) {
+    const result = withCacheLock(rootSessionId, () => {
+      const cache = readCache(rootSessionId);
+      if (!cache || cache.runs[agentId]) return "done";
+      cache.runs[agentId] = run;
+      return writeCache(rootSessionId, cache) ? "done" : "failed";
+    });
+    if (result !== "retry") return;
   }
-  const id = event.session_id || event.thread_id;
-  if (typeof id !== "string" || !id) return null;
-  const candidates = prioritizedFiles(files, deadline);
-  for (let index = 0; index < candidates.length; index += 1) {
-    if (index % 16 === 0 && Date.now() > deadline) return null;
-    const file = candidates[index];
-    const metadata = meta(records(file, deadline));
-    if (rolloutId(metadata) === id) return file;
-  }
-  return null;
 }
 
-function parseRollout(file, deadline = Infinity) {
-  const items = records(file, deadline);
-  const metadata = meta(items);
-  const id = rolloutId(metadata);
-  if (!id) return null;
-  const session = metadata.payload || {};
-  const turns = new Map();
-  const models = new Map();
-  const warnings = new Set();
-  let activeTurn = null;
-  let previousCumulative = 0;
-  let total = null;
-
-  for (let index = 0; index < items.length; index += 1) {
-    if (index > 0 && index % 256 === 0 && Date.now() > deadline) return null;
-    const item = items[index];
-    const payload = item && item.payload && typeof item.payload === "object" ? item.payload : {};
-    if (item.type === "turn_context") {
-      const id = payload.turn_id || payload.id || item.turn_id;
-      if (typeof id === "string" && id) {
-        activeTurn = id;
-        turns.set(id, {
-          model: typeof payload.model === "string" && payload.model ? payload.model : "unknown",
-        });
-      } else {
-        activeTurn = null;
-        warnings.add("A turn has no ID; its model usage is unavailable.");
-      }
-    }
-    const cumulative = numeric(at(payload, ["info", "total_token_usage", "total_tokens"]));
-    const latest = numeric(at(payload, ["info", "last_token_usage", "total_tokens"]));
-    if (cumulative !== null) {
-      total = cumulative;
-      const delta = cumulative - previousCumulative;
-      const turnId = payload.turn_id || at(payload, ["info", "turn_id"]) || item.turn_id || activeTurn;
-      const turn = typeof turnId === "string" ? turns.get(turnId) : null;
-      if (delta > 0) {
-        if (turn) models.set(turn.model, (models.get(turn.model) || 0) + delta);
-        else warnings.add("A token event has no matching turn; model usage is unavailable.");
-        if (latest !== null && latest !== delta) {
-          warnings.add("Incremental usage disagrees with cumulative delta; cumulative delta used.");
-        }
-      } else if (delta < 0) {
-        models.clear();
-        if (latest === cumulative && turn) {
-          models.set(turn.model, cumulative);
-        } else if (latest === cumulative && !turn) {
-          warnings.add("A token event has no matching turn; model usage is unavailable.");
-        }
-        warnings.add("Cumulative token usage reset; pre-reset model attribution is unavailable.");
-        warnings.add("Partial report: pre-reset epoch is not represented by latest total.");
-      }
-      previousCumulative = cumulative;
-    } else if (latest !== null) {
-      warnings.add("A token event has no cumulative identity; model usage is unavailable.");
-    }
-  }
-
-  if (total !== null) {
-    const attributed = [...models.values()].reduce((sum, tokens) => sum + tokens, 0);
-    if (attributed < total) {
-      models.set("unknown", (models.get("unknown") || 0) + total - attributed);
-      warnings.add("Unmatched exact token remainder is attributed to unknown model.");
-    } else if (attributed > total) {
-      models.clear();
-      models.set("unknown", total);
-      warnings.add("Model token events exceed exact rollout total; model attribution is unavailable.");
-    }
-  }
-  return { id, parentId: session.parent_thread_id || null, role: session.agent_role || "unknown", total, models, warnings };
+function formatUsage(tokens) {
+  const whole = Math.floor(tokens / 1000).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const remainder = tokens % 1000;
+  return `${whole}${remainder ? `.${String(remainder).padStart(3, "0").replace(/0+$/, "")}` : ""} kToks`;
 }
 
-function currentReport(event, state, deadline = Infinity) {
-  const sessionsDir = process.env.DIRIGENT_STATS_CODEX_SESSIONS_DIR || path.join(process.env.HOME || "", ".codex", "sessions");
-  const sessionId = event.session_id || event.thread_id;
-  if (typeof sessionId !== "string" || !sessionId || Date.now() > deadline) return null;
-  const files = jsonlFiles(sessionsDir, [], deadline).sort();
-  const transcript = state && state.transcriptPath !== null ? state.transcriptPath : resolveTranscript(event, files, deadline);
-  const selected = transcript && parseRollout(transcript, deadline);
-  if (!selected || selected.id !== sessionId || Date.now() > deadline) return null;
-  const children = new Map();
-  const byId = new Map([[selected.id, selected]]);
-  if (selected.parentId) children.set(selected.parentId, [selected]);
-  for (let index = 0; index < files.length; index += 1) {
-    if (index % 16 === 0 && Date.now() > deadline) return null;
-    const file = files[index];
-    if (file === transcript) continue;
-    const rollout = parseRollout(file, deadline);
-    if (!rollout) continue;
-    const duplicate = byId.get(rollout.id);
-    if (duplicate) {
-      const identity = (value) => JSON.stringify({
-        parentId: value.parentId, role: value.role, total: value.total,
-        models: [...value.models.entries()].sort(([left], [right]) => left.localeCompare(right)),
-      });
-      if (identity(duplicate) !== identity(rollout)) {
-        selected.warnings.add("Duplicate rollout ID conflict detected; first rollout used.");
-      }
-      continue;
-    }
-    byId.set(rollout.id, rollout);
-    if (!rollout.parentId) continue;
-    const items = children.get(rollout.parentId) || [];
-    items.push(rollout);
-    children.set(rollout.parentId, items);
-  }
-  const rollouts = [selected];
-  const seen = new Set([selected.id]);
-  const pending = [selected.id];
-  while (pending.length) {
-    if (Date.now() > deadline) return null;
-    for (const child of (children.get(pending.shift()) || []).sort((a, b) => a.id.localeCompare(b.id))) {
-      if (seen.has(child.id)) continue;
-      seen.add(child.id);
-      rollouts.push(child);
-      pending.push(child.id);
-    }
-  }
-  return { reportText: report(selected, rollouts), transcriptPath: path.resolve(transcript) };
-}
-
-function report(root, rollouts) {
+function render(cache) {
+  const runs = Object.values(cache.runs).filter((run) => run.tokens !== null && run.tokens > 0);
+  const total = runs.reduce((sum, run) => sum + run.tokens, 0);
+  if (!total) return Object.fromEntries(VIEWS.map((view) => [view, NO_DATA]));
   const agents = new Map();
   const models = new Map();
-  const warnings = new Set();
-  let total = 0;
-  for (const rollout of rollouts) {
-    for (const warning of rollout.warnings) warnings.add(warning);
-    if (rollout.total === null) {
-      warnings.add("Partial report: usage unavailable for one or more rollouts; excluded from totals.");
-      continue;
-    }
-    total += rollout.total;
-    const role = rollout.id === root.id ? "orchestrator" : rollout.role;
-    const agent = agents.get(role) || { runs: 0, tokens: 0, models: new Set() };
-    agent.runs += 1;
-    agent.tokens += rollout.total;
-    for (const [model, tokens] of rollout.models) {
-      agent.models.add(model);
-      const row = models.get(model) || { runs: new Set(), tokens: 0 };
-      row.runs.add(rollout.id);
-      row.tokens += tokens;
-      models.set(model, row);
-    }
-    agents.set(role, agent);
+  for (const run of runs) {
+    const agent = agents.get(run.role) || { tokens: 0, runs: 0, models: new Set() };
+    agent.tokens += run.tokens; agent.runs += 1; agent.models.add(run.model); agents.set(run.role, agent);
+    const byModel = models.get(run.model) || { tokens: 0, runs: 0 };
+    byModel.tokens += run.tokens; byModel.runs += 1; models.set(run.model, byModel);
   }
-  const share = (tokens) => `${(total ? tokens * 100 / total : 0).toFixed(1)}%`;
-  const agentRows = [...agents.entries()].sort(([a], [b]) => (a === "orchestrator" ? -1 : b === "orchestrator" ? 1 : agents.get(b).tokens - agents.get(a).tokens || a.localeCompare(b)));
-  const modelRows = [...models.entries()].sort(([a], [b]) => models.get(b).tokens - models.get(a).tokens || a.localeCompare(b));
-  if (total === 0) return noDataReports();
-  const renderedAgents = agentRows.map(([role, row]) => `| ${role} | ${[...row.models].sort().join(", ")} | ${row.runs} | ${formatUsage(row.tokens)} | ${share(row.tokens)} |`);
-  const renderedModels = modelRows.map(([model, row]) => `| ${model} | ${row.runs.size} | ${formatUsage(row.tokens)} | ${share(row.tokens)} |`);
-  const render = (view) => {
-    const lines = [REPORT_HEADING, ""];
-    if (view !== "models") lines.push(AGENT_HEADER, AGENT_SEPARATOR, ...renderedAgents, "");
-    if (view !== "agents") lines.push(MODEL_HEADER, MODEL_SEPARATOR, ...renderedModels, "");
-    lines.push(`Exact known total: ${formatUsage(total)}.`);
-    if (warnings.size) lines.push("Warnings:", ...[...warnings].sort().map((warning) => `- ${warning}`));
-    return lines.join("\n");
-  };
-  return Object.fromEntries(VIEWS.map((view) => [view, render(view)]));
+  const share = (tokens) => `${(tokens * 100 / total).toFixed(1)}%`;
+  const agentRows = [...agents.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, item]) =>
+    `| ${name} | ${[...item.models].sort().join(", ")} | ${item.runs} | ${formatUsage(item.tokens)} | ${share(item.tokens)} |`);
+  const modelRows = [...models.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, item]) =>
+    `| ${name} | ${item.runs} | ${formatUsage(item.tokens)} | ${share(item.tokens)} |`);
+  const make = (view) => ["## Dirigent Stats", "",
+    ...(view === "models" ? [] : ["| Agent | Model | Runs | Usage | Share |", "| --- | --- | ---: | ---: | ---: |", ...agentRows, ""]),
+    ...(view === "agents" ? [] : ["| Model | Runs | Usage | Share |", "| --- | ---: | ---: | ---: |", ...modelRows, ""]),
+    `Exact known total: ${formatUsage(total)}.`].join("\n");
+  return Object.fromEntries(VIEWS.map((view) => [view, make(view)]));
+}
+
+function requestedView(text) {
+  const values = String(text).trim().split(/\s+/);
+  const index = values.indexOf("--view");
+  return index < 0 ? "both" : (values.filter((value) => value === "--view").length === 1 && VIEWS.includes(values[index + 1]) ? values[index + 1] : null);
 }
 
 async function main() {
   let event;
-  try { event = JSON.parse(await stdin()); } catch { return; }
-  const sessionId = event && (event.session_id || event.thread_id);
-  const stop = event && (event.hook_event_name === "Stop" || event.hookEventName === "Stop"
-    || (typeof event.turn_id === "string" && !(event.prompt || event.user_prompt || event.message)));
-  if (stop) {
-    if (typeof sessionId !== "string" || !sessionId) return;
-    const state = sessionState(sessionId);
-    const deadline = Date.now() + STOP_BUDGET_MS;
-    const fallback = noDataReports();
-    // Invalidate prior totals before unstable transcript parsing. Timeout/error
-    // then leaves a current deterministic snapshot for this completed turn.
-    writeState(sessionId, state, fallback, event.turn_id);
-    let result = null;
-    try { result = currentReport(event, state, deadline); } catch { /* Keep current no-data cache. */ }
-    if (result) writeState(sessionId, state, result.reportText, event.turn_id, result.transcriptPath);
-    return;
-  }
+  try { event = JSON.parse(await input()); } catch { return; }
+  const name = event && (event.hook_event_name || event.hookEventName);
+  if (name === "SubagentStart") return recordSubagentMetadata(event);
+  if (name === "SubagentStop") return updateRun(event, false);
+  if (name === "SessionEnd") return updateRun(event, true);
   const prompt = event && (event.prompt || event.user_prompt || event.message || "");
-  if (typeof prompt !== "string" || !INVOCATION.test(prompt)) return;
-  if (typeof sessionId !== "string" || !sessionId) return;
-  const state = sessionState(sessionId);
+  if (!INVOCATION.test(prompt)) return;
+  const sessionId = safeString(event && (event.session_id || event.thread_id));
   const view = requestedView(prompt);
-  if (!view) {
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: INVALID_VIEW } }));
-    return;
-  }
-  let reports = cachedReport(state, sessionId);
-  if (!reports) {
-    // Schema-1/corrupt caches recover once on demand; normal requests never parse.
-    let result = null;
-    try { result = currentReport(event, state, Date.now() + STOP_BUDGET_MS); } catch { /* Use deterministic no-data report. */ }
-    reports = result ? result.reportText : noDataReports();
-    writeState(sessionId, state, reports, event.turn_id, result && result.transcriptPath);
-  }
+  if (!view) return process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: INVALID_VIEW } }));
+  const cache = sessionId && readCache(sessionId);
+  const reports = cache ? render(cache) : Object.fromEntries(VIEWS.map((entry) => [entry, NO_DATA]));
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: reports[view] } }));
 }
 
