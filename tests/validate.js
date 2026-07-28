@@ -431,7 +431,7 @@ const githubIssueRuleFiles = [
   },
   {
     rel: "plugins/itixo-copilot/rules/agents.md",
-    model: /\bselect\s+`?claude-sonnet-4\.6`?[\s\S]{0,80}\b`?mid`?\b/i,
+    model: /\bselect\s+`?claude-sonnet-5`?[\s\S]{0,80}\b`?mid`?\b/i,
   },
 ];
 for (const { rel, model, codexToml } of githubIssueRuleFiles) {
@@ -707,9 +707,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo-claude", "0.6.0"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo-codex", "0.6.0"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo-copilot", "0.6.0"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo-claude", "0.6.1"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo-codex", "0.6.1"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo-copilot", "0.6.1"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);
