@@ -282,6 +282,33 @@ for (const { provider, files, checks } of providerParallelContracts) {
 }
 if (failures === 0) ok("parallel-worker contract synchronized across rules and dirigent skills");
 
+// --- 3bb. write-work commits use the builder contract everywhere ---
+const writeWorkContractFiles = [
+  "base/rules/agents.md",
+  "plugins/itixo-claude/rules/agents.md",
+  "plugins/itixo-codex/rules/agents.md",
+  "plugins/itixo-copilot/rules/agents.md",
+  "plugins/itixo-claude/skills/dirigent/SKILL.md",
+  "plugins/itixo-codex/skills/dirigent/SKILL.md",
+  "plugins/itixo-copilot/skills/dirigent/SKILL.md",
+];
+const writeWorkCommitChecks = [
+  ["cover every meaningful unit", /\bevery\s+meaningful\s+unit\s+of\s+write\s+work\b/i],
+  ["read targets before editing", /\bread\s+each\s+target\s+before\s+editing\b/i],
+  ["require the smallest authorized change", /\bsmallest\s+authorized\s+change\b/i],
+  ["inspect scoped dependencies and diff", /\binspect\s+scoped\s+dependencies\b[\s\S]{0,160}\binspect\s+the\s+diff\b/i],
+  ["run proportionate verification", /\brun\s+proportionate\s+verification\b/i],
+  ["commit before returning", /\bcommit\s+before\s+returning\b/i],
+  ["use caveman commit fallback", /\buse\s+`?caveman:caveman-commit`?\s*;\s*if\s+unavailable\s*,\s*use\s+a\s+terse\s+conventional\s+commit\s+message\b/i],
+];
+for (const rel of writeWorkContractFiles) {
+  const text = readFile(rel);
+  for (const [message, pattern] of writeWorkCommitChecks) {
+    if (!pattern.test(text)) fail(`${rel}: write-work commit contract must ${message}`);
+  }
+}
+if (failures === 0) ok("write-work commit contract synchronized across rules and dirigent skills");
+
 // --- 3c. GitHub issue classification safeguards stay synchronized ---
 const githubIssuesAgentRel = "base/agents/itixo-github-issues.md";
 const githubIssuesAgentPath = path.join(ROOT, githubIssuesAgentRel);
@@ -658,7 +685,35 @@ const claudePluginManifestRel = "plugins/itixo-claude/.claude-plugin/plugin.json
 const codexPluginManifestRel = "plugins/itixo-codex/.codex-plugin/plugin.json";
 const claudePluginManifest = readJson(claudePluginManifestRel);
 const codexPluginManifest = readJson(codexPluginManifestRel);
+const copilotPluginManifestRel = "plugins/itixo-copilot/plugin.json";
+const copilotPluginManifest = readJson(copilotPluginManifestRel);
 const sharedManifestFields = ["author", "homepage", "repository", "skills", "keywords"];
+
+// --- 7c. public marketplace labels and provider versions stay intentional ---
+const publicMarketplaceLabels = [
+  [".claude-plugin/marketplace.json", marketplace],
+  [".agents/plugins/marketplace.json", codexMarketplace],
+  [".github/plugin/marketplace.json", copilotMarketplace],
+];
+for (const [rel, manifest] of publicMarketplaceLabels) {
+  if (manifest?.name !== "itixo") fail(`${rel}: public marketplace name must be 'itixo'`);
+}
+if (codexMarketplace?.interface?.displayName !== "itixo") {
+  fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
+}
+for (const [rel, manifest, technicalName, version] of [
+  [claudePluginManifestRel, claudePluginManifest, "itixo-claude", "0.5.0"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo-codex", "0.5.0"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo-copilot", "0.3.0"],
+]) {
+  if (!manifest) continue;
+  if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);
+  if (manifest.version !== version) fail(`${rel}: version must be '${version}'`);
+}
+if (copilotPluginManifest && Object.hasOwn(copilotPluginManifest, "displayName")) {
+  fail(`${copilotPluginManifestRel}: must not invent a Copilot displayName field`);
+}
+if (failures === 0) ok("public labels, technical IDs, and provider versions valid");
 
 function isHttpsUrl(value) {
   try {
