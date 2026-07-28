@@ -10,6 +10,7 @@ const PROVIDERS = Object.freeze({
   claude: {
     directory: path.join(ROOT, "plugins", "itixo-claude", "agents"),
     models: Object.freeze({ cheap: "haiku", mid: "sonnet", security: "opus", orchestrator: "inherit" }),
+    efforts: Object.freeze({ security: "max" }),
   },
   codex: {
     directory: path.join(ROOT, "plugins", "itixo-codex", "templates", "agents"),
@@ -125,20 +126,25 @@ function tomlMultilineBasic(value) {
 
 function renderClaude(name, agent) {
   const model = PROVIDERS.claude.models[agent.tier];
+  const effort = PROVIDERS.claude.efforts[agent.tier];
   const tools = agent.capabilities.map((capability) => CLAUDE_TOOLS[capability]).join(", ");
-  return [
+  const output = [
     "---",
     `name: ${name}`,
     `description: ${yamlQuote(agent.description)}`,
     `tools: ${tools}`,
     `model: ${model}`,
+  ];
+  if (effort) output.push(`effort: ${effort}`);
+  output.push(
     "---",
     "",
     agent.body,
     "",
     generatedMarker(name),
     "",
-  ].join("\n");
+  );
+  return output.join("\n");
 }
 
 function renderCopilot(name, agent) {
