@@ -12,7 +12,7 @@
       "name": "itixo-copilot",
       "source": "./plugins/itixo-copilot",
       "description": "Itixo library for Copilot CLI users: agents, skills, rules, prompts. Orchestration module included (delegation to sonnet/haiku subagents)",
-      "version": "0.3.0",
+      "version": "0.6.0",
       "hooks": "hooks/hooks.json"
     }
   ]

@@ -80,6 +80,10 @@ Breaking changes:
 
 ## itixo-codex
 
+### 0.6.0 — Version alignment (2026-07-28)
+
+The Codex plugin release is aligned to version `0.6.0`.
+
 ### 0.5.0 — Public display name itixo (2026-07-28)
 
 The Codex plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-codex`.
@@ -163,6 +167,10 @@ Breaking changes:
 - `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
 
 ## itixo-copilot
+
+### 0.6.0 — Version alignment (2026-07-28)
+
+The Copilot plugin release is aligned to version `0.6.0`.
 
 ### 0.3.0 — Public display name itixo (2026-07-28)
 
