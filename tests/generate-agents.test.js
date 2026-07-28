@@ -29,6 +29,7 @@ const ROLE_NAMES = [
   "itixo-investigator",
   "itixo-planner",
   "itixo-reviewer",
+  "itixo-security-reviewer",
   "itixo-tester",
 ];
 
@@ -39,6 +40,7 @@ const CAPABILITIES_BY_ROLE = {
   "itixo-investigator": ["read", "grep", "glob", "bash"],
   "itixo-planner": ["read", "grep", "glob", "bash"],
   "itixo-reviewer": ["read", "grep", "bash"],
+  "itixo-security-reviewer": ["read", "grep", "bash", "github"],
   "itixo-tester": ["read", "edit", "write", "grep", "glob", "bash", "skill"],
 };
 
@@ -62,6 +64,12 @@ const ROLE_SENTINELS = {
     "Refuse implementation, edits, commands except the end-of-run cleanup below, and assumptions",
   ],
   "itixo-reviewer": ["Never edit files, execute tests, run mutating Git commands", "Refuse edits, test execution, mutating Git operations"],
+  "itixo-security-reviewer": [
+    "Never edit, fix, or delegate work.",
+    "Report only evidence-backed, actionable security findings. Suppress low-confidence concerns.",
+    "Redact secrets, tokens, credentials, and sensitive payloads from all output.",
+    "Never install dependencies, mutate files or repository state, run untrusted lifecycle commands, trigger external actions, expose secrets, edit or fix code, or delegate work.",
+  ],
   "itixo-tester": ["without changing production behavior", "Refuse production edits", "never change production code to make tests pass"],
 };
 
@@ -171,7 +179,7 @@ test("renders every canonical role into Claude agents, Codex TOML templates, and
   assert.deepEqual(agents.map(({ name }) => name), ROLE_NAMES);
 
   const outputs = expectedOutputs(agents, ROOT);
-  assert.equal(outputs.length, 21);
+  assert.equal(outputs.length, 24);
 
   for (const { provider, name, path: outputPath, content } of outputs) {
     assert.ok(fs.existsSync(outputPath), `${provider}/${name} output is missing`);
@@ -209,6 +217,13 @@ test("canonical roles keep structured, capability-scoped contracts", () => {
   const builder = agents.find(({ name }) => name === "itixo-builder").agent;
   assert.ok(builder.capabilities.includes("bash"));
   assert.doesNotMatch(builder.body, /\b(?:one|1)\s*(?:-|to)?\s*2\s*files?\b/i);
+
+  const securityReviewer = agents.find(({ name }) => name === "itixo-security-reviewer").agent;
+  assert.match(securityReviewer.body, /By default, review the current branch diff from its merge base, staged and unstaged changes, and relevant untracked files\./);
+  assert.match(securityReviewer.body, /severity \(`Critical`, `High`, `Medium`, or `Low`\), confidence \(`high` or `medium`\), location, evidence, exploit path or impact, and remediation\./);
+  assert.match(securityReviewer.body, /Submit each finding as an inline PR comment when it maps to a changed line; otherwise submit a general PR comment\./);
+  assert.match(securityReviewer.body, /Request changes for unresolved Critical or High findings when the review surface supports it; otherwise use a comment, including for self-review\./);
+  assert.match(securityReviewer.body, /Use a clean, neutral comment\./);
 });
 
 test("generated provider bodies retain canonical structured contracts", () => {
@@ -249,6 +264,11 @@ test("renders provider model, TOML schema, and tool metadata from each tier", ()
   const planner = readBaseAgents(ROOT).find(({ name }) => name === "itixo-planner");
   assert.equal(readFrontmatter(renderClaude("itixo-planner", planner.agent)).model, "inherit");
   assert.doesNotMatch(renderCodex("itixo-planner", planner.agent), /^model(?:_reasoning_effort)? =/m);
+
+  const securityReviewer = readBaseAgents(ROOT).find(({ name }) => name === "itixo-security-reviewer");
+  assert.equal(readFrontmatter(renderClaude("itixo-security-reviewer", securityReviewer.agent)).model, "opus");
+  assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model = "gpt-5\.6-sol"$/m);
+  assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model_reasoning_effort = "max"$/m);
 });
 
 test("renderCopilot produces correct frontmatter for each tier", () => {
@@ -266,6 +286,10 @@ test("renderCopilot produces correct frontmatter for each tier", () => {
       assert.doesNotMatch(copilot, /^model:/m);
     } else {
       assert.match(copilot, new RegExp(`^model: ${JSON.stringify(PROVIDERS.copilot.models[agent.tier])}$`, "m"));
+    }
+    if (agent.tier === "security") {
+      assert.match(copilot, /^model: "claude-opus-5"$/m);
+      assert.doesNotMatch(copilot, /^model_reasoning_effort:/m);
     }
     // generated marker present
     assert.ok(copilot.includes(`<!-- Generated from base/agents/${name}.md by scripts/generate-agents.js. Do not edit. -->`));
