@@ -69,6 +69,13 @@ const ROLE_SENTINELS = {
     "Report only evidence-backed, actionable security findings. Suppress low-confidence concerns.",
     "Redact secrets, tokens, credentials, and sensitive payloads from all output.",
     "Never install dependencies, mutate files or repository state, run untrusted lifecycle commands, trigger external actions, expose secrets, edit or fix code, or delegate work.",
+    "An open PR context is required for publishing.",
+    "Without an open PR context, return findings or a clean result only to orchestrator.",
+    "An open PR context is required for a review submission.",
+    "Without an open PR context, return the review disposition only to orchestrator.",
+    "May submit neutral review comments or request changes only in an authorized open PR context.",
+    "Never trigger workflows.",
+    "Authorized GitHub review submissions in an open PR context are the sole external write exception.",
   ],
   "itixo-tester": ["without changing production behavior", "Refuse production edits", "never change production code to make tests pass"],
 };
@@ -267,6 +274,7 @@ test("renders provider model, TOML schema, and tool metadata from each tier", ()
 
   const securityReviewer = readBaseAgents(ROOT).find(({ name }) => name === "itixo-security-reviewer");
   assert.equal(readFrontmatter(renderClaude("itixo-security-reviewer", securityReviewer.agent)).model, "opus");
+  assert.equal(readFrontmatter(renderClaude("itixo-security-reviewer", securityReviewer.agent)).effort, "max");
   assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model = "gpt-5\.6-sol"$/m);
   assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model_reasoning_effort = "max"$/m);
 });
@@ -289,6 +297,7 @@ test("renderCopilot produces correct frontmatter for each tier", () => {
     }
     if (agent.tier === "security") {
       assert.match(copilot, /^model: "claude-opus-5"$/m);
+      assert.doesNotMatch(copilot, /^effort:/m);
       assert.doesNotMatch(copilot, /^model_reasoning_effort:/m);
     }
     // generated marker present
