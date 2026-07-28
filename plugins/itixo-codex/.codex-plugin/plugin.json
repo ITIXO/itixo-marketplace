@@ -1,7 +1,7 @@
 {
   "name": "itixo-codex",
   "description": "Itixo library for Codex users: custom-agent TOML templates, safe installer, prompts and rules. Includes Dirigent orchestration with shared itixo-* agent IDs.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": {
     "name": "Itixo",
     "url": "https://github.com/ITIXO-Playground"
@@ -18,7 +18,7 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Itixo Codex",
+    "displayName": "itixo",
     "shortDescription": "Company workflow tools for Codex teams.",
     "longDescription": "Dirigent orchestration for delegating precise work to managed custom-agent templates, plus reusable skills, hooks, prompts, and company workflow rules.",
     "developerName": "Itixo",

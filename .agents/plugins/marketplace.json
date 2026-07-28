@@ -1,7 +1,7 @@
 {
-  "name": "itixo-marketplace",
+  "name": "itixo",
   "interface": {
-    "displayName": "Itixo Marketplace"
+    "displayName": "itixo"
   },
   "plugins": [
     {

@@ -722,8 +722,8 @@ if (claudePluginManifest && codexPluginManifest) {
     }
   }
 
-  if (claudePluginManifest.displayName !== "Itixo Claude") {
-    fail(`${claudePluginManifestRel}: displayName must be 'Itixo Claude'`);
+  if (claudePluginManifest.displayName !== "itixo") {
+    fail(`${claudePluginManifestRel}: displayName must be 'itixo'`);
   }
   if (Object.hasOwn(claudePluginManifest, "interface")) {
     fail(`${claudePluginManifestRel}: must not define Codex interface metadata`);
@@ -740,6 +740,9 @@ if (claudePluginManifest && codexPluginManifest) {
       if (typeof codexInterface[field] !== "string" || codexInterface[field].trim().length === 0) {
         fail(`${codexPluginManifestRel}: interface '${field}' must be a non-empty string`);
       }
+    }
+    if (codexInterface.displayName !== "itixo") {
+      fail(`${codexPluginManifestRel}: interface displayName must be 'itixo'`);
     }
     if (codexInterface.developerName !== "Itixo") fail(`${codexPluginManifestRel}: interface developerName must be 'Itixo'`);
     if (codexInterface.category !== "Developer Tools") fail(`${codexPluginManifestRel}: interface category must be 'Developer Tools'`);
