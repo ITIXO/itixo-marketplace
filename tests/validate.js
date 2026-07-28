@@ -189,7 +189,7 @@ const codexDirigent = dirigentContents.get("itixo-codex") || "";
 if (!codexDirigent.includes("installed custom TOML agent")) {
   fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must invoke installed custom TOML agents");
 }
-if (!codexDirigent.includes("itixo-codex:install-agents")) {
+if (!codexDirigent.includes("itixo:install-agents")) {
   fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must require installer when custom agent is unavailable");
 }
 if (codexDirigent.includes("load the matching role file")) {
@@ -594,7 +594,7 @@ if (fs.existsSync(codexAgentsPath)) {
   }
   for (const required of [
     "installed custom TOML agent",
-    "itixo-codex:install-agents",
+    "itixo:install-agents",
     "per-agent override",
     "substitute a generic agent",
   ]) {
