@@ -1,6 +1,6 @@
 # Itixo Marketplace
 
-Marketplace with plugins for Claude (Claude Code / Cowork) and Codex. `itixo-claude` and `itixo-codex` are company-wide libraries for Itixo people working with Claude or Codex. Orchestration (dirigent + agent roles) is the first module; more skills, agents, and rules accumulate over time.
+Marketplace with an `itixo` plugin for each provider: Claude (Claude Code / Cowork) and Codex. Provider-specific source directories remain `plugins/itixo-claude` and `plugins/itixo-codex`; the shared plugin ID is `itixo`. Orchestration (dirigent + agent roles) is the first module; more skills, agents, and rules accumulate over time.
 
 ## README is a product artifact
 
@@ -50,7 +50,7 @@ All three must pass.
 
 The eight `itixo-*` IDs are canonical and shared by Claude native agents and Codex custom agents. Without an explicit override, `itixo-planner` inherits the main task's model and effort and every other role uses its tier default. Version `0.2.0` is a breaking rename with no generic aliases.
 
-Keep this table in sync with `base/rules/agents.md` and `scripts/generate-agents.js` (PROVIDERS map). Codex templates are inactive until explicitly installed; `itixo-codex:install-agents` asks for personal vs project scope, then cheap model and cheap effort as separate choices. Personal installs target `~/.codex/agents/`; project installs target `<project-root>/.codex/agents/` with an explicit root. Luna + high is the recommended cheap-role default; choose Terra + low when Luna workers are unavailable, or override either choice with `--cheap-model luna|terra` and `--cheap-effort high|low`. Mid roles use Terra + medium. Repeatable `--agent-model id=sol|terra|luna` and `--agent-effort id=none|low|medium|high|xhigh|max` options can override any of the eight installed agents; a per-agent field wins over the corresponding tier flag. An explicit planner Sol override may exceed the caller model. The installer only replaces exact Itixo-managed TOML files, refuses unmanaged conflicts, is idempotent for unchanged files, and requires a new task or Codex restart for discovery.
+Keep this table in sync with `base/rules/agents.md` and `scripts/generate-agents.js` (PROVIDERS map). Codex templates are inactive until explicitly installed; the Codex plugin's `itixo:install-agents` command asks for personal vs project scope, then cheap model and cheap effort as separate choices. Personal installs target `~/.codex/agents/`; project installs target `<project-root>/.codex/agents/` with an explicit root. Luna + high is the recommended cheap-role default; choose Terra + low when Luna workers are unavailable, or override either choice with `--cheap-model luna|terra` and `--cheap-effort high|low`. Mid roles use Terra + medium. Repeatable `--agent-model id=sol|terra|luna` and `--agent-effort id=none|low|medium|high|xhigh|max` options can override any of the eight installed agents; a per-agent field wins over the corresponding tier flag. An explicit planner Sol override may exceed the caller model. The installer only replaces exact Itixo-managed TOML files, refuses unmanaged conflicts, is idempotent for unchanged files, and requires a new task or Codex restart for discovery.
 
 Claude keeps generated agent defaults unless the user explicitly requests a per-invocation override. A matching invocation may set `model` to `opus|sonnet|haiku|fable|inherit` and/or `effort` to `low|medium|high|xhigh|max`; omitted values keep generated defaults. An explicit Opus override may exceed the caller model. Provider or organization restrictions can still constrain either provider.
 
@@ -60,7 +60,7 @@ Security reviews are user-triggered in natural language, such as “Review my cu
 
 1. Create `plugins/<name>/.claude-plugin/plugin.json` (Claude) and/or `plugins/<name>/.codex-plugin/plugin.json` (Codex).
 2. Add skills/commands/agents as needed.
-3. Register Claude plugins in `.claude-plugin/marketplace.json` and Codex plugins in `.agents/plugins/marketplace.json`. `itixo-codex` is native-Codex-only and must not be listed in the Claude marketplace.
+3. Register Claude plugins in `.claude-plugin/marketplace.json` and Codex plugins in `.agents/plugins/marketplace.json`. The `itixo` Codex plugin is native-Codex-only and must not be listed in the Claude marketplace.
 4. If adding or changing agent roles, regenerate Claude agents and Codex TOML templates with `node scripts/generate-agents.js`.
 5. Run the verification commands above.
 
@@ -73,4 +73,4 @@ Security reviews are user-triggered in natural language, such as “Review my cu
 - Every plugin version change must also update root `changelog.md` under the exact `## <plugin-name>` section with an exact `### <semver>` release heading, newest first within that plugin. Each release needs a visible body, and CI matches the changed plugin only against its own section. Wiki synchronization occurs automatically after a pull request. New entries report only changes directly affecting plugin end users; omit repository or marketplace infrastructure, CI, build/release plumbing, generators, validation tooling, internal refactors, and any change without end-user impact.
 - Commit after every meaningful unit of work. Conventional Commits: subject ≤50 chars, imperative; body only when "why" is not obvious.
 - Changes go through pull requests; do not bypass branch or review rules.
-- Codex plugins cannot register custom agents directly. `itixo-codex` distributes generated TOML templates and an explicit installer; the installed TOMLs own the agent instructions, model, and effort.
+- Codex plugins cannot register custom agents directly. The `itixo` Codex plugin distributes generated TOML templates and an explicit installer; the installed TOMLs own the agent instructions, model, and effort.

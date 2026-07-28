@@ -26,7 +26,7 @@ scripts/
   generate-agents.js      # Generates Claude agents, Codex TOML templates, and Copilot agents from base/agents
 ```
 
-`itixo-claude`, `itixo-codex`, and `itixo-copilot` are company-wide libraries — anything useful for Itixo people working with Claude, Codex, or Copilot CLI belongs there. Orchestration below is the first module; more skills/agents/rules will accumulate over time.
+Each provider publishes an `itixo` plugin — Claude, Codex, and Copilot CLI — from its provider-specific source directory. Anything useful for Itixo people working with those providers belongs there. Orchestration below is the first module; more skills/agents/rules will accumulate over time.
 
 All three plugins include `dirigent`, which loads and enforces the plugin's `rules/agents.md` for multi-step orchestration.
 
@@ -80,7 +80,7 @@ Add this marketplace:
 Install a plugin:
 
 ```
-/plugin install itixo-claude@itixo
+/plugin install itixo@itixo
 ```
 
 ## Usage (Codex)
@@ -91,9 +91,9 @@ Codex (since March 2026) has native plugin/marketplace support:
 codex plugin marketplace add ITIXO-Playground/itixo-marketplace
 ```
 
-Then install `itixo-codex` via the `/plugins` browser. It is published only in the native `.agents/plugins/marketplace.json` marketplace; the Claude marketplace publishes only `itixo-claude`.
+Then install `itixo` (Codex plugin) via the `/plugins` browser. It is published only in the native `.agents/plugins/marketplace.json` marketplace; the Claude marketplace publishes only `itixo` (Claude plugin).
 
-Before using `dirigent`, invoke `itixo-codex:install-agents`. Personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. Without overrides, cheap roles use Luna + high, mid roles use Terra + medium, and the planner inherits. Terra + low remains the cheap-role fallback.
+Before using `dirigent`, invoke `itixo:install-agents`. Personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. Without overrides, cheap roles use Luna + high, mid roles use Terra + medium, and the planner inherits. Terra + low remains the cheap-role fallback.
 
 Any of the eight agents can instead receive an install-time override with repeatable `--agent-model id=sol|terra|luna` and `--agent-effort id=none|low|medium|high|xhigh|max` options. Model and effort are independent, and each per-agent field wins over the corresponding cheap-tier flag. An explicit planner Sol override can exceed the caller model.
 
@@ -110,7 +110,7 @@ copilot plugin marketplace add ITIXO-Playground/itixo-marketplace
 Install the plugin:
 
 ```
-copilot plugin install itixo-copilot@itixo
+copilot plugin install itixo@itixo
 ```
 
 Use the `dirigent` skill for multi-step orchestration. It loads and enforces `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer` (claude-opus-5, read-only security review), `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`.
