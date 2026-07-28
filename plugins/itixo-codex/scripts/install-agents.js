@@ -10,6 +10,7 @@ const TEMPLATE_DIRECTORY = path.join(PLUGIN_ROOT, "templates", "agents");
 const MANAGED_MARKER = "# Itixo-managed custom agent. Do not edit.\n";
 const NOFOLLOW_FLAG = typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
 const CHEAP_AGENT_IDS = new Set(["itixo-investigator", "itixo-docs-updater"]);
+const SECURITY_REVIEWER_AGENT_ID = "itixo-security-reviewer";
 const CHEAP_MODELS = new Set(["luna", "terra"]);
 const CHEAP_EFFORTS = new Set(["high", "low"]);
 const AGENT_MODEL_ALIASES = Object.freeze({
@@ -26,6 +27,7 @@ const AGENT_IDS = [
   "itixo-investigator",
   "itixo-planner",
   "itixo-reviewer",
+  SECURITY_REVIEWER_AGENT_ID,
   "itixo-tester",
 ];
 
@@ -238,8 +240,12 @@ function validateTemplate(agentId, templatePath, content) {
     return;
   }
 
-  const expectedModel = CHEAP_AGENT_IDS.has(agentId) ? "gpt-5.6-luna" : "gpt-5.6-terra";
-  const expectedEffort = CHEAP_AGENT_IDS.has(agentId) ? "high" : "medium";
+  const expectedModel = CHEAP_AGENT_IDS.has(agentId)
+    ? "gpt-5.6-luna"
+    : agentId === SECURITY_REVIEWER_AGENT_ID ? "gpt-5.6-sol" : "gpt-5.6-terra";
+  const expectedEffort = CHEAP_AGENT_IDS.has(agentId)
+    ? "high"
+    : agentId === SECURITY_REVIEWER_AGENT_ID ? "max" : "medium";
   if (modelLines.length !== 1 || modelLines[0] !== `model = "${expectedModel}"`) {
     fail(`Template '${templatePath}' has unexpected model.`);
   }
