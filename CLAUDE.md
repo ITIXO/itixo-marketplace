@@ -2,6 +2,10 @@
 
 Marketplace with plugins for Claude (Claude Code / Cowork) and Codex. `itixo-claude` and `itixo-codex` are company-wide libraries for Itixo people working with Claude or Codex. Orchestration (dirigent + agent roles) is the first module; more skills, agents, and rules accumulate over time.
 
+## README is a product artifact
+
+README = product front door. Non-technical people read it to decide if caveman worth install. Treat like UI copy.
+
 ## Structure
 
 ```

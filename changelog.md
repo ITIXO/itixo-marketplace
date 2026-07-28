@@ -1,5 +1,9 @@
 ## itixo-claude
 
+### 0.5.0 — Public display name itixo (2026-07-28)
+
+The Claude plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-claude`.
+
 ### 0.4.0 — Remove Dirigent statistics (2026-07-27)
 
 Claude removed `/dirigent-stats`.
@@ -71,6 +75,10 @@ Breaking changes:
 - `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
 
 ## itixo-codex
+
+### 0.5.0 — Public display name itixo (2026-07-28)
+
+The Codex plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-codex`.
 
 ### 0.4.0 — Remove Dirigent statistics (2026-07-27)
 
@@ -151,6 +159,10 @@ Breaking changes:
 - `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
 
 ## itixo-copilot
+
+### 0.3.0 — Public display name itixo (2026-07-28)
+
+The Copilot plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-copilot`.
 
 ### 0.2.0 — Full Dirigent orchestration parity (2026-07-27)
 

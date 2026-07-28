@@ -1,6 +1,0 @@
-interface:
-  display_name: "Dirigent Stats"
-  short_description: "Show usage by agent, model, or both"
-  default_prompt: "Use $dirigent-stats --view both to show exact task token usage by agent and model."
-policy:
-  allow_implicit_invocation: false
