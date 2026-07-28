@@ -15,8 +15,15 @@ Use only these canonical custom-agent IDs:
 - `itixo-github-issues` — assess issue shape; create one issue or Feature with linked executable sub-issues.
 - `itixo-tester` — write or run tests for specified behavior.
 - `itixo-reviewer` — produce severity-tagged diff review.
+- `itixo-security-reviewer` — perform read-only, evidence-backed security review.
 - `itixo-investigator` — locate code and map structure.
 - `itixo-docs-updater` — sync docs after changes.
+
+### Security reviews
+
+Route a natural-language request such as “Review my current changes for security issues” to `itixo-security-reviewer` (gpt-5.6-sol + max). Unless the user explicitly requests broader scope, its review covers the current-branch diff from the merge base, staged and unstaged changes, and relevant untracked files. The agent is read-only and reports only evidence-backed findings.
+
+For pull requests, publish findings inline when they map to changed lines, or as a general comment otherwise. Request changes for unresolved Critical or High findings when supported; otherwise post a `COMMENT` identified as self-review. Post a neutral comment when no findings remain. The orchestrator may automatically remediate only a localized fix that preserves behavior outside the vulnerability and needs no dependency/version update, migration, public API change, auth-policy decision, secret rotation, or architecture change: publish finding, delegate builder fix, have tester validate, then reply and resolve. Keep other findings unresolved for user decision.
 
 For `itixo-github-issues`, include target repository and owner context, constraints, expected output, and known IssueType/project conventions; it owns IssueType-versus-personal-repository fallback-label assessment and must return classification, readback, and parent-child-depth evidence.
 

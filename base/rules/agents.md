@@ -20,6 +20,7 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 | orchestrator | thinking, decomposition, integration | user-selected (inherit) | user-selected |
 | mid | implementation, tests, review | sonnet | gpt-5.6-terra |
 | cheap | lookups, docs, mechanical reads | haiku | gpt-5.6-luna + high (Terra + low fallback) |
+| security | security review | opus + max | gpt-5.6-sol + max |
 
 ## Agent → tier mapping
 
@@ -32,6 +33,7 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 | itixo-reviewer | mid | review diff, severity-tagged findings |
 | itixo-investigator | cheap | locate code, map structure, answer "where/what" |
 | itixo-docs-updater | cheap | sync docs with code changes |
+| itixo-security-reviewer | security | read-only security review, severity-tagged findings |
 
 ## Provider dispatch
 
@@ -39,6 +41,13 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 - Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md`; the installed TOML owns instructions, model, and effort. Explicit user-requested per-agent overrides are installed with `itixo-codex:install-agents` and then owned by the matching TOML. Do not pass an additional invocation override. Explicit planner Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
 - If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is Luna + high; Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
+
+## Security-review routing and lifecycle
+
+- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`.
+- Claude security-review default is Opus + max. Codex security-review default is gpt-5.6-sol + max. Copilot security-review default is `claude-opus-5` with no effort field. Do not infer or broaden overrides.
+- `itixo-security-reviewer` is read-only. On a pull request, publish each finding inline where possible; otherwise use a general PR comment. For unresolved Critical or High findings, submit `REQUEST_CHANGES` when provider supports it; otherwise submit `COMMENT` and identify review as self-review. Post a neutral clean-review comment when no findings remain.
+- Automatic remediation is owned by orchestrator and allowed only for a localized fix that preserves behavior outside vulnerability and needs no dependency or version update, migration, public API change, auth-policy decision, secret rotation, or architecture change. Orchestrator publishes finding, delegates fix to `itixo-builder`, has `itixo-tester` validate it, then replies and resolves finding. Keep every non-simple finding unresolved for user decision.
 
 ## Delegation rules
 

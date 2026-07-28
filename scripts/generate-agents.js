@@ -9,18 +9,19 @@ const BASE_DIR = path.join(ROOT, "base", "agents");
 const PROVIDERS = Object.freeze({
   claude: {
     directory: path.join(ROOT, "plugins", "itixo-claude", "agents"),
-    models: Object.freeze({ cheap: "haiku", mid: "sonnet", orchestrator: "inherit" }),
+    models: Object.freeze({ cheap: "haiku", mid: "sonnet", security: "opus", orchestrator: "inherit" }),
+    efforts: Object.freeze({ security: "max" }),
   },
   codex: {
     directory: path.join(ROOT, "plugins", "itixo-codex", "templates", "agents"),
     obsoleteDirectory: path.join(ROOT, "plugins", "itixo-codex", "agents"),
-    models: Object.freeze({ cheap: "gpt-5.6-luna", mid: "gpt-5.6-terra" }),
-    efforts: Object.freeze({ cheap: "high", mid: "medium" }),
+    models: Object.freeze({ cheap: "gpt-5.6-luna", mid: "gpt-5.6-terra", security: "gpt-5.6-sol" }),
+    efforts: Object.freeze({ cheap: "high", mid: "medium", security: "max" }),
   },
   copilot: {
     directory: path.join(ROOT, "plugins", "itixo-copilot", "agents"),
     // orchestrator tier omits model field (inherits); cheap and mid use full Copilot CLI model IDs
-    models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-4.6" }),
+    models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }),
     fileExtension: ".agent.md",
   },
 });
@@ -125,20 +126,25 @@ function tomlMultilineBasic(value) {
 
 function renderClaude(name, agent) {
   const model = PROVIDERS.claude.models[agent.tier];
+  const effort = PROVIDERS.claude.efforts[agent.tier];
   const tools = agent.capabilities.map((capability) => CLAUDE_TOOLS[capability]).join(", ");
-  return [
+  const output = [
     "---",
     `name: ${name}`,
     `description: ${yamlQuote(agent.description)}`,
     `tools: ${tools}`,
     `model: ${model}`,
+  ];
+  if (effort) output.push(`effort: ${effort}`);
+  output.push(
     "---",
     "",
     agent.body,
     "",
     generatedMarker(name),
     "",
-  ].join("\n");
+  );
+  return output.join("\n");
 }
 
 function renderCopilot(name, agent) {

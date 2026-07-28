@@ -9,12 +9,14 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 | Tier | Model | Agents |
 |------|-------|--------|
 | orchestrator | inherit (user-selected) | itixo-planner |
-| mid | claude-sonnet-4.6 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| mid | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
 | cheap | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
+| security | claude-opus-5 | itixo-security-reviewer |
 
 ## Rules
 
 - Copilot CLI invokes the native Copilot plugin agent using its canonical `itixo-*` ID and the definition's prescribed tier.
+- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is `claude-opus-5` with no effort field; do not infer or broaden an override.
 - itixo-investigator (haiku) locates first; itixo-builder (sonnet) gets exact file:line targets.
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.
@@ -23,10 +25,15 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 - Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
 - Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.
 
+## Security-review lifecycle
+
+- `itixo-security-reviewer` is read-only. On a pull request, publish each finding inline where possible; otherwise use a general PR comment. For unresolved Critical or High findings, submit `REQUEST_CHANGES` when supported; otherwise submit `COMMENT` and identify review as self-review. Post a neutral clean-review comment when no findings remain.
+- Automatic remediation is owned by orchestrator and allowed only for a localized fix that preserves behavior outside vulnerability and needs no dependency or version update, migration, public API change, auth-policy decision, secret rotation, or architecture change. Orchestrator publishes finding, delegates fix to `itixo-builder`, has `itixo-tester` validate it, then replies and resolves finding. Keep every non-simple finding unresolved for user decision.
+
 ## GitHub issue delegation (mandatory)
 
 - Delegate all GitHub issue assessment, structuring, and creation work to exactly one `itixo-github-issues` agent. Do not split checks and creation between agents.
-- Before delegating, load the matching `agents/itixo-github-issues.agent.md` role instructions. Select `claude-sonnet-4.6`, the `mid` model in the table above.
+- Before delegating, load the matching `agents/itixo-github-issues.agent.md` role instructions. Select `claude-sonnet-5`, the `mid` model in the table above.
 - Prompt that agent with requested outcome, target repository and owner context, constraints, expected output, and known IssueType or project conventions. Require it to determine whether native GitHub IssueTypes are available; the fallback below applies only when they are unavailable in a personal repository.
 - The `itixo-github-issues` agent owns duplicate, native-IssueType availability, fallback-label, linked-sub-issue/depth, and repository-convention checks, then reports or creates the issue result.
 - With native IssueTypes, it classifies the root as `Feature` when appropriate, direct children as `Task` by default, and a direct child as `Feature` only when that large child is split into executable children. It allows at most two parent-child edges: `Feature -> Feature -> Task`.

@@ -37,12 +37,19 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 | Tier | Claude | Codex | Copilot CLI | Agents |
 |------|--------|-------|-------------|--------|
 | orchestrator | inherit | user-selected | inherit | itixo-planner |
-| mid | sonnet | Terra + medium | claude-sonnet-4.6 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku | Luna + low (or Terra + low fallback) | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
+| mid | sonnet | Terra + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | haiku | Luna + high (or Terra + low fallback) | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
+| security | opus + max | gpt-5.6-sol + max | claude-opus-5 | itixo-security-reviewer |
 
-The canonical IDs above are shared by all three platforms. `itixo-planner` inherits the main task's model and effort. The `0.2.0` release renamed the former generic IDs; no aliases are provided.
+The eight canonical IDs above are shared by all three platforms. `itixo-planner` inherits the main task's model and effort. The `0.2.0` release renamed the former generic IDs; no aliases are provided.
 
 Claude supports an optional model (`opus|sonnet|haiku|fable|inherit`) and effort (`low|medium|high|xhigh|max`) override for one matching agent invocation. Omitted values keep generated defaults. An explicit Opus override can exceed the caller model.
+
+### Security reviews
+
+Ask in natural language, for example, “Review my current changes for security issues.” The canonical `itixo-security-reviewer` is user-triggered and read-only. Unless a broader scope is explicitly requested, it reviews the current-branch diff from its merge base, staged and unstaged changes, and relevant untracked files. It reports only evidence-backed findings and redacts secrets.
+
+On a pull request, findings are posted inline when they map to changed lines, or as a general comment otherwise. Unresolved Critical or High findings request changes when the provider supports it; otherwise the agent posts a `COMMENT` identified as self-review. A clean review gets a neutral comment. The orchestrator may auto-fix only a localized behavior-preserving issue with no dependency or version update, migration, public API change, auth-policy decision, secret rotation, or architecture change; it delegates the fix and validation, then replies and resolves the finding. Other findings remain for user decision.
 
 ## Developing agent roles
 
@@ -88,7 +95,7 @@ Then install `itixo-codex` via the `/plugins` browser. It is published only in t
 
 Before using `dirigent`, invoke `itixo-codex:install-agents`. Personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. Without overrides, cheap roles use Luna + high, mid roles use Terra + medium, and the planner inherits. Terra + low remains the cheap-role fallback.
 
-Any of the seven agents can instead receive an install-time override with repeatable `--agent-model id=sol|terra|luna` and `--agent-effort id=none|low|medium|high|xhigh|max` options. Model and effort are independent, and each per-agent field wins over the corresponding cheap-tier flag. An explicit planner Sol override can exceed the caller model.
+Any of the eight agents can instead receive an install-time override with repeatable `--agent-model id=sol|terra|luna` and `--agent-effort id=none|low|medium|high|xhigh|max` options. Model and effort are independent, and each per-agent field wins over the corresponding cheap-tier flag. An explicit planner Sol override can exceed the caller model.
 
 The installer creates or replaces only TOML files with its exact Itixo-managed marker, refuses unmanaged conflicts, and skips unchanged managed files on reinstall. Its sorted summary adds `agent-models=` and `agent-efforts=` only when those overrides were supplied. Start a new task or restart Codex after installation so custom agents are discovered. Provider or organization restrictions may constrain available overrides.
 
@@ -106,7 +113,7 @@ Install the plugin:
 copilot plugin install itixo-copilot@itixo
 ```
 
-Use the `dirigent` skill for multi-step orchestration. It loads and enforces `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`.
+Use the `dirigent` skill for multi-step orchestration. It loads and enforces `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer` (claude-opus-5, read-only security review), `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`.
 
 ## Adding a new plugin
 

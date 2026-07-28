@@ -1,7 +1,7 @@
 ---
 description: "Assesses request shape and creates GitHub issues."
 tools: ["read", "search", "execute", "github/*"]
-model: "claude-sonnet-4.6"
+model: "claude-sonnet-5"
 ---
 
 ## Role

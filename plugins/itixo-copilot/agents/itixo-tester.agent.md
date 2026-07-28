@@ -1,7 +1,7 @@
 ---
 description: "Writes or runs tests for specified behavior."
 tools: ["read", "edit", "search", "execute"]
-model: "claude-sonnet-4.6"
+model: "claude-sonnet-5"
 ---
 
 ## Role

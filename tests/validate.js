@@ -40,15 +40,17 @@ const TIERS = {
   "itixo-github-issues": "mid",
   "itixo-tester": "mid",
   "itixo-reviewer": "mid",
+  "itixo-security-reviewer": "security",
   "itixo-docs-updater": "cheap",
 };
-const CLAUDE_MODEL = { cheap: "haiku", mid: "sonnet", orchestrator: "inherit" };
+const CLAUDE_MODEL = { cheap: "haiku", mid: "sonnet", security: "opus", orchestrator: "inherit" };
 const CODEX_MODEL = {
   cheap: "gpt-5.6-luna",
   mid: "gpt-5.6-terra",
+  security: "gpt-5.6-sol",
   orchestrator: "user-selected",
 };
-const COPILOT_MODEL = { cheap: "claude-haiku-4.5", mid: "claude-sonnet-4.6" }; // orchestrator inherits (no model field)
+const COPILOT_MODEL = { cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }; // orchestrator inherits (no model field)
 const ORCHESTRATION_PLUGINS = ["itixo-claude", "itixo-codex", "itixo-copilot"];
 
 // --- 1. Claude marketplace registrations have valid Claude manifests ---
@@ -429,7 +431,7 @@ const githubIssueRuleFiles = [
   },
   {
     rel: "plugins/itixo-copilot/rules/agents.md",
-    model: /\bselect\s+`?claude-sonnet-4\.6`?[\s\S]{0,80}\b`?mid`?\b/i,
+    model: /\bselect\s+`?claude-sonnet-5`?[\s\S]{0,80}\b`?mid`?\b/i,
   },
 ];
 for (const { rel, model, codexToml } of githubIssueRuleFiles) {
@@ -507,13 +509,16 @@ for (const agent of Object.keys(TIERS)) {
     fail(`${rel}: missing frontmatter`);
     continue;
   }
-  // model field uses quoted value: model: "claude-sonnet-4.6"
+  // model field uses quoted value: model: "claude-sonnet-5"
   const model = (fm[1].match(/^model:\s*"?([^"\n]+)"?/m) || [])[1];
   if (TIERS[agent] === "orchestrator") {
     if (model) fail(`${rel}: orchestrator must not set model (inherits default)`);
   } else {
     const expected = COPILOT_MODEL[TIERS[agent]];
     if (model !== expected) fail(`${rel}: model '${model}', expected '${expected}' (tier ${TIERS[agent]})`);
+    if (TIERS[agent] === "security" && /^model_reasoning_effort:/m.test(fm[1])) {
+      fail(`${rel}: security reviewer must not set a Copilot effort field`);
+    }
   }
   for (const field of ["description", "tools"]) {
     if (!new RegExp(`^${field}:`, "m").test(fm[1])) fail(`${rel}: frontmatter missing '${field}'`);
@@ -542,7 +547,7 @@ for (const agent of Object.keys(TIERS)) {
     if (model || effort) fail(`${rel}: planner must inherit model and effort`);
   } else {
     const expected = CODEX_MODEL[TIERS[agent]];
-    const expectedEffort = TIERS[agent] === "cheap" ? "high" : "medium";
+    const expectedEffort = TIERS[agent] === "cheap" ? "high" : TIERS[agent] === "security" ? "max" : "medium";
     if (model !== expected) fail(`${rel}: model '${model}', expected '${expected}'`);
     if (effort !== expectedEffort) fail(`${rel}: effort '${effort}', expected '${expectedEffort}'`);
   }
@@ -702,9 +707,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo-claude", "0.6.0"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo-codex", "0.6.0"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo-copilot", "0.6.0"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo-claude", "0.6.1"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo-codex", "0.6.1"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo-copilot", "0.6.1"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

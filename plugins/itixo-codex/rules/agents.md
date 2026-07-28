@@ -11,12 +11,14 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 | orchestrator | user-selected | itixo-planner |
 | mid | gpt-5.6-terra | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
 | cheap | gpt-5.6-luna + high (default); gpt-5.6-terra + low (fallback) | itixo-investigator, itixo-docs-updater |
+| security | gpt-5.6-sol + max | itixo-security-reviewer |
 
 ## Rules
 
 - Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md`; the TOML owns instructions, model, and effort. Explicit user-requested per-agent overrides must be installed with `itixo-codex:install-agents` and are then owned by the matching TOML; do not pass an additional invocation override. Explicit planner Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
 - If a required custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is Luna + high; Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
+- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is gpt-5.6-sol + max; never infer or broaden an override.
 - `itixo-investigator` locates first using its installed configured model, which defaults to the cheap tier absent a matching explicit user override; `itixo-builder` gets exact file:line targets using its installed configured model, which defaults to the mid tier under the same constraint.
 - Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested override supported by Codex.
 - Subagents never expand scope; scope change returns to orchestrator.
@@ -28,6 +30,11 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 - Three direct workers plus root require `agents.max_threads >= 4`; recommend `agents.max_depth = 1` for root-owned fanout. A skill cannot raise a runtime cap.
 - Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
 - Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.
+
+## Security-review lifecycle
+
+- `itixo-security-reviewer` is read-only. On a pull request, publish each finding inline where possible; otherwise use a general PR comment. For unresolved Critical or High findings, submit `REQUEST_CHANGES` when supported; otherwise submit `COMMENT` and identify review as self-review. Post a neutral clean-review comment when no findings remain.
+- Automatic remediation is owned by orchestrator and allowed only for a localized fix that preserves behavior outside vulnerability and needs no dependency or version update, migration, public API change, auth-policy decision, secret rotation, or architecture change. Orchestrator publishes finding, delegates fix to `itixo-builder`, has `itixo-tester` validate it, then replies and resolves finding. Keep every non-simple finding unresolved for user decision.
 
 ## GitHub issue delegation (mandatory)
 
