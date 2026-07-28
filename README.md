@@ -38,7 +38,7 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 |------|--------|-------|-------------|--------|
 | orchestrator | inherit | user-selected | inherit | itixo-planner |
 | mid | sonnet | Terra + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku | Luna + low (or Terra + low fallback) | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
+| cheap | haiku | Luna + high (or Terra + low fallback) | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
 | security | opus + max | gpt-5.6-sol + max | claude-opus-5 | itixo-security-reviewer |
 
 The eight canonical IDs above are shared by all three platforms. `itixo-planner` inherits the main task's model and effort. The `0.2.0` release renamed the former generic IDs; no aliases are provided.
