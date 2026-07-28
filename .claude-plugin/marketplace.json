@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "itixo-claude",
+      "name": "itixo",
       "source": "./plugins/itixo-claude",
       "description": "Itixo library for Claude users: agents, skills, rules, prompts. Orchestration module included (delegation to sonnet/haiku subagents)",
       "category": "Developer Tools"
