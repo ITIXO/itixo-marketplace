@@ -1,5 +1,9 @@
 ## itixo-claude
 
+### 0.6.0 — Remove design-baseline-handover (2026-07-28)
+
+Claude no longer provides the `design-baseline-handover` skill or its design-baseline templates.
+
 ### 0.5.0 — Public display name itixo (2026-07-28)
 
 The Claude plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-claude`.
