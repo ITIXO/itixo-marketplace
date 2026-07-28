@@ -1,6 +1,6 @@
-# Itixo Marketplace
+# itixo
 
-Marketplace with plugins for Claude (Claude Code / Cowork), Codex, and Copilot CLI.
+`itixo` provides plugins for Claude (Claude Code / Cowork), Codex, and Copilot CLI.
 
 ## Changelog
 
@@ -19,9 +19,9 @@ base/                     # Shared source of truth for all orchestration plugins
   rules/agents.md         # Delegation rules + model tier table
   agents/                 # Canonical platform-neutral agent role definitions
 plugins/
-  itixo-claude/           # Itixo library for Claude users (generated agents, skills, rules, prompts)
-  itixo-codex/            # Itixo library for Codex users (custom-agent templates, installer, skills, prompts, rules)
-  itixo-copilot/          # Itixo library for Copilot CLI users (generated agents, skills, rules)
+  itixo-claude/           # itixo library for Claude users (generated agents, skills, rules, prompts)
+  itixo-codex/            # itixo library for Codex users (custom-agent templates, installer, skills, prompts, rules)
+  itixo-copilot/          # itixo library for Copilot CLI users (generated agents, skills, rules)
 scripts/
   generate-agents.js      # Generates Claude agents, Codex TOML templates, and Copilot agents from base/agents
 ```
@@ -73,7 +73,7 @@ Add this marketplace:
 Install a plugin:
 
 ```
-/plugin install example-plugin@itixo-marketplace
+/plugin install itixo-claude@itixo
 ```
 
 ## Usage (Codex)
@@ -103,7 +103,7 @@ copilot plugin marketplace add ITIXO-Playground/itixo-marketplace
 Install the plugin:
 
 ```
-copilot plugin install itixo-copilot@itixo-marketplace
+copilot plugin install itixo-copilot@itixo
 ```
 
 Use the `dirigent` skill for multi-step orchestration. It loads and enforces `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`.
