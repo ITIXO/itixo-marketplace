@@ -10,9 +10,9 @@ Ask user before installation. Do not assume any choice:
 1. Scope: personal (`~/.codex/agents/`) or project (`<project-root>/.codex/agents/`).
 2. Cheap model: Luna (recommended) or Terra fallback.
 3. Cheap effort: high (recommended with Luna) or low (recommended with Terra). Keep this as a separate choice so the user can override the recommendation.
-4. Optional per-agent overrides for any of `itixo-planner`, `itixo-builder`, `itixo-github-issues`, `itixo-tester`, `itixo-reviewer`, `itixo-investigator`, and `itixo-docs-updater`. Ask for model and effort separately. Do not invent values for agents the user did not name.
+4. Optional per-agent overrides for any of `itixo-planner`, `itixo-builder`, `itixo-github-issues`, `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer`, `itixo-investigator`, and `itixo-docs-updater`. Ask for model and effort separately. Do not invent values for agents the user did not name.
 
-The model and effort flags are independent. All four combinations are supported, including Luna + low and Terra + high.
+The model and effort flags are independent. All four combinations are supported, including Luna + low and Terra + high. Without an override, `itixo-security-reviewer` uses `gpt-5.6-sol` with `max` reasoning effort.
 
 Repeat `--agent-model id=sol|terra|luna` and `--agent-effort id=none|low|medium|high|xhigh|max` for each requested agent. A per-agent model or effort wins over the corresponding cheap-tier flag. Without per-agent overrides, cheap roles remain Luna + high, mid roles remain Terra + medium, and the planner inherits. An explicit planner Sol override may exceed the caller model, subject to provider or organization restrictions.
 

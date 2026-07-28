@@ -1,5 +1,9 @@
 ## itixo-claude
 
+### 0.6.1 — Security review agent (2026-07-28)
+
+Claude adds the user-triggered, read-only `itixo-security-reviewer` with an `opus` + max default. It reviews the current-branch diff, staged and unstaged changes, and relevant untracked files unless broader scope is explicitly requested; pull-request findings are inline where possible or general otherwise, with `REQUEST_CHANGES` for unresolved Critical or High findings when supported, self-review `COMMENT` fallback, and a neutral clean-review comment.
+
 ### 0.6.0 — Remove design-baseline-handover (2026-07-28)
 
 Claude no longer provides the `design-baseline-handover` skill or its design-baseline templates.
@@ -79,6 +83,10 @@ Breaking changes:
 - `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
 
 ## itixo-codex
+
+### 0.6.1 — Security review agent (2026-07-28)
+
+Codex adds the user-triggered, read-only `itixo-security-reviewer` with a `gpt-5.6-sol` + max default. It reviews the current-branch diff, staged and unstaged changes, and relevant untracked files unless broader scope is explicitly requested; pull-request findings are inline where possible or general otherwise, with `REQUEST_CHANGES` for unresolved Critical or High findings when supported, self-review `COMMENT` fallback, and a neutral clean-review comment.
 
 ### 0.6.0 — Version alignment (2026-07-28)
 
@@ -167,6 +175,10 @@ Breaking changes:
 - `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
 
 ## itixo-copilot
+
+### 0.6.1 — Security review agent and model tiers (2026-07-28)
+
+Copilot adds the user-triggered, read-only `itixo-security-reviewer` with a `claude-opus-5` default and no effort field, and updates mid-tier agents to `claude-sonnet-5`. Reviews default to the current-branch diff, staged and unstaged changes, and relevant untracked files unless broader scope is explicit; pull-request findings are inline where possible or general otherwise, with `REQUEST_CHANGES` for unresolved Critical or High findings when supported, self-review `COMMENT` fallback, and a neutral clean-review comment.
 
 ### 0.6.0 — Version alignment (2026-07-28)
 
