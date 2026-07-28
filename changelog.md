@@ -1,5 +1,9 @@
 ## itixo-claude
 
+### 0.7.0 — Rename technical plugin ID to itixo (2026-07-28)
+
+**Breaking:** The Claude plugin's technical ID is now `itixo` (formerly `itixo-claude`). Its provider folder remains `plugins/itixo-claude`; update references that use the plugin ID.
+
 ### 0.6.1 — Security review agent (2026-07-28)
 
 Claude adds the user-triggered, read-only `itixo-security-reviewer` with an `opus` + max default. It reviews the current-branch diff, staged and unstaged changes, and relevant untracked files unless broader scope is explicitly requested; pull-request findings are inline where possible or general otherwise, with `REQUEST_CHANGES` for unresolved Critical or High findings when supported, self-review `COMMENT` fallback, and a neutral clean-review comment.
@@ -83,6 +87,10 @@ Breaking changes:
 - `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
 
 ## itixo-codex
+
+### 0.7.0 — Rename technical plugin ID to itixo (2026-07-28)
+
+**Breaking:** The Codex plugin's technical ID is now `itixo` (formerly `itixo-codex`). Its provider folder remains `plugins/itixo-codex`; update references that use the plugin ID.
 
 ### 0.6.1 — Security review agent (2026-07-28)
 
@@ -175,6 +183,10 @@ Breaking changes:
 - `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
 
 ## itixo-copilot
+
+### 0.7.0 — Rename technical plugin ID to itixo (2026-07-28)
+
+**Breaking:** The Copilot plugin's technical ID is now `itixo` (formerly `itixo-copilot`). Its provider folder remains `plugins/itixo-copilot`; update references that use the plugin ID.
 
 ### 0.6.1 — Security review agent and model tiers (2026-07-28)
 

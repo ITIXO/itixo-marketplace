@@ -9,10 +9,10 @@
   },
   "plugins": [
     {
-      "name": "itixo-copilot",
+      "name": "itixo",
       "source": "./plugins/itixo-copilot",
       "description": "Itixo library for Copilot CLI users: agents, skills, rules, prompts. Orchestration module included (delegation to sonnet/haiku subagents)",
-      "version": "0.6.1",
+      "version": "0.7.0",
       "hooks": "hooks/hooks.json"
     }
   ]

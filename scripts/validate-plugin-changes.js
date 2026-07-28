@@ -77,10 +77,21 @@ function stableJson(value) {
   return JSON.stringify(value);
 }
 
+function pluginSourcePath(plugin) {
+  if (typeof plugin?.source === "string") return plugin.source;
+  if (typeof plugin?.source?.path === "string") return plugin.source.path;
+  return null;
+}
+
 function pluginEntries(manifest) {
   return new Map((manifest?.plugins ?? [])
-    .filter((plugin) => plugin && typeof plugin.name === "string")
-    .map((plugin) => [plugin.name, plugin]));
+    .filter((plugin) => plugin && (pluginSourcePath(plugin) || typeof plugin.name === "string"))
+    .map((plugin) => [pluginSourcePath(plugin) ?? plugin.name, plugin]));
+}
+
+function pluginNameFromEntry(plugin) {
+  const sourceMatch = /^(?:\.\/)?plugins\/([^/]+)\/?$/.exec(pluginSourcePath(plugin));
+  return sourceMatch?.[1] ?? plugin?.name;
 }
 
 function changedMarketplacePlugins(base) {
@@ -90,8 +101,13 @@ function changedMarketplacePlugins(base) {
     const previous = readBaseJson(base, marketplacePath);
     const currentEntries = pluginEntries(current);
     const previousEntries = pluginEntries(previous);
-    for (const name of new Set([...currentEntries.keys(), ...previousEntries.keys()])) {
-      if (stableJson(currentEntries.get(name)) !== stableJson(previousEntries.get(name))) names.add(name);
+    for (const source of new Set([...currentEntries.keys(), ...previousEntries.keys()])) {
+      const currentEntry = currentEntries.get(source);
+      const previousEntry = previousEntries.get(source);
+      if (stableJson(currentEntry) !== stableJson(previousEntry)) {
+        const name = pluginNameFromEntry(currentEntry ?? previousEntry);
+        if (typeof name === "string") names.add(name);
+      }
     }
   }
   return names;

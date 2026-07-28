@@ -5,7 +5,7 @@
   },
   "plugins": [
     {
-      "name": "itixo-codex",
+      "name": "itixo",
       "source": {
         "source": "local",
         "path": "./plugins/itixo-codex"

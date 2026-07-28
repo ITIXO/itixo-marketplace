@@ -189,7 +189,7 @@ const codexDirigent = dirigentContents.get("itixo-codex") || "";
 if (!codexDirigent.includes("installed custom TOML agent")) {
   fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must invoke installed custom TOML agents");
 }
-if (!codexDirigent.includes("itixo-codex:install-agents")) {
+if (!codexDirigent.includes("itixo:install-agents")) {
   fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must require installer when custom agent is unavailable");
 }
 if (codexDirigent.includes("load the matching role file")) {
@@ -594,7 +594,7 @@ if (fs.existsSync(codexAgentsPath)) {
   }
   for (const required of [
     "installed custom TOML agent",
-    "itixo-codex:install-agents",
+    "itixo:install-agents",
     "per-agent override",
     "substitute a generic agent",
   ]) {
@@ -637,16 +637,16 @@ if (codexMarketplace) {
       fail(`${src}/.codex-plugin/plugin.json: name mismatch with marketplace entry '${entry.name}'`);
     }
   }
-  const codexEntry = (codexMarketplace.plugins || []).find((p) => p.name === "itixo-codex");
+  const codexEntry = (codexMarketplace.plugins || []).find((p) => p.name === "itixo");
   if (!codexEntry) {
-    fail(".agents/plugins/marketplace.json: itixo-codex not registered");
+    fail(".agents/plugins/marketplace.json: itixo not registered");
   } else {
     const manifestRel = path.join(codexEntry.source?.path || "", ".codex-plugin/plugin.json");
     const manifest = readJson(manifestRel);
     if (!manifest) {
-      fail(`.agents/plugins/marketplace.json: itixo-codex missing native manifest '${manifestRel}'`);
-    } else if (manifest.name !== "itixo-codex") {
-      fail(`${manifestRel}: expected native manifest name 'itixo-codex', got '${manifest.name}'`);
+      fail(`.agents/plugins/marketplace.json: itixo missing native manifest '${manifestRel}'`);
+    } else if (manifest.name !== "itixo") {
+      fail(`${manifestRel}: expected native manifest name 'itixo', got '${manifest.name}'`);
     }
   }
 }
@@ -678,9 +678,9 @@ if (copilotMarketplace) {
       fail(`${manifestRel}: name '${manifest.name}' does not match marketplace entry '${entry.name}'`);
     }
   }
-  const copilotEntry = (copilotMarketplace.plugins || []).find((p) => p.name === "itixo-copilot");
+  const copilotEntry = (copilotMarketplace.plugins || []).find((p) => p.name === "itixo");
   if (!copilotEntry) {
-    fail(".github/plugin/marketplace.json: itixo-copilot not registered");
+    fail(".github/plugin/marketplace.json: itixo not registered");
   }
 }
 if (failures === 0) ok("Copilot-native manifests valid and consistent");
@@ -707,9 +707,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo-claude", "0.6.1"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo-codex", "0.6.1"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo-copilot", "0.6.1"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.7.0"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.7.0"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.7.0"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);
