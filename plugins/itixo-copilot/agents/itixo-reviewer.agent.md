@@ -1,7 +1,7 @@
 ---
 description: "Reviews diffs, branches, or files."
 tools: ["read", "search", "execute"]
-model: "claude-sonnet-4.6"
+model: "claude-sonnet-5"
 ---
 
 ## Role

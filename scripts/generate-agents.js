@@ -20,7 +20,7 @@ const PROVIDERS = Object.freeze({
   copilot: {
     directory: path.join(ROOT, "plugins", "itixo-copilot", "agents"),
     // orchestrator tier omits model field (inherits); cheap and mid use full Copilot CLI model IDs
-    models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-4.6", security: "claude-opus-5" }),
+    models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }),
     fileExtension: ".agent.md",
   },
 });
