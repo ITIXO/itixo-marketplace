@@ -212,6 +212,53 @@ test("policy checker treats marketplace-only category changes as plugin changes"
   assert.match(result.output, /version 1\.0\.0 must be greater than same-provider base version 1\.0\.0/);
 }));
 
+test("policy checker uses marketplace source folder for shared plugin names", () => withRepository((root) => {
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "0.6.0"));
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/itixo-claude",
+    description: "Claude plugin",
+    category: "Developer Tools",
+  }));
+  const base = commit(root, "baseline");
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/itixo-claude",
+    description: "Claude plugin",
+    category: "Productivity",
+  }));
+  commit(root, "change category");
+
+  const result = runChecker(root, base, "");
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /plugins\/itixo-claude\/\.claude-plugin\/plugin\.json: version 0\.6\.0 must be greater/);
+  assert.doesNotMatch(result.output, /Plugin 'itixo' was deleted/);
+}));
+
+test("policy checker accepts shared plugin name under source-folder changelog section", () => withRepository((root) => {
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "0.6.0"));
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/itixo-claude",
+    description: "Claude plugin",
+    category: "Developer Tools",
+  }));
+  const base = commit(root, "baseline");
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "0.7.0"));
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/itixo-claude",
+    description: "Claude plugin",
+    category: "Productivity",
+  }));
+  commit(root, "bump plugin");
+
+  const result = runChecker(root, base, release("itixo-claude", "0.7.0", "— Claude update"));
+
+  assert.equal(result.status, 0, result.output);
+}));
+
 test("policy checker accepts new plugin with strict version and Wiki heading", () => withRepository((root) => {
   fs.writeFileSync(path.join(root, "README.md"), "baseline\n");
   const base = commit(root, "baseline");
