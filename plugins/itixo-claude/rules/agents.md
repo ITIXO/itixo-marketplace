@@ -20,6 +20,7 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 - `itixo-investigator` locates first on its configured invocation model, defaulting to cheap-tier Haiku absent a matching explicit user override; `itixo-builder` gets exact file:line targets on its configured invocation model, defaulting to mid-tier Sonnet under the same constraint.
 - Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested model or effort override.
 - Subagents never expand scope; scope change returns to orchestrator.
+- **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
 - Parallelize independent subagent runs.
 - **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least three safe independent executable units exist, launch exactly three direct worker subagents in one parallel batch before awaiting any result. Orchestrator is not a worker.
 - Keep rolling window: dispatch next ready independent worker task as soon as worker slot opens; never wait serially while ready independent work exists.

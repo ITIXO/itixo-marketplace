@@ -47,6 +47,7 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 - Subagent returns compact result; orchestrator never re-reads what subagent already summarized.
 - `itixo-investigator` before `itixo-builder`: investigator locates first on its configured model, defaulting to the cheap tier unless the user supplied a matching explicit override; then hand precise file:line targets to builder on its configured model, defaulting to the mid tier unless likewise overridden.
 - Never let a subagent expand scope. Scope change goes back to orchestrator.
+- **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
 - Parallelize independent subagent runs.
 - **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least three safe independent executable units exist, launch exactly three direct worker subagents in one parallel batch before awaiting any result. The orchestrator is not a worker.
 - Keep a rolling window: dispatch the next ready independent worker task as soon as a worker slot opens; never wait serially while ready independent work exists.
