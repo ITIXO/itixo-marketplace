@@ -4,9 +4,13 @@
 const fs = require("fs");
 const path = require("path");
 
+const { PROVIDERS: PROVIDER_IDS } = require("./providers.js");
+
 const ROOT = path.resolve(__dirname, "..");
 const BASE_DIR = path.join(ROOT, "base", "agents");
-const PROVIDERS = Object.freeze({
+// Provider-specific model/effort tier data, keyed by the identity list
+// shared via scripts/providers.js.
+const PROVIDER_CONFIG = {
   claude: {
     directory: path.join(ROOT, "plugins", "itixo-claude", "agents"),
     models: Object.freeze({ cheap: "haiku", mid: "sonnet", security: "opus", orchestrator: "inherit" }),
@@ -24,7 +28,10 @@ const PROVIDERS = Object.freeze({
     models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }),
     fileExtension: ".agent.md",
   },
-});
+};
+const PROVIDERS = Object.freeze(
+  Object.fromEntries(PROVIDER_IDS.map((id) => [id, PROVIDER_CONFIG[id]]))
+);
 const CLAUDE_TOOLS = Object.freeze({
   read: "Read",
   edit: "Edit",
