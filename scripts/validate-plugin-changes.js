@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
+const { PROVIDERS, pluginDirToProvider } = require("./providers");
 
 const MARKETPLACE_FILES = [
   ".claude-plugin/marketplace.json",
@@ -14,7 +15,6 @@ const PLUGIN_MANIFESTS = [
   "plugin.json",
 ];
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-const PLUGIN_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function parseArgs(args) {
   const options = {};
@@ -133,24 +133,82 @@ function compareVersions(left, right) {
   return 0;
 }
 
+function isValidCalendarDate(dateString) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function checkBulletLines(entries, errors, contextLabel) {
+  for (const entry of entries) {
+    if (entry.inFence) continue;
+    if (entry.line.trim() === "") continue;
+    if (!/^- \S/.test(entry.line)) {
+      errors.push(`Changelog:${entry.lineNumber}: ${contextLabel} must be '- ' bullet lines; got ${JSON.stringify(entry.line)}.`);
+    }
+  }
+}
+
 function parseChangelog(markdown) {
-  const sections = new Map();
   const errors = [];
+  const headings = new Set();
   const visibleMarkdown = String(markdown).replace(
     /<!--[\s\S]*?(?:-->|$)/g,
     (comment) => comment.replace(/[^\n]/g, " "),
   );
   const lines = visibleMarkdown.split(/\r?\n/);
-  let currentSection = null;
-  let currentRelease = null;
+
   let fence = null;
+  let currentDate = null;
+  let currentRelease = null;
+  let inCommon = false;
+  let commonBuffer = [];
+  let lastDateSeen = null;
+  const providerLastVersionGlobal = new Map();
+  const seenVersionProviderPairs = new Set();
+
+  const pushLine = (line, lineNumber, entryInFence) => {
+    if (currentRelease) {
+      currentRelease.body.push({ line, lineNumber, inFence: entryInFence });
+    } else if (currentDate && inCommon) {
+      commonBuffer.push({ line, lineNumber, inFence: entryInFence });
+    }
+  };
 
   const finishRelease = () => {
     if (!currentRelease) return;
-    if (!currentRelease.body.some((line) => line.trim() !== "")) {
-      errors.push(`Changelog:${currentRelease.line}: release '${currentRelease.version}' in plugin '${currentSection.slug}' must have visible release notes.`);
+    const nonBlank = currentRelease.body.filter((entry) => entry.line.trim() !== "");
+    if (nonBlank.length > 0) {
+      checkBulletLines(currentRelease.body, errors, `release body for '${currentRelease.version} - ${currentRelease.provider}'`);
+      if (currentDate) currentDate.anyVisibleContent = true;
     }
     currentRelease = null;
+  };
+
+  const finishCommon = () => {
+    if (!currentDate) return;
+    const nonBlank = commonBuffer.filter((entry) => entry.line.trim() !== "");
+    if (nonBlank.length > 0) {
+      checkBulletLines(commonBuffer, errors, `common section for date '${currentDate.date}'`);
+      currentDate.anyVisibleContent = true;
+    }
+    commonBuffer = [];
+    inCommon = false;
+  };
+
+  const finishDate = () => {
+    if (!currentDate) return;
+    if (inCommon) finishCommon();
+    if (!currentDate.hasReleaseHeading) {
+      errors.push(`Changelog:${currentDate.line}: date section '${currentDate.date}' must contain at least one release heading.`);
+    }
+    if (!currentDate.anyVisibleContent) {
+      errors.push(`Changelog:${currentDate.line}: date section '${currentDate.date}' must have visible content: common bullets or a release body.`);
+    }
   };
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -161,75 +219,110 @@ function parseChangelog(markdown) {
       const marker = fenceMatch[1];
       if (!fence) fence = marker;
       else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
-      if (currentRelease) currentRelease.body.push(line);
+      pushLine(line, lineNumber, true);
       continue;
     }
     if (fence) {
-      if (currentRelease) currentRelease.body.push(line);
+      pushLine(line, lineNumber, true);
       continue;
     }
 
     const h2 = /^##(?!#)(.*)$/.exec(line);
     if (h2) {
       finishRelease();
+      finishDate();
       const heading = h2[1];
-      const slug = heading.startsWith(" ") ? heading.slice(1) : "";
-      if (!slug || heading !== ` ${slug}` || !PLUGIN_SLUG.test(slug)) {
-        errors.push(`Changelog:${lineNumber}: plugin heading must be exactly '## <lowercase-plugin-slug>'; got ${JSON.stringify(line)}.`);
-        currentSection = null;
+      const dateMatch = /^ (\d{4}-\d{2}-\d{2})$/.exec(heading);
+      const dateString = dateMatch?.[1];
+      if (!dateMatch || !isValidCalendarDate(dateString)) {
+        errors.push(`Changelog:${lineNumber}: date heading must be exactly '## YYYY-MM-DD' with a real calendar date; got ${JSON.stringify(line)}.`);
+        currentDate = null;
+        inCommon = false;
+        commonBuffer = [];
         continue;
       }
-      const section = { slug, line: lineNumber, releases: new Map(), versions: [] };
-      if (sections.has(slug)) {
-        errors.push(`Changelog:${lineNumber}: duplicate plugin section '## ${slug}'; each plugin may appear once.`);
-      } else {
-        sections.set(slug, section);
+      if (lastDateSeen !== null) {
+        if (dateString === lastDateSeen) {
+          errors.push(`Changelog:${lineNumber}: duplicate date section '## ${dateString}'; each date may appear once.`);
+        } else if (dateString > lastDateSeen) {
+          errors.push(`Changelog:${lineNumber}: date sections must be strictly descending; '${dateString}' must be earlier than '${lastDateSeen}'.`);
+        }
       }
-      currentSection = section;
+      lastDateSeen = dateString;
+      currentDate = {
+        date: dateString,
+        line: lineNumber,
+        hasReleaseHeading: false,
+        anyVisibleContent: false,
+        currentProvider: null,
+        currentProviderIdx: -1,
+        seenProviders: new Set(),
+      };
+      inCommon = true;
+      commonBuffer = [];
       continue;
     }
 
     const h3 = /^###(?!#)(.*)$/.exec(line);
     if (h3) {
       finishRelease();
-      const releaseMatch = /^ ((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))(?:[ \t].*)?$/.exec(h3[1]);
+      if (!currentDate) {
+        errors.push(`Changelog:${lineNumber}: release heading '###${h3[1]}' is an orphan; it must follow a date section, and the first heading in the file must be a date section.`);
+        continue;
+      }
+      if (inCommon) finishCommon();
+      const releaseMatch = /^ ((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)) - ([a-z]+)$/.exec(h3[1]);
       if (!releaseMatch) {
-        errors.push(`Changelog:${lineNumber}: release heading must start with strict semver as '### MAJOR.MINOR.PATCH' and any suffix must follow whitespace; legacy provider-prefixed or combined headings are not supported.`);
+        errors.push(`Changelog:${lineNumber}: release heading must be exactly '### MAJOR.MINOR.PATCH - provider'; got ${JSON.stringify(line)}.`);
         currentRelease = null;
         continue;
       }
-      const version = releaseMatch[1];
-      const suffix = h3[1].slice(` ${version}`.length);
-      const combinedRelease = /^[ \t]*(?:\/|\+|&|and\b)[ \t]*(?:[a-z0-9]+(?:-[a-z0-9]+)*[ \t]+)?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:[ \t]|$)/i;
-      if (combinedRelease.test(suffix)) {
-        errors.push(`Changelog:${lineNumber}: combined release heading '${line.trim()}' is not supported; use one release per plugin section.`);
+      const [, version, provider] = releaseMatch;
+      if (!PROVIDERS.includes(provider)) {
+        errors.push(`Changelog:${lineNumber}: unknown provider '${provider}' in release heading; must be one of ${PROVIDERS.join(", ")}.`);
         currentRelease = null;
         continue;
       }
-      if (!currentSection) {
-        errors.push(`Changelog:${lineNumber}: orphan release heading '### ${version}' must follow an exact plugin section.`);
-        currentRelease = null;
-        continue;
-      }
-      if (currentSection.releases.has(version)) {
-        errors.push(`Changelog:${lineNumber}: duplicate release '${version}' in plugin '${currentSection.slug}'.`);
-      } else {
-        const previous = currentSection.versions.at(-1);
-        if (previous && compareVersions(previous, version) <= 0) {
-          errors.push(`Changelog:${lineNumber}: releases in plugin '${currentSection.slug}' must be strictly descending; '${version}' must be lower than '${previous}'.`);
+      currentDate.hasReleaseHeading = true;
+
+      const providerIdx = PROVIDERS.indexOf(provider);
+      if (currentDate.currentProvider === null) {
+        currentDate.currentProvider = provider;
+        currentDate.currentProviderIdx = providerIdx;
+        currentDate.seenProviders.add(provider);
+      } else if (provider !== currentDate.currentProvider) {
+        if (currentDate.seenProviders.has(provider)) {
+          errors.push(`Changelog:${lineNumber}: releases for provider '${provider}' must be contiguous within date section '${currentDate.date}'.`);
+        } else if (providerIdx < currentDate.currentProviderIdx) {
+          errors.push(`Changelog:${lineNumber}: providers within date section '${currentDate.date}' must appear in order ${PROVIDERS.join(", ")}; '${provider}' is out of order.`);
         }
-        const release = { version, line: lineNumber, body: [] };
-        currentSection.releases.set(version, release);
-        currentSection.versions.push(version);
-        currentRelease = release;
+        currentDate.currentProvider = provider;
+        currentDate.currentProviderIdx = providerIdx;
+        currentDate.seenProviders.add(provider);
       }
+
+      const pairKey = `${version} - ${provider}`;
+      if (seenVersionProviderPairs.has(pairKey)) {
+        errors.push(`Changelog:${lineNumber}: duplicate release heading '### ${pairKey}'; each version may appear at most once per provider.`);
+      } else {
+        seenVersionProviderPairs.add(pairKey);
+        headings.add(pairKey);
+        const lastGlobal = providerLastVersionGlobal.get(provider);
+        if (lastGlobal && compareVersions(lastGlobal, version) <= 0) {
+          errors.push(`Changelog:${lineNumber}: releases for provider '${provider}' must be strictly descending; '${version}' must be lower than '${lastGlobal}'.`);
+        }
+        providerLastVersionGlobal.set(provider, version);
+      }
+
+      currentRelease = { version, provider, line: lineNumber, body: [] };
       continue;
     }
 
-    if (currentRelease) currentRelease.body.push(line);
+    pushLine(line, lineNumber, false);
   }
   finishRelease();
-  return { sections, errors };
+  finishDate();
+  return { headings, errors };
 }
 
 function highestVersion(versions) {
@@ -262,7 +355,7 @@ function pluginExistsAtBase(base, name) {
   }
 }
 
-function validatePlugin(base, changelogSections, name) {
+function validatePlugin(base, changelogHeadings, name) {
   const pluginDir = path.join("plugins", name);
   if (!fs.existsSync(pluginDir)) {
     return { errors: [], skipped: `Plugin '${name}' was deleted; no HEAD manifest to validate.` };
@@ -320,9 +413,14 @@ function validatePlugin(base, changelogSections, name) {
   }
 
   if (versions.length === 0) errors.push(`plugins/${name}: no plugin manifest exists at HEAD.`);
-  for (const version of new Set(versions)) {
-    if (!changelogSections.get(name)?.releases.has(version)) {
-      errors.push(`Changelog: missing heading '### ${version}' under exact section '## ${name}'.`);
+  const provider = pluginDirToProvider(name);
+  if (!provider) {
+    errors.push(`plugins/${name}: unknown provider; add it to PROVIDERS in scripts/providers.js.`);
+  } else {
+    for (const version of new Set(versions)) {
+      if (!changelogHeadings.has(`${version} - ${provider}`)) {
+        errors.push(`Changelog: missing heading '### ${version} - ${provider}'.`);
+      }
     }
   }
   return { errors, skipped: null };
@@ -337,7 +435,7 @@ function validatePluginChanges({ base, changelogPath }) {
   const errors = [...changelog.errors];
   const skipped = [];
   for (const name of [...changedPlugins].sort()) {
-    const result = validatePlugin(base, changelog.sections, name);
+    const result = validatePlugin(base, changelog.headings, name);
     errors.push(...result.errors);
     if (result.skipped) skipped.push(result.skipped);
   }
