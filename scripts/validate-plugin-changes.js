@@ -164,29 +164,53 @@ function parseChangelog(markdown) {
 
   let fence = null;
   let currentDate = null;
-  let currentRelease = null;
-  let inCommon = false;
+  let currentProvider = null;
+  let currentVersion = null;
+  let inDateCommon = false;
   let commonBuffer = [];
+  let providerBuffer = [];
   let lastDateSeen = null;
   const providerLastVersionGlobal = new Map();
   const seenVersionProviderPairs = new Set();
 
   const pushLine = (line, lineNumber, entryInFence, isFenceDelimiter) => {
-    if (currentRelease) {
-      currentRelease.body.push({ line, lineNumber, inFence: entryInFence, isFenceDelimiter });
-    } else if (currentDate && inCommon) {
-      commonBuffer.push({ line, lineNumber, inFence: entryInFence, isFenceDelimiter });
+    const entry = { line, lineNumber, inFence: entryInFence, isFenceDelimiter };
+    if (currentVersion) {
+      currentVersion.body.push(entry);
+    } else if (currentProvider && !currentProvider.hasFirstVersion) {
+      providerBuffer.push(entry);
+    } else if (currentDate && inDateCommon) {
+      commonBuffer.push(entry);
     }
   };
 
-  const finishRelease = () => {
-    if (!currentRelease) return;
-    const nonBlank = currentRelease.body.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
+  const finishVersion = () => {
+    if (!currentVersion) return;
+    const nonBlank = currentVersion.body.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
     if (nonBlank.length > 0) {
-      checkBulletLines(currentRelease.body, errors, `release body for '${currentRelease.version} - ${currentRelease.provider}'`);
+      checkBulletLines(currentVersion.body, errors, `version body for '#### ${currentVersion.version}' under '### ${currentVersion.provider}'`);
       if (currentDate) currentDate.anyVisibleContent = true;
     }
-    currentRelease = null;
+    currentVersion = null;
+  };
+
+  const finishProviderBuffer = () => {
+    const nonBlank = providerBuffer.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
+    if (nonBlank.length > 0) {
+      const first = nonBlank[0];
+      errors.push(`Changelog:${first.lineNumber}: content between '### ${currentProvider.provider}' and its first '#### <version>' heading is not allowed; got ${JSON.stringify(first.line)}.`);
+    }
+    providerBuffer = [];
+  };
+
+  const finishProvider = () => {
+    if (!currentProvider) return;
+    finishVersion();
+    if (!currentProvider.hasFirstVersion) {
+      finishProviderBuffer();
+      errors.push(`Changelog:${currentProvider.line}: provider section '### ${currentProvider.provider}' must contain at least one version heading.`);
+    }
+    currentProvider = null;
   };
 
   const finishCommon = () => {
@@ -197,17 +221,18 @@ function parseChangelog(markdown) {
       currentDate.anyVisibleContent = true;
     }
     commonBuffer = [];
-    inCommon = false;
+    inDateCommon = false;
   };
 
   const finishDate = () => {
     if (!currentDate) return;
-    if (inCommon) finishCommon();
-    if (!currentDate.hasReleaseHeading) {
-      errors.push(`Changelog:${currentDate.line}: date section '${currentDate.date}' must contain at least one release heading.`);
+    finishProvider();
+    finishCommon();
+    if (!currentDate.hasProvider) {
+      errors.push(`Changelog:${currentDate.line}: date section '${currentDate.date}' must contain at least one provider heading.`);
     }
     if (!currentDate.anyVisibleContent) {
-      errors.push(`Changelog:${currentDate.line}: date section '${currentDate.date}' must have visible content: common bullets or a release body.`);
+      errors.push(`Changelog:${currentDate.line}: date section '${currentDate.date}' must have visible content: common bullets or a version body.`);
     }
   };
 
@@ -229,7 +254,6 @@ function parseChangelog(markdown) {
 
     const h2 = /^##(?!#)(.*)$/.exec(line);
     if (h2) {
-      finishRelease();
       finishDate();
       const heading = h2[1];
       const dateMatch = /^ (\d{4}-\d{2}-\d{2})$/.exec(heading);
@@ -237,8 +261,11 @@ function parseChangelog(markdown) {
       if (!dateMatch || !isValidCalendarDate(dateString)) {
         errors.push(`Changelog:${lineNumber}: date heading must be exactly '## YYYY-MM-DD' with a real calendar date; got ${JSON.stringify(line)}.`);
         currentDate = null;
-        inCommon = false;
+        currentProvider = null;
+        currentVersion = null;
+        inDateCommon = false;
         commonBuffer = [];
+        providerBuffer = [];
         continue;
       }
       if (lastDateSeen !== null) {
@@ -252,75 +279,90 @@ function parseChangelog(markdown) {
       currentDate = {
         date: dateString,
         line: lineNumber,
-        hasReleaseHeading: false,
+        hasProvider: false,
         anyVisibleContent: false,
-        currentProvider: null,
-        currentProviderIdx: -1,
         seenProviders: new Set(),
+        lastProviderIdx: -1,
       };
-      inCommon = true;
+      currentProvider = null;
+      currentVersion = null;
+      inDateCommon = true;
       commonBuffer = [];
+      providerBuffer = [];
       continue;
     }
 
     const h3 = /^###(?!#)(.*)$/.exec(line);
     if (h3) {
-      finishRelease();
+      finishProvider();
+      finishCommon();
       if (!currentDate) {
-        errors.push(`Changelog:${lineNumber}: release heading '###${h3[1]}' is an orphan; it must follow a date section, and the first heading in the file must be a date section.`);
+        errors.push(`Changelog:${lineNumber}: provider heading '###${h3[1]}' is an orphan; it must follow a date section, and the first heading in the file must be a date section.`);
         continue;
       }
-      if (inCommon) finishCommon();
-      const releaseMatch = /^ ((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)) - ([a-z]+)$/.exec(h3[1]);
-      if (!releaseMatch) {
-        errors.push(`Changelog:${lineNumber}: release heading must be exactly '### MAJOR.MINOR.PATCH - provider'; got ${JSON.stringify(line)}.`);
-        currentRelease = null;
+      const providerMatch = /^ (\S+)$/.exec(h3[1]);
+      if (!providerMatch) {
+        errors.push(`Changelog:${lineNumber}: provider heading must be exactly '### <provider>'; got ${JSON.stringify(line)}.`);
         continue;
       }
-      const [, version, provider] = releaseMatch;
+      const provider = providerMatch[1];
       if (!PROVIDERS.includes(provider)) {
-        errors.push(`Changelog:${lineNumber}: unknown provider '${provider}' in release heading; must be one of ${PROVIDERS.join(", ")}.`);
-        currentRelease = null;
+        errors.push(`Changelog:${lineNumber}: unknown provider '${provider}' in provider heading; must be one of ${PROVIDERS.join(", ")}.`);
         continue;
       }
-      currentDate.hasReleaseHeading = true;
-
-      const providerIdx = PROVIDERS.indexOf(provider);
-      if (currentDate.currentProvider === null) {
-        currentDate.currentProvider = provider;
-        currentDate.currentProviderIdx = providerIdx;
-        currentDate.seenProviders.add(provider);
-      } else if (provider !== currentDate.currentProvider) {
-        if (currentDate.seenProviders.has(provider)) {
-          errors.push(`Changelog:${lineNumber}: releases for provider '${provider}' must be contiguous within date section '${currentDate.date}'.`);
-        } else if (providerIdx < currentDate.currentProviderIdx) {
-          errors.push(`Changelog:${lineNumber}: providers within date section '${currentDate.date}' must appear in order ${PROVIDERS.join(", ")}; '${provider}' is out of order.`);
-        }
-        currentDate.currentProvider = provider;
-        currentDate.currentProviderIdx = providerIdx;
-        currentDate.seenProviders.add(provider);
+      if (currentDate.seenProviders.has(provider)) {
+        errors.push(`Changelog:${lineNumber}: duplicate provider heading '### ${provider}' in date section '${currentDate.date}'.`);
+        continue;
       }
+      const providerIdx = PROVIDERS.indexOf(provider);
+      if (providerIdx < currentDate.lastProviderIdx) {
+        errors.push(`Changelog:${lineNumber}: providers within date section '${currentDate.date}' must appear in order ${PROVIDERS.join(", ")}; '${provider}' is out of order.`);
+      }
+      currentDate.lastProviderIdx = providerIdx;
+      currentDate.seenProviders.add(provider);
+      currentDate.hasProvider = true;
+      currentProvider = { provider, line: lineNumber, hasFirstVersion: false };
+      providerBuffer = [];
+      continue;
+    }
 
+    const h4 = /^####(?!#)(.*)$/.exec(line);
+    if (h4) {
+      finishVersion();
+      if (!currentProvider) {
+        errors.push(`Changelog:${lineNumber}: version heading '####${h4[1]}' is an orphan; it must follow a provider heading.`);
+        continue;
+      }
+      const versionMatch = /^ ((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/.exec(h4[1]);
+      if (!versionMatch) {
+        errors.push(`Changelog:${lineNumber}: version heading must be exactly '#### MAJOR.MINOR.PATCH'; got ${JSON.stringify(line)}.`);
+        continue;
+      }
+      const [, version] = versionMatch;
+      if (!currentProvider.hasFirstVersion) {
+        finishProviderBuffer();
+        currentProvider.hasFirstVersion = true;
+      }
+      const provider = currentProvider.provider;
       const pairKey = `${version} - ${provider}`;
       if (seenVersionProviderPairs.has(pairKey)) {
-        errors.push(`Changelog:${lineNumber}: duplicate release heading '### ${pairKey}'; each version may appear at most once per provider.`);
+        errors.push(`Changelog:${lineNumber}: duplicate version heading '#### ${version}' under '### ${provider}'; each version may appear at most once per provider.`);
       } else {
         seenVersionProviderPairs.add(pairKey);
         headings.add(pairKey);
         const lastGlobal = providerLastVersionGlobal.get(provider);
         if (lastGlobal && compareVersions(lastGlobal, version) <= 0) {
-          errors.push(`Changelog:${lineNumber}: releases for provider '${provider}' must be strictly descending; '${version}' must be lower than '${lastGlobal}'.`);
+          errors.push(`Changelog:${lineNumber}: versions under provider '${provider}' must be strictly descending; '${version}' must be lower than '${lastGlobal}'.`);
         }
         providerLastVersionGlobal.set(provider, version);
       }
 
-      currentRelease = { version, provider, line: lineNumber, body: [] };
+      currentVersion = { version, provider, line: lineNumber, body: [] };
       continue;
     }
 
     pushLine(line, lineNumber, false);
   }
-  finishRelease();
   finishDate();
   return { headings, errors };
 }
@@ -419,7 +461,7 @@ function validatePlugin(base, changelogHeadings, name) {
   } else {
     for (const version of new Set(versions)) {
       if (!changelogHeadings.has(`${version} - ${provider}`)) {
-        errors.push(`Changelog: missing heading '### ${version} - ${provider}'.`);
+        errors.push(`Changelog: missing heading '#### ${version}' under '### ${provider}'.`);
       }
     }
   }
