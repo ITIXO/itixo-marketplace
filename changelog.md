@@ -53,8 +53,6 @@
 
 ## 2026-07-27
 
-- **Breaking:** `/dirigent-stats` now reports only cache-backed root and unique subagent-run token totals, grouped by role, provider, and model; unavailable cache data uses the no-data result.
-
 ### 0.4.0 - claude
 
 - Claude removed `/dirigent-stats`.
@@ -65,6 +63,8 @@
 
 ### 0.3.0 - claude
 
+- **Breaking:** `/dirigent-stats` now reports only cache-backed root and unique subagent-run token totals, grouped by role, provider, and model; unavailable cache data uses the no-data result.
+
 ### 0.4.0 - codex
 
 - Codex removed `/dirigent-stats`.
@@ -74,6 +74,8 @@
 - Codex now automatically and safely removes temporary worktrees and branches created by its agents after work completes.
 
 ### 0.3.0 - codex
+
+- **Breaking:** `/dirigent-stats` now reports only cache-backed root and unique subagent-run token totals, grouped by role, provider, and model; unavailable cache data uses the no-data result.
 
 ### 0.2.0 - copilot
 
