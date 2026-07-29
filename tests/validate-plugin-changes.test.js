@@ -562,6 +562,24 @@ test("policy checker does not enforce bullet formatting inside fenced code block
   assert.equal(result.status, 0, result.output);
 }));
 
+test("policy checker rejects a release body that is only an empty fence", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = [
+    "## 2026-07-28",
+    "",
+    "### 1.0.1 - claude",
+    "",
+    "```",
+    "```",
+    "",
+  ].join("\n");
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /date section '2026-07-28' must have visible content/);
+}));
+
 test("validation workflow runs required checks for PR and manual dispatch", () => {
   const workflow = fs.readFileSync(path.join(ROOT, ".github/workflows/validate-plugins.yml"), "utf8");
 

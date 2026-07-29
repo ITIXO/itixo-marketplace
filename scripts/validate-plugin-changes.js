@@ -171,17 +171,17 @@ function parseChangelog(markdown) {
   const providerLastVersionGlobal = new Map();
   const seenVersionProviderPairs = new Set();
 
-  const pushLine = (line, lineNumber, entryInFence) => {
+  const pushLine = (line, lineNumber, entryInFence, isFenceDelimiter) => {
     if (currentRelease) {
-      currentRelease.body.push({ line, lineNumber, inFence: entryInFence });
+      currentRelease.body.push({ line, lineNumber, inFence: entryInFence, isFenceDelimiter });
     } else if (currentDate && inCommon) {
-      commonBuffer.push({ line, lineNumber, inFence: entryInFence });
+      commonBuffer.push({ line, lineNumber, inFence: entryInFence, isFenceDelimiter });
     }
   };
 
   const finishRelease = () => {
     if (!currentRelease) return;
-    const nonBlank = currentRelease.body.filter((entry) => entry.line.trim() !== "");
+    const nonBlank = currentRelease.body.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
     if (nonBlank.length > 0) {
       checkBulletLines(currentRelease.body, errors, `release body for '${currentRelease.version} - ${currentRelease.provider}'`);
       if (currentDate) currentDate.anyVisibleContent = true;
@@ -191,7 +191,7 @@ function parseChangelog(markdown) {
 
   const finishCommon = () => {
     if (!currentDate) return;
-    const nonBlank = commonBuffer.filter((entry) => entry.line.trim() !== "");
+    const nonBlank = commonBuffer.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
     if (nonBlank.length > 0) {
       checkBulletLines(commonBuffer, errors, `common section for date '${currentDate.date}'`);
       currentDate.anyVisibleContent = true;
@@ -219,7 +219,7 @@ function parseChangelog(markdown) {
       const marker = fenceMatch[1];
       if (!fence) fence = marker;
       else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
-      pushLine(line, lineNumber, true);
+      pushLine(line, lineNumber, true, true);
       continue;
     }
     if (fence) {
