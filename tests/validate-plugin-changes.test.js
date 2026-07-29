@@ -46,7 +46,7 @@ function marketplace(...entries) {
   return { name: "test-marketplace", plugins: entries };
 }
 
-function writeBaselinePlugin(root, name = "sample", version = "1.0.0") {
+function writeBaselinePlugin(root, name = "itixo-claude", version = "1.0.0") {
   writeBaselinePlugins(root, [[name, version]]);
 }
 
@@ -62,9 +62,34 @@ function writeBaselinePlugins(root, entries) {
   }))));
 }
 
-function release(pluginName, version, suffix = "", body = "- Release details.") {
-  const headingSuffix = suffix ? ` ${suffix}` : "";
-  return `## ${pluginName}\n\n### ${version}${headingSuffix}\n\n${body}\n`;
+// Builds a `## YYYY-MM-DD` date section with an optional common bullet list
+// and zero or more `### version - provider` releases, each with an optional
+// bullet-list body.
+function dateBlock(date, { common = [], releases = [] } = {}) {
+  const lines = [`## ${date}`, ""];
+  for (const bullet of common) lines.push(bullet);
+  if (common.length) lines.push("");
+  for (const release of releases) {
+    lines.push(`### ${release.version} - ${release.provider}`);
+    lines.push("");
+    for (const bullet of release.body ?? []) lines.push(bullet);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+function doc(...blocks) {
+  return `${blocks.join("\n")}\n`;
+}
+
+// Baseline `itixo-claude` plugin bumped from `fromVersion` to `toVersion`;
+// returns the base commit SHA for the bump.
+function setupBumpedClaude(root, fromVersion = "1.0.0", toVersion = "1.0.1") {
+  writeBaselinePlugin(root, "itixo-claude", fromVersion);
+  const base = commit(root, "baseline");
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo-claude", toVersion));
+  commit(root, "bump plugin");
+  return base;
 }
 
 function runChecker(root, base, changelog = "") {
@@ -90,107 +115,120 @@ test("policy checker passes when no plugin changed", () => withRepository((root)
 test("policy checker rejects plugin content change without version bump", () => withRepository((root) => {
   writeBaselinePlugin(root);
   const base = commit(root, "baseline");
-  fs.writeFileSync(path.join(root, "plugins/sample/README.md"), "changed plugin content\n");
+  fs.writeFileSync(path.join(root, "plugins/itixo-claude/README.md"), "changed plugin content\n");
   commit(root, "change plugin");
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "1.0.0", provider: "claude", body: ["- Note."] }],
+  }));
 
-  const result = runChecker(root, base, release("sample", "1.0.0"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 1);
   assert.match(result.output, /version 1\.0\.0 must be greater than same-provider base version 1\.0\.0/);
 }));
 
-test("policy checker accepts bumped version with matching Wiki heading", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
+test("policy checker accepts bumped version with matching heading", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "1.0.1", provider: "claude", body: ["- Fix."] }],
+  }));
 
-  const result = runChecker(root, base, release("sample", "1.0.1", "— Fix"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 0, result.output);
 }));
 
-test("policy checker accepts changed root-layout manifest with matching Wiki heading", () => withRepository((root) => {
-  writeJson(root, "plugins/copilot/plugin.json", plugin("copilot", "1.0.0"));
+test("policy checker accepts changed root-layout manifest with matching heading", () => withRepository((root) => {
+  writeJson(root, "plugins/itixo-copilot/plugin.json", plugin("itixo-copilot", "1.0.0"));
   const base = commit(root, "baseline");
-  writeJson(root, "plugins/copilot/plugin.json", plugin("copilot", "1.0.1"));
-  fs.writeFileSync(path.join(root, "plugins/copilot/README.md"), "updated plugin content\n");
+  writeJson(root, "plugins/itixo-copilot/plugin.json", plugin("itixo-copilot", "1.0.1"));
+  fs.writeFileSync(path.join(root, "plugins/itixo-copilot/README.md"), "updated plugin content\n");
   commit(root, "bump root-layout plugin");
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "1.0.1", provider: "copilot", body: ["- Copilot update."] }],
+  }));
 
-  const result = runChecker(root, base, release("copilot", "1.0.1", "— Copilot update"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 0, result.output);
 }));
 
-test("policy checker rejects bumped version without matching Wiki heading", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
+test("policy checker rejects bumped version without matching heading", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "1.0.0", provider: "claude", body: ["- Fix."] }],
+  }));
 
-  const result = runChecker(root, base, release("sample", "1.0.0"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 1);
-  assert.match(result.output, /Changelog: missing heading '### 1\.0\.1'/);
+  assert.match(result.output, /Changelog: missing heading '### 1\.0\.1 - claude'/);
 }));
 
 test("policy checker does not accept a longer version heading as a match", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
+  const base = setupBumpedClaude(root);
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "1.0.10", provider: "claude", body: ["- Different release."] }],
+  }));
 
-  const result = runChecker(root, base, release("sample", "1.0.10", "— Different release"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 1);
-  assert.match(result.output, /Changelog: missing heading '### 1\.0\.1'/);
+  assert.match(result.output, /Changelog: missing heading '### 1\.0\.1 - claude'/);
 }));
 
 test("policy checker requires the version heading to start its own line", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
+  const base = setupBumpedClaude(root);
+  const changelog = doc(dateBlock("2026-07-28", {
+    common: ["- Notes mention ### 1.0.1 - claude inline text but not a heading."],
+    releases: [{ version: "0.9.0", provider: "claude", body: ["- Older release, unrelated."] }],
+  }));
 
-  const result = runChecker(root, base, "## sample\n\nRelease notes mention ### 1.0.1 inline.\n");
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 1);
-  assert.match(result.output, /Changelog: missing heading '### 1\.0\.1'/);
+  assert.match(result.output, /Changelog: missing heading '### 1\.0\.1 - claude'/);
 }));
 
 test("policy checker rejects a lower minor version despite a higher patch", () => withRepository((root) => {
-  writeBaselinePlugin(root, "sample", "1.1.0");
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.5"));
-  commit(root, "change version");
+  const base = setupBumpedClaude(root, "1.1.0", "1.0.5");
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "1.0.5", provider: "claude", body: ["- Patch only."] }],
+  }));
 
-  const result = runChecker(root, base, release("sample", "1.0.5"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 1);
   assert.match(result.output, /version 1\.0\.5 must be greater than same-provider base version 1\.1\.0/);
 }));
 
 test("policy checker compares replacement manifest against the base plugin version", () => withRepository((root) => {
-  writeBaselinePlugin(root, "sample", "1.2.0");
+  writeBaselinePlugin(root, "itixo-claude", "1.2.0");
   const base = commit(root, "baseline");
-  fs.rmSync(path.join(root, "plugins/sample/.claude-plugin"), { recursive: true, force: true });
-  writeJson(root, "plugins/sample/.codex-plugin/plugin.json", plugin("sample", "0.1.0"));
+  fs.rmSync(path.join(root, "plugins/itixo-claude/.claude-plugin"), { recursive: true, force: true });
+  writeJson(root, "plugins/itixo-claude/.codex-plugin/plugin.json", plugin("itixo-claude", "0.1.0"));
   commit(root, "replace provider manifest");
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "0.1.0", provider: "claude", body: ["- Replacement."] }],
+  }));
 
-  const result = runChecker(root, base, release("sample", "0.1.0"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 1);
   assert.match(result.output, /version 0\.1\.0 must be greater than highest base plugin version 1\.2\.0 after provider replacement/);
 }));
 
 test("policy checker accepts replacement manifest with a higher version", () => withRepository((root) => {
-  writeBaselinePlugin(root, "sample", "1.2.0");
+  writeBaselinePlugin(root, "itixo-claude", "1.2.0");
   const base = commit(root, "baseline");
-  fs.rmSync(path.join(root, "plugins/sample/.claude-plugin"), { recursive: true, force: true });
-  writeJson(root, "plugins/sample/.codex-plugin/plugin.json", plugin("sample", "1.2.1"));
+  fs.rmSync(path.join(root, "plugins/itixo-claude/.claude-plugin"), { recursive: true, force: true });
+  writeJson(root, "plugins/itixo-claude/.codex-plugin/plugin.json", plugin("itixo-claude", "1.2.1"));
   commit(root, "replace provider manifest");
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "1.2.1", provider: "claude", body: ["- Provider migration."] }],
+  }));
 
-  const result = runChecker(root, base, release("sample", "1.2.1", "— Provider migration"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 0, result.output);
 }));
@@ -199,14 +237,17 @@ test("policy checker treats marketplace-only category changes as plugin changes"
   writeBaselinePlugin(root);
   const base = commit(root, "baseline");
   writeJson(root, ".claude-plugin/marketplace.json", marketplace({
-    name: "sample",
-    source: "./plugins/sample",
-    description: "sample plugin",
+    name: "itixo-claude",
+    source: "./plugins/itixo-claude",
+    description: "itixo-claude plugin",
     category: "Productivity",
   }));
   commit(root, "change category");
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "1.0.0", provider: "claude", body: ["- Note."] }],
+  }));
 
-  const result = runChecker(root, base, release("sample", "1.0.0"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 1);
   assert.match(result.output, /version 1\.0\.0 must be greater than same-provider base version 1\.0\.0/);
@@ -236,36 +277,16 @@ test("policy checker uses marketplace source folder for shared plugin names", ()
   assert.doesNotMatch(result.output, /Plugin 'itixo' was deleted/);
 }));
 
-test("policy checker accepts shared plugin name under source-folder changelog section", () => withRepository((root) => {
-  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "0.6.0"));
-  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
-    name: "itixo",
-    source: "./plugins/itixo-claude",
-    description: "Claude plugin",
-    category: "Developer Tools",
-  }));
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "0.7.0"));
-  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
-    name: "itixo",
-    source: "./plugins/itixo-claude",
-    description: "Claude plugin",
-    category: "Productivity",
-  }));
-  commit(root, "bump plugin");
-
-  const result = runChecker(root, base, release("itixo-claude", "0.7.0", "— Claude update"));
-
-  assert.equal(result.status, 0, result.output);
-}));
-
-test("policy checker accepts new plugin with strict version and Wiki heading", () => withRepository((root) => {
+test("policy checker accepts new plugin with strict version and matching heading", () => withRepository((root) => {
   fs.writeFileSync(path.join(root, "README.md"), "baseline\n");
   const base = commit(root, "baseline");
-  writeJson(root, "plugins/new-plugin/.claude-plugin/plugin.json", plugin("new-plugin", "0.1.0"));
+  writeJson(root, "plugins/itixo-codex/.claude-plugin/plugin.json", plugin("itixo-codex", "0.1.0"));
   commit(root, "add plugin");
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "0.1.0", provider: "codex", body: ["- New plugin."] }],
+  }));
 
-  const result = runChecker(root, base, release("new-plugin", "0.1.0", "— New plugin"));
+  const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 0, result.output);
 }));
@@ -273,207 +294,272 @@ test("policy checker accepts new plugin with strict version and Wiki heading", (
 test("policy checker explicitly skips fully deleted plugins", () => withRepository((root) => {
   writeBaselinePlugin(root);
   const base = commit(root, "baseline");
-  fs.rmSync(path.join(root, "plugins/sample"), { recursive: true, force: true });
+  fs.rmSync(path.join(root, "plugins/itixo-claude"), { recursive: true, force: true });
   commit(root, "delete plugin");
 
   const result = runChecker(root, base, "");
 
   assert.equal(result.status, 0, result.output);
-  assert.match(result.stdout, /Plugin 'sample' was deleted; no HEAD manifest to validate/);
+  assert.match(result.stdout, /Plugin 'itixo-claude' was deleted; no HEAD manifest to validate/);
 }));
 
-test("policy checker requires the changed plugin's exact section, not a prefix or wrong plugin", () => withRepository((root) => {
-  writeBaselinePlugins(root, [["sample", "1.0.0"], ["sample-extra", "1.0.0"]]);
+test("policy checker allows historical releases for providers no longer present", () => withRepository((root) => {
+  writeBaselinePlugins(root, [["itixo-claude", "1.0.0"], ["itixo-codex", "9.0.0"]]);
   const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump sample only");
-
-  const result = runChecker(root, base, release("sample-extra", "1.0.1", "— Wrong plugin"));
-
-  assert.equal(result.status, 1, "a version under sample-extra must not satisfy changed plugin sample");
-}));
-
-test("policy checker rejects a changelog with no plugin sections", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
-
-  const result = runChecker(root, base, "# Changelog\n\nNo plugin releases yet.\n");
-
-  assert.equal(result.status, 1);
-}));
-
-test("policy checker rejects duplicate plugin sections", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
-  const changelog = [
-    release("sample", "1.0.1", "— Current"),
-    release("sample", "1.0.0", "— Duplicate section"),
-  ].join("\n");
-
-  const result = runChecker(root, base, changelog);
-
-  assert.equal(result.status, 1, "duplicate ## sample sections must be rejected");
-}));
-
-test("policy checker rejects duplicate releases within one plugin", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
-  const changelog = [
-    "## sample",
-    "",
-    "### 1.0.1 — First",
-    "",
-    "- First body.",
-    "",
-    "### 1.0.1 — Duplicate",
-    "",
-    "- Duplicate body.",
-    "",
-  ].join("\n");
-
-  const result = runChecker(root, base, changelog);
-
-  assert.equal(result.status, 1, "duplicate release version in one plugin must be rejected");
-}));
-
-test("policy checker allows the same release version in two exact plugin sections", () => withRepository((root) => {
-  writeBaselinePlugins(root, [["first-plugin", "1.0.0"], ["second-plugin", "1.0.0"]]);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/first-plugin/.claude-plugin/plugin.json", plugin("first-plugin", "1.0.1"));
-  writeJson(root, "plugins/second-plugin/.claude-plugin/plugin.json", plugin("second-plugin", "1.0.1"));
-  commit(root, "bump both plugins");
-  const changelog = [
-    release("first-plugin", "1.0.1", "(2026-07-23)"),
-    release("second-plugin", "1.0.1", "— Independent release"),
-  ].join("\n");
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo-claude", "1.0.1"));
+  fs.rmSync(path.join(root, "plugins/itixo-codex"), { recursive: true, force: true });
+  commit(root, "bump claude and retire codex");
+  const changelog = doc(
+    dateBlock("2026-07-28", {
+      releases: [{ version: "1.0.1", provider: "claude", body: ["- Current release."] }],
+    }),
+    dateBlock("2026-07-20", {
+      releases: [
+        { version: "9.0.0", provider: "codex", body: ["- Historical release for retired plugin."] },
+        { version: "0.1.0", provider: "copilot", body: ["- Historical release, provider never installed."] },
+      ],
+    }),
+  );
 
   const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 0, result.output);
+  assert.match(result.stdout, /Plugin 'itixo-codex' was deleted/);
 }));
 
-test("policy checker rejects release headings before the first plugin section", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
-  const changelog = [
-    "### 9.9.9 — Orphan release",
-    "",
-    "- Has no owning plugin.",
-    "",
-    release("sample", "1.0.1"),
-  ].join("\n");
+test("policy checker rejects a malformed date heading", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026/07/28\n\n### 1.0.1 - claude\n\n- Fix.\n";
 
   const result = runChecker(root, base, changelog);
 
-  assert.equal(result.status, 1, "release before any ## plugin section must be rejected");
+  assert.equal(result.status, 1);
+  assert.match(result.output, /date heading must be exactly '## YYYY-MM-DD' with a real calendar date; got/);
 }));
 
-test("policy checker rejects an empty release body", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
-  const changelog = [
-    "## sample",
-    "",
-    "### 1.0.1 — Empty",
-    "",
-    "## historical-plugin",
-    "",
-    "### 0.1.0",
-    "",
-    "- Historical body.",
-    "",
-  ].join("\n");
+test("policy checker rejects a date heading with an invalid calendar date", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026-02-30\n\n### 1.0.1 - claude\n\n- Fix.\n";
 
   const result = runChecker(root, base, changelog);
 
-  assert.equal(result.status, 1, "release content before the next section must be non-empty");
+  assert.equal(result.status, 1);
+  assert.match(result.output, /date heading must be exactly '## YYYY-MM-DD' with a real calendar date; got/);
 }));
 
-test("policy checker rejects legacy provider-prefixed and combined release headings", () => withRepository((root) => {
-  writeBaselinePlugin(root);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  commit(root, "bump plugin");
-  for (const legacyHeading of [
-    "### sample 1.0.0 — Provider-prefixed",
-    "### 1.0.0 / 2.0.0 — Combined providers",
-  ]) {
-    const changelog = [
-      release("sample", "1.0.1"),
-      legacyHeading,
-      "",
-      "- Legacy body.",
-      "",
-    ].join("\n");
+test("policy checker rejects a duplicate date section", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = doc(
+    dateBlock("2026-07-28", { releases: [{ version: "1.0.1", provider: "claude", body: ["- Fix."] }] }),
+    dateBlock("2026-07-28", { releases: [{ version: "1.0.0", provider: "claude", body: ["- Old."] }] }),
+  );
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /duplicate date section '## 2026-07-28'; each date may appear once\./);
+}));
+
+test("policy checker rejects date sections that are not strictly descending", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = doc(
+    dateBlock("2026-07-20", { releases: [{ version: "1.0.1", provider: "claude", body: ["- Fix."] }] }),
+    dateBlock("2026-07-28", { releases: [{ version: "1.0.0", provider: "claude", body: ["- Old."] }] }),
+  );
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /date sections must be strictly descending; '2026-07-28' must be earlier than '2026-07-20'\./);
+}));
+
+test("policy checker rejects a malformed release heading", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+
+  for (const headingLine of ["### 1.0.1 — claude", "### 1.0.1 - claude Fix"]) {
+    const changelog = `## 2026-07-28\n\n${headingLine}\n\n- Fix.\n`;
     const result = runChecker(root, base, changelog);
-    assert.equal(result.status, 1, `${legacyHeading} must be rejected`);
+    assert.equal(result.status, 1, headingLine);
+    assert.match(result.output, /release heading must be exactly '### MAJOR\.MINOR\.PATCH - provider'; got/, headingLine);
   }
 }));
 
-test("policy checker allows semver text in a valid release heading suffix", () => withRepository((root) => {
-  writeBaselinePlugin(root, "sample", "1.2.2");
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.2.3"));
-  commit(root, "bump plugin");
+test("policy checker rejects an unknown provider in a release heading", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026-07-28\n\n### 1.0.1 - gitlab\n\n- Fix.\n";
 
-  const result = runChecker(
-    root,
-    base,
-    release("sample", "1.2.3", "— Support API 2.0.0", "- Adds compatibility with API 2.0.0."),
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /unknown provider 'gitlab' in release heading; must be one of claude, codex, copilot\./);
+}));
+
+test("policy checker rejects a duplicate release heading", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [
+      { version: "1.0.1", provider: "claude", body: ["- First."] },
+      { version: "1.0.1", provider: "claude", body: ["- Duplicate."] },
+    ],
+  }));
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /duplicate release heading '### 1\.0\.1 - claude'; each version may appear at most once per provider\./);
+}));
+
+test("policy checker rejects releases that do not strictly descend within a date section", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [
+      { version: "1.0.0", provider: "claude", body: ["- Older first."] },
+      { version: "1.0.1", provider: "claude", body: ["- Newer second."] },
+    ],
+  }));
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /releases for provider 'claude' must be strictly descending; '1\.0\.1' must be lower than '1\.0\.0'\./);
+}));
+
+test("policy checker rejects releases that do not strictly descend across date sections", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = doc(
+    dateBlock("2026-07-28", { releases: [{ version: "1.0.0", provider: "claude", body: ["- Newer date, lower version."] }] }),
+    dateBlock("2026-07-20", { releases: [{ version: "1.0.1", provider: "claude", body: ["- Older date, higher version."] }] }),
   );
 
-  assert.equal(result.status, 0, result.output);
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /releases for provider 'claude' must be strictly descending; '1\.0\.1' must be lower than '1\.0\.0'\./);
 }));
 
-test("policy checker requires releases to strictly descend within each plugin", () => withRepository((root) => {
-  writeBaselinePlugin(root);
+test("policy checker rejects providers out of order within a date section", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [
+      { version: "0.1.0", provider: "codex", body: ["- Codex first."] },
+      { version: "1.0.1", provider: "claude", body: ["- Claude second."] },
+    ],
+  }));
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /providers within date section '2026-07-28' must appear in order claude, codex, copilot; 'claude' is out of order\./);
+}));
+
+test("policy checker rejects non-contiguous provider releases within a date section", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [
+      { version: "1.0.1", provider: "claude", body: ["- Claude first."] },
+      { version: "0.1.0", provider: "codex", body: ["- Codex interrupts."] },
+      { version: "1.0.0", provider: "claude", body: ["- Claude returns, breaking contiguity."] },
+    ],
+  }));
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /releases for provider 'claude' must be contiguous within date section '2026-07-28'\./);
+}));
+
+test("policy checker rejects a date section with no release heading", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026-07-28\n\n- Just a common bullet, no release.\n";
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /date section '2026-07-28' must contain at least one release heading\./);
+}));
+
+test("policy checker rejects a date section with no visible content", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026-07-28\n\n### 1.0.1 - claude\n\n";
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /date section '2026-07-28' must have visible content: common bullets or a release body\./);
+}));
+
+test("policy checker rejects malformed bullet lines in a common section", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026-07-28\n\nNot a bullet line.\n\n### 1.0.1 - claude\n\n- Fix.\n";
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /common section for date '2026-07-28' must be '- ' bullet lines; got "Not a bullet line\."\./);
+}));
+
+test("policy checker rejects malformed bullet lines in a release body", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026-07-28\n\n### 1.0.1 - claude\n\nNot a bullet line.\n";
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /release body for '1\.0\.1 - claude' must be '- ' bullet lines; got "Not a bullet line\."\./);
+}));
+
+test("policy checker rejects an orphan release heading before any date section", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "### 1.0.1 - claude\n\n- Fix.\n\n## 2026-07-28\n\n- Common bullet.\n\n### 1.0.0 - claude\n\n- Old.\n";
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /release heading '### 1\.0\.1 - claude' is an orphan; it must follow a date section, and the first heading in the file must be a date section\./);
+}));
+
+test("policy checker rejects a plugin directory with an unmapped provider", () => withRepository((root) => {
+  writeBaselinePlugin(root, "not-itixo-prefixed", "1.0.0");
   const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.2"));
+  writeJson(root, "plugins/not-itixo-prefixed/.claude-plugin/plugin.json", plugin("not-itixo-prefixed", "1.0.1"));
   commit(root, "bump plugin");
-  const changelog = [
-    "## sample",
-    "",
-    "### 1.0.1 — Older first",
-    "",
-    "- Older release.",
-    "",
-    "### 1.0.2 — Newer second",
-    "",
-    "- Newer release.",
-    "",
-  ].join("\n");
+  const changelog = doc(dateBlock("2026-07-28", {
+    releases: [{ version: "1.0.1", provider: "claude", body: ["- Fix."] }],
+  }));
 
   const result = runChecker(root, base, changelog);
 
-  assert.equal(result.status, 1, "versions must be strictly descending within ## sample");
+  assert.equal(result.status, 1);
+  assert.match(result.output, /plugins\/not-itixo-prefixed: unknown provider; add it to PROVIDERS in scripts\/providers\.js\./);
 }));
 
-test("policy checker allows historical and deleted plugin sections", () => withRepository((root) => {
-  writeBaselinePlugins(root, [["sample", "1.0.0"], ["retired-plugin", "9.0.0"]]);
-  const base = commit(root, "baseline");
-  writeJson(root, "plugins/sample/.claude-plugin/plugin.json", plugin("sample", "1.0.1"));
-  fs.rmSync(path.join(root, "plugins/retired-plugin"), { recursive: true, force: true });
-  commit(root, "bump sample and retire plugin");
+test("policy checker accepts a bodyless release when the date has common bullets", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026-07-28\n\n- Common bullet covers this date.\n\n### 1.0.1 - claude\n\n";
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 0, result.output);
+}));
+
+test("policy checker does not enforce bullet formatting inside fenced code blocks", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
   const changelog = [
-    release("sample", "1.0.1", "— Current"),
-    release("retired-plugin", "9.0.0", "— Historical"),
-    release("never-installed", "0.1.0", "— Historical"),
+    "## 2026-07-28",
+    "",
+    "### 1.0.1 - claude",
+    "",
+    "- Fix.",
+    "",
+    "```",
+    "Not a bullet line inside a fence.",
+    "```",
+    "",
   ].join("\n");
 
   const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 0, result.output);
-  assert.match(result.stdout, /Plugin 'retired-plugin' was deleted/);
 }));
 
 test("validation workflow runs required checks for PR and manual dispatch", () => {
