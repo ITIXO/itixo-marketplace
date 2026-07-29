@@ -439,6 +439,26 @@ test("policy checker rejects a provider heading with no version headings", () =>
   assert.match(result.output, /provider section '### claude' must contain at least one version heading\./);
 }));
 
+test("policy checker rejects a provider heading with no version headings when the date section ends", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026-07-28\n\n- Common bullet.\n\n### claude\n\n## 2026-07-20\n\n### claude\n\n#### 1.0.1\n\n- Fix.\n";
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /provider section '### claude' must contain at least one version heading\./);
+}));
+
+test("policy checker rejects a provider heading with no version headings at end of file", () => withRepository((root) => {
+  const base = setupBumpedClaude(root);
+  const changelog = "## 2026-07-28\n\n### claude\n\n#### 1.0.1\n\n- Fix.\n\n## 2026-07-20\n\n- Common bullet.\n\n### claude\n";
+
+  const result = runChecker(root, base, changelog);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /provider section '### claude' must contain at least one version heading\./);
+}));
+
 test("policy checker rejects content between a provider heading and its first version heading", () => withRepository((root) => {
   const base = setupBumpedClaude(root);
   const changelog = "## 2026-07-28\n\n### claude\n\nNot allowed here.\n\n#### 1.0.1\n\n- Fix.\n";
