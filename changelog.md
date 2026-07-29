@@ -1,90 +1,104 @@
 ## 2026-07-28
 
-### 0.7.0 - claude
+### claude
+
+#### 0.7.0
 
 - **Breaking:** The Claude plugin's technical ID is now `itixo` (formerly `itixo-claude`). Its provider folder remains `plugins/itixo-claude`; update references that use the plugin ID.
 
-### 0.6.1 - claude
+#### 0.6.1
 
 - Claude adds the user-triggered, read-only `itixo-security-reviewer` with an `opus` + max default.
 - It reviews the current-branch diff, staged and unstaged changes, and relevant untracked files unless broader scope is explicitly requested; pull-request findings are inline where possible or general otherwise, with `REQUEST_CHANGES` for unresolved Critical or High findings when supported, self-review `COMMENT` fallback, and a neutral clean-review comment.
 
-### 0.6.0 - claude
+#### 0.6.0
 
 - Claude no longer provides the `design-baseline-handover` skill or its design-baseline templates.
 
-### 0.5.0 - claude
+#### 0.5.0
 
 - The Claude plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-claude`.
 
-### 0.7.0 - codex
+### codex
+
+#### 0.7.0
 
 - **Breaking:** The Codex plugin's technical ID is now `itixo` (formerly `itixo-codex`). Its provider folder remains `plugins/itixo-codex`; update references that use the plugin ID.
 
-### 0.6.1 - codex
+#### 0.6.1
 
 - Codex adds the user-triggered, read-only `itixo-security-reviewer` with a `gpt-5.6-sol` + max default.
 - It reviews the current-branch diff, staged and unstaged changes, and relevant untracked files unless broader scope is explicitly requested; pull-request findings are inline where possible or general otherwise, with `REQUEST_CHANGES` for unresolved Critical or High findings when supported, self-review `COMMENT` fallback, and a neutral clean-review comment.
 
-### 0.6.0 - codex
+#### 0.6.0
 
 - The Codex plugin release is aligned to version `0.6.0`.
 
-### 0.5.0 - codex
+#### 0.5.0
 
 - The Codex plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-codex`.
 
-### 0.7.0 - copilot
+### copilot
+
+#### 0.7.0
 
 - **Breaking:** The Copilot plugin's technical ID is now `itixo` (formerly `itixo-copilot`). Its provider folder remains `plugins/itixo-copilot`; update references that use the plugin ID.
 
-### 0.6.1 - copilot
+#### 0.6.1
 
 - Copilot adds the user-triggered, read-only `itixo-security-reviewer` with a `claude-opus-5` default and no effort field, and updates mid-tier agents to `claude-sonnet-5`.
 - Reviews default to the current-branch diff, staged and unstaged changes, and relevant untracked files unless broader scope is explicit; pull-request findings are inline where possible or general otherwise, with `REQUEST_CHANGES` for unresolved Critical or High findings when supported, self-review `COMMENT` fallback, and a neutral clean-review comment.
 
-### 0.6.0 - copilot
+#### 0.6.0
 
 - The Copilot plugin release is aligned to version `0.6.0`.
 
-### 0.3.0 - copilot
+#### 0.3.0
 
 - The Copilot plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-copilot`.
 
 ## 2026-07-27
 
-### 0.4.0 - claude
+### claude
+
+#### 0.4.0
 
 - Claude removed `/dirigent-stats`.
 
-### 0.3.1 - claude
+#### 0.3.1
 
 - Claude now automatically and safely removes temporary worktrees and branches created by its agents after work completes.
 
-### 0.3.0 - claude
+#### 0.3.0
 
 - **Breaking:** `/dirigent-stats` now reports only cache-backed root and unique subagent-run token totals, grouped by role, provider, and model; unavailable cache data uses the no-data result.
 
-### 0.4.0 - codex
+### codex
+
+#### 0.4.0
 
 - Codex removed `/dirigent-stats`.
 
-### 0.3.1 - codex
+#### 0.3.1
 
 - Codex now automatically and safely removes temporary worktrees and branches created by its agents after work completes.
 
-### 0.3.0 - codex
+#### 0.3.0
 
 - **Breaking:** `/dirigent-stats` now reports only cache-backed root and unique subagent-run token totals, grouped by role, provider, and model; unavailable cache data uses the no-data result.
 
-### 0.2.0 - copilot
+### copilot
+
+#### 0.2.0
 
 - Copilot removed `/dirigent-stats`.
 - Dirigent now enforces full orchestration parity with Claude and Codex.
 
 ## 2026-07-24
 
-### 0.1.1 - copilot
+### copilot
+
+#### 0.1.1
 
 - Copilot now documents `/itixo-copilot/dirigent-stats`, which reports exact recorded token usage for the current session and correlated recursive subagents.
 - OpenTelemetry JSONL export must be enabled before starting a session; missing, malformed, unrelated, or ambiguous telemetry is reported as unavailable, with no estimates or transcript/database fallback.
@@ -93,40 +107,44 @@
 
 - Claude and Codex marketplace listings now provide richer plugin details, and Codex has a dedicated marketplace icon.
 
-### 0.2.11 - claude
+### claude
+
+#### 0.2.11
 
 - Claude Dirigent statistics can now show agent usage, model usage, or both through `--view agents|models|both`, with both tables remaining the default.
 - Reports use exact `kToks` values, and totals cover the root session plus recursive agents and each agent's input, cache, and output work without double-counting alternate table groupings.
 
-### 0.2.10 - claude
+#### 0.2.10
 
 - Claude users can explicitly override the model and effort for a matching agent invocation while omitted values keep generated defaults.
 - An explicitly selected Opus planner may exceed the caller where provider and organization policy permits.
 
-### 0.2.9 - claude
+#### 0.2.9
 
-### 0.2.13 - codex
+### codex
+
+#### 0.2.13
 
 - Codex Dirigent statistics can now show agent usage, model usage, or both through `--view agents|models|both`, with both tables remaining the default.
 - Reports use exact `kToks` values, and totals cover the root session plus recursive agents and each agent's input, cache, and output work without double-counting alternate table groupings.
 
-### 0.2.12 - codex
+#### 0.2.12
 
 - Codex Dirigent statistics now reproduce the cached hook report without internal markers or instructions.
 - Before usage is recorded, the command returns only `No token usage available yet.`; nonzero reports contain only their heading, tables, total, and warnings.
 - Counting starts automatically through session hooks after a new task or Codex restart following installation or update.
 
-### 0.2.11 - codex
+#### 0.2.11
 
 - Codex users can now install model and effort overrides independently for any of the seven `itixo-*` agents while preserving existing tier defaults when no override is supplied.
 - An explicitly selected Sol planner may exceed the caller where provider and organization policy permits.
 
-### 0.2.10 - codex
+#### 0.2.10
 
 - The Codex agent installer now asks separately for the cheap-role model and effort, recommending Luna + high and supporting Terra + low as a fallback.
 - Scope selection remains explicit, and each choice can be overridden with `--cheap-model` and `--cheap-effort`.
 
-### 0.2.9 - codex
+#### 0.2.9
 
 ## 2026-07-22
 
@@ -148,29 +166,33 @@
 - Claude uses ordinary subagents, not experimental Agent Teams; Codex requires `agents.max_threads >= 5` and recommends `max_depth = 1`.
 - The skill saturates available independent work, refills freed slots, and reports concurrency-cap or dependency shortfalls.
 
-### 0.2.8 - claude
+### claude
 
-### 0.2.7 - claude
+#### 0.2.8
 
-### 0.2.6 - claude
+#### 0.2.7
 
-### 0.2.5 - claude
+#### 0.2.6
 
-### 0.2.4 - claude
+#### 0.2.5
 
-### 0.2.3 - claude
+#### 0.2.4
 
-### 0.2.8 - codex
+#### 0.2.3
 
-### 0.2.7 - codex
+### codex
 
-### 0.2.6 - codex
+#### 0.2.8
 
-### 0.2.5 - codex
+#### 0.2.7
 
-### 0.2.4 - codex
+#### 0.2.6
 
-### 0.2.3 - codex
+#### 0.2.5
+
+#### 0.2.4
+
+#### 0.2.3
 
 ## 2026-07-21
 
@@ -178,9 +200,13 @@
 - This release documents structured responsibilities for orchestration, explicit strict tool and refusal boundaries, and unchanged capability allowlists.
 - Claude and Codex provider artifacts were regenerated from the canonical agent definitions.
 
-### 0.2.2 - claude
+### claude
 
-### 0.2.2 - codex
+#### 0.2.2
+
+### codex
+
+#### 0.2.2
 
 ## 2026-07-20
 
@@ -192,10 +218,14 @@
 - **Breaking:** Codex custom agents now require explicit installation with `itixo-codex:install-agents` before they can be discovered.
 - **Breaking:** `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.
 
-### 0.2.1 - claude
+### claude
 
-### 0.2.0 - claude
+#### 0.2.1
 
-### 0.2.1 - codex
+#### 0.2.0
 
-### 0.2.0 - codex
+### codex
+
+#### 0.2.1
+
+#### 0.2.0
