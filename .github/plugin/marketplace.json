@@ -11,7 +11,7 @@
     {
       "name": "itixo",
       "source": "./plugins/itixo-copilot",
-      "description": "Itixo library for Copilot CLI users: agents, skills, rules, prompts. Orchestration module included (delegation to sonnet/haiku subagents). Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
+      "description": "Itixo library for Copilot CLI users: agents, skills, rules, prompts. Orchestration module included (delegation to cheaper-model subagents). Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
       "version": "0.7.1",
       "hooks": "hooks/hooks.json"
     }
