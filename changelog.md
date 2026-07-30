@@ -2,7 +2,7 @@
 
 - Every agent now uses the `caveman:caveman` skill when it is available and otherwise keeps its responses terse.
 - The orchestrator now uses `mattpocock-skills:grill-me` when available to ask clarifying questions before delegating on assumptions; subagents still return open questions to the orchestrator.
-- Both plugins and the delegation rules now recommend installing the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).
+- All three plugins and the delegation rules now recommend installing the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).
 
 ### claude
 
