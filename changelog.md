@@ -6,6 +6,10 @@
 
 ### claude
 
+#### 0.8.1
+
+- The Claude plugin no longer declares `caveman` and `mattpocock-skills` as hard plugin dependencies; it only recommends installing them (see description).
+
 #### 0.8.0
 
 - **Breaking:** the Claude plugin now declares `caveman` and `mattpocock-skills` as plugin dependencies, so enabling it installs them.
