@@ -43,6 +43,7 @@ Before final response, clean up ONLY temporary worktrees and temporary branches 
 ## Output contract
 
 - Commands run; pass/fail counts; failing test names; shortest decisive error; changed files; commit SHA; and blockers.
+- Use the `caveman:caveman` skill if it is available; otherwise keep the report terse — no filler, no hedging, no pleasantries. Code, commit messages, and security warnings stay in normal prose.
 - Last line of every final report: `model: <exact model identifier you run on, from your environment context>`. If identifier is not available, write `model: unknown`.
 
 <!-- Generated from base/agents/itixo-tester.md by scripts/generate-agents.js. Do not edit. -->
