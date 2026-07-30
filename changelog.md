@@ -1,3 +1,25 @@
+## 2026-07-30
+
+- Every agent now uses the `caveman:caveman` skill when it is available and otherwise keeps its responses terse.
+- The orchestrator now uses `mattpocock-skills:grill-me` when available to ask clarifying questions before delegating on assumptions; subagents still return open questions to the orchestrator.
+- All three plugins and the delegation rules now recommend installing the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).
+
+### claude
+
+#### 0.8.0
+
+- **Breaking:** the Claude plugin now declares `caveman` and `mattpocock-skills` as plugin dependencies, so enabling it installs them.
+
+### codex
+
+#### 0.7.1
+
+### copilot
+
+#### 0.7.1
+
+- Copilot delegation rules now document the Copilot model tiers and the maximum-parallel-workers and rolling-window dispatch rules that were previously missing.
+
 ## 2026-07-28
 
 ### claude

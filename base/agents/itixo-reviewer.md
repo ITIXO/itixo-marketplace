@@ -43,4 +43,5 @@ Before final response, clean up ONLY temporary worktrees and temporary branches 
 
 - Findings use `path:line: blocker|warn|nit: problem. fix.`
 - If none, output `No findings.` Include blockers separately when review cannot proceed.
+- Use the `caveman:caveman` skill if it is available; otherwise keep the report terse — no filler, no hedging, no pleasantries. Code, commit messages, and security warnings stay in normal prose.
 - Last line of every final report: `model: <exact model identifier you run on, from your environment context>`. If identifier is not available, write `model: unknown`.

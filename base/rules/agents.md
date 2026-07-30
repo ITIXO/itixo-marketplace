@@ -1,6 +1,6 @@
 # Orchestration & Delegation Rules
 
-Source of truth for both plugins (`itixo-claude`, `itixo-codex`). Edit here, then sync to plugins.
+Source of truth for all provider plugins (`itixo-claude`, `itixo-codex`, `itixo-copilot`). Edit here, then sync to plugins.
 
 ## Core idea
 
@@ -15,12 +15,12 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 
 ## Model tiers
 
-| Tier | Purpose | Claude | Codex |
-|------|---------|--------|-------|
-| orchestrator | thinking, decomposition, integration | user-selected (inherit) | user-selected |
-| mid | implementation, tests, review | sonnet | gpt-5.6-terra |
-| cheap | lookups, docs, mechanical reads | haiku | gpt-5.6-luna + high (Terra + low fallback) |
-| security | security review | opus + max | gpt-5.6-sol + max |
+| Tier | Purpose | Claude | Codex | Copilot |
+|------|---------|--------|-------|---------|
+| orchestrator | thinking, decomposition, integration | user-selected (inherit) | user-selected | user-selected |
+| mid | implementation, tests, review | sonnet | gpt-5.6-terra | claude-sonnet-5 |
+| cheap | lookups, docs, mechanical reads | haiku | gpt-5.6-luna + high (Terra + low fallback) | claude-haiku-4.5 |
+| security | security review | opus + max | gpt-5.6-sol + max | claude-opus-5 |
 
 ## Agent → tier mapping
 
@@ -41,6 +41,7 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 - Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md`; the installed TOML owns instructions, model, and effort. Explicit user-requested per-agent overrides are installed with `itixo-codex:install-agents` and then owned by the matching TOML. Do not pass an additional invocation override. Explicit planner Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
 - If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is Luna + high; Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
+- Copilot CLI invokes the native Copilot plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model. Copilot has no effort field; never pass an effort override to a Copilot agent.
 
 ## Security-review routing and lifecycle
 
@@ -57,13 +58,14 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 - `itixo-investigator` before `itixo-builder`: investigator locates first on its configured model, defaulting to the cheap tier unless the user supplied a matching explicit override; then hand precise file:line targets to builder on its configured model, defaulting to the mid tier unless likewise overridden.
 - Never let a subagent expand scope. Scope change goes back to orchestrator.
 - **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
+- **Output style:** every agent uses `caveman:caveman` if that skill is available; otherwise it keeps responses terse — no filler, no hedging, no pleasantries. Code, commit messages, and security warnings stay in normal prose either way.
 - Parallelize independent subagent runs.
 - **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least three safe independent executable units exist, launch exactly three direct worker subagents in one parallel batch before awaiting any result. The orchestrator is not a worker.
 - Keep a rolling window: dispatch the next ready independent worker task as soon as a worker slot opens; never wait serially while ready independent work exists.
 - Never invent redundant work or violate dependencies or role ownership to fill a slot. When fewer than three workers can run because of dependency, ambiguity, or agent availability, launch the maximum possible and report those non-runtime reasons as appropriate. Runtime capacity may reduce concurrency; do not report runtime-cap reductions or shortfalls to the user.
 - **Codex capacity:** three direct workers plus root require `agents.max_threads >= 4`; recommend `agents.max_depth = 1` for root-owned fanout. A skill cannot raise a runtime cap.
 - **Claude dispatch:** use ordinary `Agent` subagents and issue up to three calls together; do not use experimental Agent Teams.
-- Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
+- **Do not assume — always ask.** Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope). Use `mattpocock-skills:grill-me` if that skill is available; otherwise ask the user directly. This applies to the orchestrator only — subagents have no user channel and return open questions to the orchestrator instead.
 - Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.
 
 ## GitHub issue delegation (mandatory)

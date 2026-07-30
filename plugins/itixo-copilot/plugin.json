@@ -1,7 +1,7 @@
 {
   "name": "itixo",
-  "description": "Itixo library for Copilot CLI users: agents, skills, rules and prompts shared across the company. Includes orchestration module (orchestrator on user-selected model delegates precise steps to cheaper-model subagents).",
-  "version": "0.7.0",
+  "description": "Itixo library for Copilot CLI users: agents, skills, rules and prompts shared across the company. Includes orchestration module (orchestrator on user-selected model delegates precise steps to cheaper-model subagents). Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
+  "version": "0.7.1",
   "author": {
     "name": "Itixo"
   },
