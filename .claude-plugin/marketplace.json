@@ -4,7 +4,7 @@
     "name": "Itixo"
   },
   "metadata": {
-    "description": "Itixo marketplace with plugins for Claude, Codex and Copilot. Recommended: also add the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
+    "description": "Itixo marketplace with plugins for Claude. Recommended: also add the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
     "version": "0.1.1"
   },
   "plugins": [
