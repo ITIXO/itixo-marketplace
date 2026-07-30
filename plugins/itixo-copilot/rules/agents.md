@@ -21,8 +21,12 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.
 - **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
+- **Output style:** every agent uses `caveman:caveman` if that skill is available; otherwise it keeps responses terse — no filler, no hedging, no pleasantries. Code, commit messages, and security warnings stay in normal prose either way.
 - Parallelize independent subagent runs.
-- Do not assume — always ask. Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope).
+- **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least three safe independent executable units exist, launch exactly three direct worker subagents in one parallel batch before awaiting any result. The orchestrator is not a worker.
+- Keep a rolling window: dispatch the next ready independent worker task as soon as a worker slot opens; never wait serially while ready independent work exists.
+- Never invent redundant work or violate dependencies or role ownership to fill a slot. When fewer than three workers can run because of dependency, ambiguity, or agent availability, launch the maximum possible and report those non-runtime reasons as appropriate. Runtime capacity may reduce concurrency; do not report runtime-cap reductions or shortfalls to the user.
+- **Do not assume — always ask.** Orchestrator asks the user before delegating on assumptions (unclear requirement, missing constraint, ambiguous scope). Use `mattpocock-skills:grill-me` if that skill is available; otherwise ask the user directly. This applies to the orchestrator only — subagents have no user channel and return open questions to the orchestrator instead.
 - Orchestrator relays every open question raised by a subagent to the user, verbatim in substance, before continuing the affected step. Never answers on the user's behalf, never drops a question.
 
 ## Security-review lifecycle
