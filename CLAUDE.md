@@ -1,6 +1,6 @@
 # Itixo Marketplace
 
-Marketplace with an `itixo` plugin for each provider: Claude (Claude Code / Cowork) and Codex. Provider-specific source directories remain `plugins/itixo-claude` and `plugins/itixo-codex`; the shared plugin ID is `itixo`. Orchestration (dirigent + agent roles) is the first module; more skills, agents, and rules accumulate over time.
+Marketplace with an `itixo` plugin for each provider: Claude (Claude Code / Cowork), Codex, and Copilot. Provider-specific source directories remain `plugins/itixo-claude`, `plugins/itixo-codex`, and `plugins/itixo-copilot`; the shared plugin ID is `itixo`. Orchestration (dirigent + agent roles) is the first module; more skills, agents, and rules accumulate over time.
 
 ## README is a product artifact
 
@@ -11,13 +11,16 @@ README = product front door. Non-technical people read it to decide if caveman w
 ```
 .claude-plugin/marketplace.json   # Marketplace manifest — Claude Code native, Codex legacy-compatible
 .agents/plugins/marketplace.json  # Marketplace manifest — Codex native
+.github/plugin/marketplace.json   # Marketplace manifest — Copilot native
 .wiki/                             # Checkout of GitHub Wiki repository ITIXO-Playground/itixo-marketplace.wiki — place at root of main repository; separate Git repository, ignored by main repository
 base/rules/agents.md              # Delegation rules + model tier table (source of truth)
 base/agents/                      # Canonical platform-neutral agent role definitions
 plugins/itixo-claude/             # Claude plugin (generated native agents, skills, rules, prompts)
 plugins/itixo-codex/              # Codex plugin (generated TOML templates, installer, skills, prompts, rules)
+plugins/itixo-copilot/            # Copilot plugin (native agent, skills, prompts)
 scripts/generate-agents.js        # Generates Claude agents and Codex TOML templates from base/agents
 tests/                            # generate-agents.test.js, validate.js
+.github/workflows/                # CI workflows
 ```
 
 ## Standards
@@ -41,14 +44,14 @@ All three must pass.
 
 ### Model tiers
 
-| Tier | Claude | Codex | Agents |
-|------|--------|-------|--------|
-| orchestrator | inherit | user-selected | itixo-planner |
-| mid | sonnet | Terra + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku | Luna + high (or Terra + low fallback) | itixo-investigator, itixo-docs-updater |
-| security | opus + max | gpt-5.6-sol + max | itixo-security-reviewer |
+| Tier | Claude | Codex | Copilot | Agents |
+|------|--------|-------|---------|--------|
+| orchestrator | inherit | user-selected | user-selected | itixo-planner |
+| mid | sonnet | Terra + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | haiku | Luna + high (or Terra + low fallback) | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
+| security | opus + max | gpt-5.6-sol + max | claude-opus-5 | itixo-security-reviewer |
 
-The eight `itixo-*` IDs are canonical and shared by Claude native agents and Codex custom agents. Without an explicit override, `itixo-planner` inherits the main task's model and effort and every other role uses its tier default. Version `0.2.0` is a breaking rename with no generic aliases.
+The eight `itixo-*` IDs are canonical and shared by Claude native agents and Codex custom agents. Without an explicit override, `itixo-planner` inherits the main task's model and effort and every other role uses its tier default.
 
 Keep this table in sync with `base/rules/agents.md` and `scripts/generate-agents.js` (PROVIDERS map). Codex templates are inactive until explicitly installed; the Codex plugin's `itixo:install-agents` command asks for personal vs project scope, then cheap model and cheap effort as separate choices. Personal installs target `~/.codex/agents/`; project installs target `<project-root>/.codex/agents/` with an explicit root. Luna + high is the recommended cheap-role default; choose Terra + low when Luna workers are unavailable, or override either choice with `--cheap-model luna|terra` and `--cheap-effort high|low`. Mid roles use Terra + medium. Repeatable `--agent-model id=sol|terra|luna` and `--agent-effort id=none|low|medium|high|xhigh|max` options can override any of the eight installed agents; a per-agent field wins over the corresponding tier flag. An explicit planner Sol override may exceed the caller model. The installer only replaces exact Itixo-managed TOML files, refuses unmanaged conflicts, is idempotent for unchanged files, and requires a new task or Codex restart for discovery.
 
