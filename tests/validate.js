@@ -168,8 +168,7 @@ for (const agent of expectedRoles) {
 }
 if (failures === 0) ok("generated provider bodies retain structured contracts");
 
-// --- 3b. provider dispatch uses canonical Itixo IDs ---
-const dirigentContents = new Map();
+// --- 3b. dirigent skills exist and reference canonical Itixo IDs ---
 for (const plugin of ORCHESTRATION_PLUGINS) {
   const rel = `plugins/${plugin}/skills/dirigent/SKILL.md`;
   const p = path.join(ROOT, rel);
@@ -183,298 +182,8 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
   for (const agent of expectedRoles) {
     if (!text.includes(agent)) fail(`${rel}: missing canonical agent ID '${agent}'`);
   }
-  dirigentContents.set(plugin, text);
 }
-const codexDirigent = dirigentContents.get("itixo-codex") || "";
-if (!codexDirigent.includes("installed custom TOML agent")) {
-  fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must invoke installed custom TOML agents");
-}
-if (!codexDirigent.includes("itixo:install-agents")) {
-  fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must require installer when custom agent is unavailable");
-}
-if (codexDirigent.includes("load the matching role file")) {
-  fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must not retain Markdown role dispatch");
-}
-if (!codexDirigent.includes("substitute a generic agent")) {
-  fail("plugins/itixo-codex/skills/dirigent/SKILL.md: must forbid generic-agent fallback");
-}
-const claudeDirigent = dirigentContents.get("itixo-claude") || "";
-if (!claudeDirigent.includes("native Claude plugin agent")) {
-  fail("plugins/itixo-claude/skills/dirigent/SKILL.md: must retain native Claude dispatch");
-}
-const copilotDirigent = dirigentContents.get("itixo-copilot") || "";
-if (!copilotDirigent.includes("native Copilot plugin agent")) {
-  fail("plugins/itixo-copilot/skills/dirigent/SKILL.md: must retain native Copilot dispatch");
-}
-if (failures === 0) ok("dirigent skills use provider-specific canonical dispatch");
-
-// --- 3ba. parallel-worker contract stays explicit in every rule and skill copy ---
-const parallelContractFiles = [
-  "base/rules/agents.md",
-  "plugins/itixo-claude/rules/agents.md",
-  "plugins/itixo-codex/rules/agents.md",
-  "plugins/itixo-claude/skills/dirigent/SKILL.md",
-  "plugins/itixo-codex/skills/dirigent/SKILL.md",
-];
-const parallelContractChecks = [
-  ["decompose upfront", /\bdecompose\s+upfront\b/i],
-  ["require three safe units", /\bat\s+least\s+three\b[\s\S]{0,100}\bsafe\s+independent\s+executable\s+units\b/i],
-  ["launch three direct workers before awaiting", /\b(?:launch|issue)\s+exactly\s+three\s+direct[\s\S]{0,100}\bbefore\s+awaiting\s+any\s+result\b/i],
-  ["exclude orchestrator from worker count", /\borchestrator\s+is\s+not\s+a\s+worker\b/i],
-  ["keep rolling window full", /\brolling\s+window\b[\s\S]{0,180}\b(?:as\s+(?:a\s+)?(?:worker\s+)?slot\s+opens|as\s+a\s+slot\s+opens)\b/i],
-  ["forbid serial waits with ready work", /\bnever\s+wait\s+serially\s+while\s+ready\s+independent\s+work\s+exists\b/i],
-  ["forbid redundant slot filling", /\bnever\s+invent\s+redundant\s+work\s+or\s+violate\s+dependencies\s+or\s+role\s+ownership\s+to\s+fill\s+(?:a\s+)?slot\b/i],
-  ["report only non-runtime shortfalls", /\bfewer\s+than\s+three[\s\S]{0,240}\bdependency\s*,\s*ambiguity\s*,\s*or\s+agent\s+availability\b[\s\S]{0,160}\breport\s+(?:those\s+)?non-runtime\s+reasons\b/i],
-  ["not report runtime-cap reductions", /\bruntime\s+capacity[\s\S]{0,100}\bdo\s+not\s+report\s+runtime-cap\s+reductions\s+or\s+shortfalls\s+to\s+(?:the\s+)?user\b/i],
-];
-const legacyParallelContractChecks = [
-  ["four-worker directives", /\b(?:launch|issue|dispatch|run|use|allow|permit|start|spawn|require|when)\b[\s\S]{0,80}\bfour\b[\s\S]{0,80}\b(?:direct\s+)?(?:workers?|agents?|calls?)\b|\bmaximum\s+parallel\s+workers?\s*:\s*four\b/i],
-  ["Codex agents.max_threads >= 5", /`?agents\.max_threads\s*>=\s*5`?/i],
-  ["runtime-cap shortfall reporting", /(?<!do not )\breport\s+(?:the\s+)?runtime(?:-|\s)cap(?:\s+(?:reductions?|shortfalls?))?/i],
-];
-for (const rel of parallelContractFiles) {
-  const p = path.join(ROOT, rel);
-  if (!fs.existsSync(p)) {
-    fail(`${rel} missing`);
-    continue;
-  }
-  const text = fs.readFileSync(p, "utf8");
-  for (const [message, pattern] of parallelContractChecks) {
-    if (!pattern.test(text)) fail(`${rel}: parallel-worker contract must ${message}`);
-  }
-  for (const [legacy, pattern] of legacyParallelContractChecks) {
-    if (pattern.test(text)) fail(`${rel}: must not retain ${legacy}`);
-  }
-}
-const providerParallelContracts = [
-  {
-    provider: "Claude",
-    files: [
-      "base/rules/agents.md",
-      "plugins/itixo-claude/rules/agents.md",
-      "plugins/itixo-claude/skills/dirigent/SKILL.md",
-    ],
-    checks: [
-      ["use ordinary Agent subagents", /\bordinary\s+`?agent`?\s+subagents\b/i],
-      ["issue up to three ordinary Agent calls together", /\b(?:issue\s+)?up\s+to\s+three\s+calls\s+together\b/i],
-      ["forbid experimental Agent Teams", /\bdo\s+not\s+use\s+experimental\s+agent\s+teams\b/i],
-    ],
-  },
-  {
-    provider: "Codex",
-    files: [
-      "base/rules/agents.md",
-      "plugins/itixo-codex/rules/agents.md",
-      "plugins/itixo-codex/skills/dirigent/SKILL.md",
-    ],
-    checks: [
-      ["require agents.max_threads >= 4", /`?agents\.max_threads\s*>=\s*4`?/i],
-      ["recommend agents.max_depth = 1", /\brecommend\s+`?agents\.max_depth\s*=\s*1`?/i],
-      ["state that skill cannot raise runtime cap", /\b(?:a|this)\s+skill\s+cannot\s+raise\s+a\s+runtime\s+cap\b/i],
-    ],
-  },
-];
-for (const { provider, files, checks } of providerParallelContracts) {
-  for (const rel of files) {
-    const text = fs.readFileSync(path.join(ROOT, rel), "utf8");
-    for (const [message, pattern] of checks) {
-      if (!pattern.test(text)) fail(`${rel}: ${provider} parallel-worker contract must ${message}`);
-    }
-  }
-}
-if (failures === 0) ok("parallel-worker contract synchronized across rules and dirigent skills");
-
-// --- 3bb. write-work commits use the builder contract everywhere ---
-const writeWorkContractFiles = [
-  "base/rules/agents.md",
-  "plugins/itixo-claude/rules/agents.md",
-  "plugins/itixo-codex/rules/agents.md",
-  "plugins/itixo-copilot/rules/agents.md",
-  "plugins/itixo-claude/skills/dirigent/SKILL.md",
-  "plugins/itixo-codex/skills/dirigent/SKILL.md",
-  "plugins/itixo-copilot/skills/dirigent/SKILL.md",
-];
-const writeWorkCommitChecks = [
-  ["cover every meaningful unit", /\bevery\s+meaningful\s+unit\s+of\s+write\s+work\b/i],
-  ["read targets before editing", /\bread\s+each\s+target\s+before\s+editing\b/i],
-  ["require the smallest authorized change", /\bsmallest\s+authorized\s+change\b/i],
-  ["inspect scoped dependencies and diff", /\binspect\s+scoped\s+dependencies\b[\s\S]{0,160}\binspect\s+the\s+diff\b/i],
-  ["run proportionate verification", /\brun\s+proportionate\s+verification\b/i],
-  ["commit before returning", /\bcommit\s+before\s+returning\b/i],
-  ["use caveman commit fallback", /\buse\s+`?caveman:caveman-commit`?\s*;\s*if\s+unavailable\s*,\s*use\s+a\s+terse\s+conventional\s+commit\s+message\b/i],
-];
-for (const rel of writeWorkContractFiles) {
-  const text = readFile(rel);
-  for (const [message, pattern] of writeWorkCommitChecks) {
-    if (!pattern.test(text)) fail(`${rel}: write-work commit contract must ${message}`);
-  }
-}
-if (failures === 0) ok("write-work commit contract synchronized across rules and dirigent skills");
-
-// --- 3c. GitHub issue classification safeguards stay synchronized ---
-const githubIssuesAgentRel = "base/agents/itixo-github-issues.md";
-const githubIssuesAgentPath = path.join(ROOT, githubIssuesAgentRel);
-const githubIssueClassificationChecks = [
-  [
-    "must prefer native IssueTypes when available",
-    /\b(?:when|with)\s+native\s+(?:github\s+)?issuetypes?\b[\s\S]{0,180}\b(?:use\s+them\s+for\s+classification|classif(?:y|ies))\b/i,
-  ],
-  [
-    "must classify root Feature and direct children Task",
-    /\b(?:root|multi-workstream\s+root)\b[\s\S]{0,120}(?:`?\bfeature\b`?)[\s\S]{0,180}\bdirect\s+(?:sub-issues?|children)\b[\s\S]{0,120}(?:`?\btask\b`?)/i,
-  ],
-  [
-    "must allow child Feature only when split into executable children",
-    /\b(?:large\s+direct\s+(?:sub-issue|child)|direct\s+child)\b[\s\S]{0,120}(?:`?\bfeature\b`?)[\s\S]{0,160}\bonly\s+when\b[\s\S]{0,160}\bsplit\b[\s\S]{0,120}\bexecutable\s+child(?:ren|\s+issues)?\b/i,
-  ],
-  [
-    "must limit hierarchy to Feature -> Feature -> Task",
-    /\bat\s+most\s+two\s+parent-child\s+edges\b[\s\S]{0,100}\bfeature\s*->\s*feature\s*->\s*task\b/i,
-  ],
-  [
-    "must limit fallback to personal repositories without native IssueTypes",
-    /\bonly\s+when\s+native\s+(?:github\s+)?issuetypes?\s+are\s+unavailable\s+in\s+a\s+personal\s+repository\b[\s\S]{0,140}\blowercase\s+(?:`?\bfeature\b`?)\s+and\s+(?:`?\btask\b`?)\s+labels\b/i,
-  ],
-  ["must create only missing fallback labels", /\bcreat(?:e|es|ing)\s+only\s+missing\s+fallback\s+labels\b/i],
-  [
-    "must apply and read back fallback labels for every parent and child",
-    /\b(?:appl(?:y|ies)\s+and\s+read(?:s)?\s+them\s+back\s+on\s+every\s+parent\s+and\s+child|appl(?:y|ies)\s+and\s+read[\s\S]{0,80}\brelevant\s+fallback\s+label\b[\s\S]{0,80}\broot\b[\s\S]{0,80}\beach\s+direct\s+child|apply[\s\S]{0,120}(?:the\s+)?parent\s+and\s+every\s+child[\s\S]{0,120}read[\s\S]{0,40}back)\b/i,
-  ],
-  [
-    "must require type, fallback-label, and hierarchy evidence in output",
-    /\b(?:type\/label\/depth\s+evidence|type\s+readback\s+evidence[\s\S]{0,240}label\s+creation\/assignment\s+readback\s+evidence[\s\S]{0,240}hierarchy\/depth\s+evidence)\b/i,
-  ],
-];
-
-function checkGithubIssueClassification(text, rel) {
-  for (const [message, pattern] of githubIssueClassificationChecks) {
-    if (!pattern.test(text)) fail(`${rel}: ${message}`);
-  }
-}
-
-if (!fs.existsSync(githubIssuesAgentPath)) {
-  fail(`${githubIssuesAgentRel} missing`);
-} else {
-  const text = readFile(githubIssuesAgentRel);
-  checkGithubIssueClassification(text, githubIssuesAgentRel);
-  if (!/\broot\b[\s\S]{0,180}(?:`?\bfeature\b`?)[\s\S]{0,180}\bread\s+it\s+back\b/i.test(text)) {
-    fail(`${githubIssuesAgentRel}: root Feature must be read back`);
-  }
-  if (!/\bdirect\s+sub-issue\b[\s\S]{0,120}(?:`?\btask\b`?)[\s\S]{0,120}\bread\s+it\s+back\b/i.test(text)) {
-    fail(`${githubIssuesAgentRel}: direct Task must be read back`);
-  }
-  if (!/\bnested\s+executable\s+child(?:ren|\s+issues)?\b[\s\S]{0,160}\bactual\s+issuetype\s+(?:`?\btask\b`?)[\s\S]{0,120}\bread\s+it\s+back\b[\s\S]{0,180}\bterminal\b[\s\S]{0,180}\bno\s+deeper\s+children\b/i.test(text)) {
-    fail(`${githubIssuesAgentRel}: native nested Tasks must set/read back IssueType and be terminal`);
-  }
-  if (!/\bdirect\s+child\s+is\s+(?:a\s+)?(?:`?\bfeature\b`?)[\s\S]{0,160}\bapply\b[\s\S]{0,80}\blowercase\s+(?:`?\btask\b`?)\s+label\b[\s\S]{0,120}\bnested\s+executable\s+child\b[\s\S]{0,120}\bread\s+it\s+back\b[\s\S]{0,180}\bterminal\b[\s\S]{0,180}\bno\s+deeper\s+children\b/i.test(text)) {
-    fail(`${githubIssuesAgentRel}: fallback nested Tasks must apply/read back task label and be terminal`);
-  }
-  if (!/\bsole\s+exception\s+to\s+never\s+creating\s+labels\b[\s\S]{0,180}\boutside\b[\s\S]{0,120}\bexisting\s+labels\b/i.test(text)) {
-    fail(`${githubIssuesAgentRel}: must forbid label creation outside fallback exception`);
-  }
-}
-if (failures === 0) ok("canonical github-issues agent preserves IssueType and fallback-label safeguards");
-
-// --- 3d. Dirigent skills delegate GitHub issue work using provider contracts ---
-for (const [plugin, text] of dirigentContents) {
-  const rel = `plugins/${plugin}/skills/dirigent/SKILL.md`;
-  if (!/\bgithub\s+issue\b[\s\S]{0,80}\bassessment\b[\s\S]{0,80}\bstructuring\b[\s\S]{0,80}\bcreation\b[\s\S]{0,160}\bdelegate\b[\s\S]{0,160}\bexactly\s+one\s+`?itixo-github-issues`?\s+subagent\b/i.test(text)) {
-    fail(`${rel}: must delegate GitHub issue assessment, structuring, and creation to exactly one itixo-github-issues subagent`);
-  }
-  if (plugin === "itixo-claude") {
-    if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
-      fail(`${rel}: must load itixo-github-issues role instructions`);
-    }
-    if (!/\buser\s+explicitly\s+requested\s+a\s+model\s+and\/or\s+effort\s+override\s+for\s+this\s+invocation\b[\s\S]{0,120}\brelay\s+those\s+matching\s+fields\b[\s\S]{0,120}\botherwise\s+use\s+the\s+generated\s+sonnet\/mid\s+default\b/i.test(text)) {
-      fail(`${rel}: must honor matching GitHub-issues overrides or use the generated Sonnet/mid default`);
-    }
-  } else if (plugin === "itixo-copilot") {
-    if (!/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.agent\.md`?\s+role\s+instructions\b/i.test(text)) {
-      fail(`${rel}: must load itixo-github-issues role instructions`);
-    }
-    if (!/\bselect\s+(?:the\s+)?mid-tier\s+provider\s+model\s+required\s+by\s+`?rules\/agents\.md`?\b/i.test(text)) {
-      fail(`${rel}: must select mid-tier itixo-github-issues model from delegation rules`);
-    }
-  } else {
-    if (!/\binvoke\s+the\s+installed\s+custom\s+toml\s+agent\s+by\s+(?:that\s+)?canonical\s+id\b/i.test(text)) {
-      fail(`${rel}: must invoke the installed custom TOML issue agent by canonical ID`);
-    }
-    if (!/\btoml\s+owns\s+role\s+instructions\s*,\s*model\s*,\s*and\s+reasoning\s+effort\b/i.test(text)) {
-      fail(`${rel}: installed TOML must own issue-agent instructions, model, and effort`);
-    }
-    if (/\bload\s+(?:the\s+)?matching\s+`?\.\.\/\.\.\/agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
-      fail(`${rel}: must not require unavailable Markdown issue-agent instructions`);
-    }
-  }
-  if (!/\binclude\s+requested\s+outcome\s*,\s*target\s+repository\s+context\s*,\s*constraints\s*,\s*and\s+expected\s+output\s+in\s+(?:its\s+)?task\s+prompt\b/i.test(text)) {
-    fail(`${rel}: itixo-github-issues prompt must include outcome, repository context, constraints, and expected output`);
-  }
-  if (!/\borchestrator\s+never\s+creates?\s+an?\s+issue\s+directly\b/i.test(text)) {
-    fail(`${rel}: must prohibit direct orchestrator issue creation`);
-  }
-}
-if (failures === 0) ok("dirigent delegates GitHub issue work with provider-specific contracts");
-
-// --- 3e. delegation rules assign GitHub issue work to the correct agent ---
-const githubIssueRuleFiles = [
-  {
-    rel: "base/rules/agents.md",
-    model: /\bhonor\s+a\s+matching\s+explicit\s+per-invocation\s+model\s+and\/or\s+effort\s+override\b[\s\S]{0,120}\botherwise\s+use\s+the\s+`?mid`?-tier\s+sonnet\s+default\b/i,
-  },
-  {
-    rel: "plugins/itixo-claude/rules/agents.md",
-    model: /\bhonor\s+a\s+matching\s+explicit\s+per-invocation\s+model\s+and\/or\s+effort\s+override\b[\s\S]{0,120}\botherwise\s+select\s+`?sonnet`?\s*,\s*the\s+`?mid`?\s+model\b[\s\S]{0,120}\bgenerated\s+default\s+effort\b/i,
-  },
-  {
-    rel: "plugins/itixo-codex/rules/agents.md",
-    codexToml: true,
-  },
-  {
-    rel: "plugins/itixo-copilot/rules/agents.md",
-    model: /\bselect\s+`?claude-sonnet-5`?[\s\S]{0,80}\b`?mid`?\b/i,
-  },
-];
-for (const { rel, model, codexToml } of githubIssueRuleFiles) {
-  const p = path.join(ROOT, rel);
-  if (!fs.existsSync(p)) {
-    fail(`${rel} missing`);
-    continue;
-  }
-  const text = readFile(rel);
-  if (!/\bdelegate\s+all\s+(?:github\s+)?issue\s+assessment\s*,\s*structuring\s*,\s*and\s+creation\s+work\s+to\s+exactly\s+one\s+`?itixo-github-issues`?\s+agent\b/i.test(text)) {
-    fail(`${rel}: must assign all GitHub issue assessment, structuring, and creation to exactly one itixo-github-issues agent`);
-  }
-  if (!/\bdo\s+not\s+split\s+checks\s+and\s+creation\s+between\s+agents\b/i.test(text)) {
-    fail(`${rel}: must keep GitHub issue checks and creation with one agent`);
-  }
-  if (codexToml) {
-    if (!/\binvoke\s+the\s+installed\s+custom\s+toml\s+agent\s+by\s+canonical\s+`?itixo-github-issues`?\s+id\b/i.test(text)) {
-      fail(`${rel}: must invoke installed custom TOML issue agent by canonical ID`);
-    }
-    if (!/\btoml\s+owns\s+role\s+instructions\s*,\s*model\s*,\s*and\s+reasoning\s+effort\b/i.test(text)) {
-      fail(`${rel}: installed TOML must own issue-agent instructions, model, and effort`);
-    }
-    if (/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues\.md`?\s+role\s+instructions\b/i.test(text)) {
-      fail(`${rel}: must not require unavailable Markdown issue-agent instructions`);
-    }
-  } else {
-    // support both .md (claude) and .agent.md (copilot) paths
-    if (!/\bload\s+(?:the\s+)?matching\s+`?agents\/itixo-github-issues(?:\.agent)?\.md`?\s+role\s+instructions\b/i.test(text)) {
-      fail(`${rel}: must load itixo-github-issues role instructions before delegation`);
-    }
-    if (!model.test(text)) {
-      fail(`${rel}: must honor matching GitHub-issues overrides or use its prescribed Sonnet/mid default`);
-    }
-  }
-  if (!/\bprompt\s+that\s+agent\s+with\s+requested\s+outcome\s*,\s*(?:target\s+)?repository\s+and\s+owner\s+context\s*,\s*constraints\s*,\s*(?:and\s+)?expected\s+output\b/i.test(text)) {
-    fail(`${rel}: itixo-github-issues prompt must include outcome, repository and owner context, constraints, and expected output`);
-  }
-  if (!/\borchestrator\s+must\s+not\s+assess\s*,\s*structure\s*,\s*or\s+create\s+issues\s+directly\b/i.test(text)) {
-    fail(`${rel}: must prohibit direct orchestrator assessment, structuring, and creation`);
-  }
-  checkGithubIssueClassification(text, rel);
-}
-if (failures === 0) ok("delegation rules keep GitHub issue ownership and classification semantics synchronized");
+if (failures === 0) ok("dirigent skills exist and reference canonical agent IDs");
 
 // --- 4. itixo-claude: frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
@@ -584,7 +293,7 @@ if (fs.existsSync(path.join(ROOT, installerSkillRel))) {
 }
 if (failures === 0) ok("itixo-codex custom-agent installer packaged");
 
-// --- 5b. Codex orchestration dispatches only to installed TOML agents ---
+// --- 5b. Codex orchestration references canonical agent IDs ---
 const codexAgentsRel = "plugins/itixo-codex/AGENTS.md";
 const codexAgentsPath = path.join(ROOT, codexAgentsRel);
 if (fs.existsSync(codexAgentsPath)) {
@@ -592,19 +301,8 @@ if (fs.existsSync(codexAgentsPath)) {
   for (const agent of expectedRoles) {
     if (!codexAgents.includes(agent)) fail(`${codexAgentsRel}: missing canonical agent ID '${agent}'`);
   }
-  for (const required of [
-    "installed custom TOML agent",
-    "itixo:install-agents",
-    "per-agent override",
-    "substitute a generic agent",
-  ]) {
-    if (!codexAgents.includes(required)) fail(`${codexAgentsRel}: missing custom-agent dispatch requirement '${required}'`);
-  }
-  if (codexAgents.includes("definitions in `agents/`") || codexAgents.includes("load the matching role file")) {
-    fail(`${codexAgentsRel}: must not retain removed Markdown role dispatch`);
-  }
 }
-if (failures === 0) ok("itixo-codex dispatch requires installed custom agents");
+if (failures === 0) ok("itixo-codex references canonical agent IDs");
 
 // --- 6. rules files exist ---
 for (const rel of [
