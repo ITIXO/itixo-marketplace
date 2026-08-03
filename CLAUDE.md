@@ -12,7 +12,7 @@ README = product front door. Non-technical people read it to decide if caveman w
 .claude-plugin/marketplace.json   # Marketplace manifest — Claude Code native, Codex legacy-compatible
 .agents/plugins/marketplace.json  # Marketplace manifest — Codex native
 .github/plugin/marketplace.json   # Marketplace manifest — Copilot native
-.wiki/                             # Checkout of GitHub Wiki repository ITIXO-Playground/itixo-marketplace.wiki — place at root of main repository; separate Git repository, ignored by main repository
+.wiki/                             # Checkout of GitHub Wiki repository ITIXO/itixo-marketplace.wiki — place at root of main repository; separate Git repository, ignored by main repository
 base/rules/agents.md              # Delegation rules + model tier table (source of truth)
 base/agents/                      # Canonical platform-neutral agent role definitions
 plugins/itixo-claude/             # Claude plugin (generated native agents, skills, rules, prompts)

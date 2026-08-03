@@ -1,13 +1,13 @@
 {
   "name": "itixo",
   "description": "Itixo library for Codex users: custom-agent TOML templates, safe installer, prompts and rules. Includes Dirigent orchestration with shared itixo-* agent IDs. Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "author": {
     "name": "Itixo",
-    "url": "https://github.com/ITIXO-Playground"
+    "url": "https://github.com/ITIXO"
   },
-  "homepage": "https://github.com/ITIXO-Playground/itixo-marketplace",
-  "repository": "https://github.com/ITIXO-Playground/itixo-marketplace",
+  "homepage": "https://github.com/ITIXO/itixo-marketplace",
+  "repository": "https://github.com/ITIXO/itixo-marketplace",
   "keywords": [
     "codex",
     "orchestration",
@@ -27,7 +27,7 @@
       "Read",
       "Write"
     ],
-    "websiteURL": "https://github.com/ITIXO-Playground/itixo-marketplace",
+    "websiteURL": "https://github.com/ITIXO/itixo-marketplace",
     "defaultPrompt": [
       "Use Dirigent to plan and delegate this task.",
       "Install Itixo-managed Codex agents for this project.",
