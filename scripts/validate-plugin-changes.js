@@ -164,21 +164,21 @@ function parseChangelog(markdown) {
 
   let fence = null;
   let currentDate = null;
-  let currentProvider = null;
+  let currentPlugin = null;
   let currentVersion = null;
   let inDateCommon = false;
   let commonBuffer = [];
-  let providerBuffer = [];
+  let pluginBuffer = [];
   let lastDateSeen = null;
-  const providerLastVersionGlobal = new Map();
-  const seenVersionProviderPairs = new Set();
+  const pluginLastVersionGlobal = new Map();
+  const seenVersionPluginPairs = new Set();
 
   const pushLine = (line, lineNumber, entryInFence, isFenceDelimiter) => {
     const entry = { line, lineNumber, inFence: entryInFence, isFenceDelimiter };
     if (currentVersion) {
       currentVersion.body.push(entry);
-    } else if (currentProvider && !currentProvider.hasFirstVersion) {
-      providerBuffer.push(entry);
+    } else if (currentPlugin && !currentPlugin.hasFirstVersion) {
+      pluginBuffer.push(entry);
     } else if (currentDate && inDateCommon) {
       commonBuffer.push(entry);
     }
@@ -188,29 +188,29 @@ function parseChangelog(markdown) {
     if (!currentVersion) return;
     const nonBlank = currentVersion.body.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
     if (nonBlank.length > 0) {
-      checkBulletLines(currentVersion.body, errors, `version body for '#### ${currentVersion.version}' under '### ${currentVersion.provider}'`);
+      checkBulletLines(currentVersion.body, errors, `version body for '#### ${currentVersion.version}' under '### ${currentVersion.plugin}'`);
       if (currentDate) currentDate.anyVisibleContent = true;
     }
     currentVersion = null;
   };
 
-  const finishProviderBuffer = () => {
-    const nonBlank = providerBuffer.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
+  const finishPluginBuffer = () => {
+    const nonBlank = pluginBuffer.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
     if (nonBlank.length > 0) {
       const first = nonBlank[0];
-      errors.push(`Changelog:${first.lineNumber}: content between '### ${currentProvider.provider}' and its first '#### <version>' heading is not allowed; got ${JSON.stringify(first.line)}.`);
+      errors.push(`Changelog:${first.lineNumber}: content between '### ${currentPlugin.plugin}' and its first '#### <version>' heading is not allowed; got ${JSON.stringify(first.line)}.`);
     }
-    providerBuffer = [];
+    pluginBuffer = [];
   };
 
-  const finishProvider = () => {
-    if (!currentProvider) return;
+  const finishPlugin = () => {
+    if (!currentPlugin) return;
     finishVersion();
-    if (!currentProvider.hasFirstVersion) {
-      finishProviderBuffer();
-      errors.push(`Changelog:${currentProvider.line}: provider section '### ${currentProvider.provider}' must contain at least one version heading.`);
+    if (!currentPlugin.hasFirstVersion) {
+      finishPluginBuffer();
+      errors.push(`Changelog:${currentPlugin.line}: plugin section '### ${currentPlugin.plugin}' must contain at least one version heading.`);
     }
-    currentProvider = null;
+    currentPlugin = null;
   };
 
   const finishCommon = () => {
@@ -226,10 +226,10 @@ function parseChangelog(markdown) {
 
   const finishDate = () => {
     if (!currentDate) return;
-    finishProvider();
+    finishPlugin();
     finishCommon();
-    if (!currentDate.hasProvider) {
-      errors.push(`Changelog:${currentDate.line}: date section '${currentDate.date}' must contain at least one provider heading.`);
+    if (!currentDate.hasPlugin) {
+      errors.push(`Changelog:${currentDate.line}: date section '${currentDate.date}' must contain at least one plugin heading.`);
     }
     if (!currentDate.anyVisibleContent) {
       errors.push(`Changelog:${currentDate.line}: date section '${currentDate.date}' must have visible content: common bullets or a version body.`);
@@ -261,11 +261,11 @@ function parseChangelog(markdown) {
       if (!dateMatch || !isValidCalendarDate(dateString)) {
         errors.push(`Changelog:${lineNumber}: date heading must be exactly '## YYYY-MM-DD' with a real calendar date; got ${JSON.stringify(line)}.`);
         currentDate = null;
-        currentProvider = null;
+        currentPlugin = null;
         currentVersion = null;
         inDateCommon = false;
         commonBuffer = [];
-        providerBuffer = [];
+        pluginBuffer = [];
         continue;
       }
       if (lastDateSeen !== null) {
@@ -279,58 +279,59 @@ function parseChangelog(markdown) {
       currentDate = {
         date: dateString,
         line: lineNumber,
-        hasProvider: false,
+        hasPlugin: false,
         anyVisibleContent: false,
-        seenProviders: new Set(),
-        lastProviderIdx: -1,
+        seenPlugins: new Set(),
+        lastPlugin: null,
       };
-      currentProvider = null;
+      currentPlugin = null;
       currentVersion = null;
       inDateCommon = true;
       commonBuffer = [];
-      providerBuffer = [];
+      pluginBuffer = [];
       continue;
     }
 
     const h3 = /^###(?!#)(.*)$/.exec(line);
     if (h3) {
-      finishProvider();
+      finishPlugin();
       finishCommon();
       if (!currentDate) {
-        errors.push(`Changelog:${lineNumber}: provider heading '###${h3[1]}' is an orphan; it must follow a date section, and the first heading in the file must be a date section.`);
+        errors.push(`Changelog:${lineNumber}: plugin heading '###${h3[1]}' is an orphan; it must follow a date section, and the first heading in the file must be a date section.`);
         continue;
       }
-      const providerMatch = /^ (\S+)$/.exec(h3[1]);
-      if (!providerMatch) {
-        errors.push(`Changelog:${lineNumber}: provider heading must be exactly '### <provider>'; got ${JSON.stringify(line)}.`);
+      const pluginMatch = /^ (\S+)$/.exec(h3[1]);
+      if (!pluginMatch) {
+        errors.push(`Changelog:${lineNumber}: plugin heading must be exactly '### <plugin-directory>'; got ${JSON.stringify(line)}.`);
         continue;
       }
-      const provider = providerMatch[1];
-      if (!PROVIDERS.includes(provider)) {
-        errors.push(`Changelog:${lineNumber}: unknown provider '${provider}' in provider heading; must be one of ${PROVIDERS.join(", ")}.`);
+      const pluginName = pluginMatch[1];
+      // Each `plugins/<dir>` owns one version line, so the directory name --
+      // not the bare provider -- is what a version heading belongs to.
+      if (!pluginDirToProvider(pluginName)) {
+        errors.push(`Changelog:${lineNumber}: unknown plugin '${pluginName}' in plugin heading; must be a 'plugins/' directory name ending in one of ${PROVIDERS.join(", ")}.`);
         continue;
       }
-      if (currentDate.seenProviders.has(provider)) {
-        errors.push(`Changelog:${lineNumber}: duplicate provider heading '### ${provider}' in date section '${currentDate.date}'.`);
+      if (currentDate.seenPlugins.has(pluginName)) {
+        errors.push(`Changelog:${lineNumber}: duplicate plugin heading '### ${pluginName}' in date section '${currentDate.date}'.`);
         continue;
       }
-      const providerIdx = PROVIDERS.indexOf(provider);
-      if (providerIdx < currentDate.lastProviderIdx) {
-        errors.push(`Changelog:${lineNumber}: providers within date section '${currentDate.date}' must appear in order ${PROVIDERS.join(", ")}; '${provider}' is out of order.`);
+      if (currentDate.lastPlugin !== null && pluginName < currentDate.lastPlugin) {
+        errors.push(`Changelog:${lineNumber}: plugins within date section '${currentDate.date}' must appear in alphabetical order; '${pluginName}' must precede '${currentDate.lastPlugin}'.`);
       }
-      currentDate.lastProviderIdx = providerIdx;
-      currentDate.seenProviders.add(provider);
-      currentDate.hasProvider = true;
-      currentProvider = { provider, line: lineNumber, hasFirstVersion: false };
-      providerBuffer = [];
+      currentDate.lastPlugin = pluginName;
+      currentDate.seenPlugins.add(pluginName);
+      currentDate.hasPlugin = true;
+      currentPlugin = { plugin: pluginName, line: lineNumber, hasFirstVersion: false };
+      pluginBuffer = [];
       continue;
     }
 
     const h4 = /^####(?!#)(.*)$/.exec(line);
     if (h4) {
       finishVersion();
-      if (!currentProvider) {
-        errors.push(`Changelog:${lineNumber}: version heading '####${h4[1]}' is an orphan; it must follow a provider heading.`);
+      if (!currentPlugin) {
+        errors.push(`Changelog:${lineNumber}: version heading '####${h4[1]}' is an orphan; it must follow a plugin heading.`);
         continue;
       }
       const versionMatch = /^ ((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/.exec(h4[1]);
@@ -339,25 +340,25 @@ function parseChangelog(markdown) {
         continue;
       }
       const [, version] = versionMatch;
-      if (!currentProvider.hasFirstVersion) {
-        finishProviderBuffer();
-        currentProvider.hasFirstVersion = true;
+      if (!currentPlugin.hasFirstVersion) {
+        finishPluginBuffer();
+        currentPlugin.hasFirstVersion = true;
       }
-      const provider = currentProvider.provider;
-      const pairKey = `${version} - ${provider}`;
-      if (seenVersionProviderPairs.has(pairKey)) {
-        errors.push(`Changelog:${lineNumber}: duplicate version heading '#### ${version}' under '### ${provider}'; each version may appear at most once per provider.`);
+      const pluginName = currentPlugin.plugin;
+      const pairKey = `${version} - ${pluginName}`;
+      if (seenVersionPluginPairs.has(pairKey)) {
+        errors.push(`Changelog:${lineNumber}: duplicate version heading '#### ${version}' under '### ${pluginName}'; each version may appear at most once per plugin.`);
       } else {
-        seenVersionProviderPairs.add(pairKey);
+        seenVersionPluginPairs.add(pairKey);
         headings.add(pairKey);
-        const lastGlobal = providerLastVersionGlobal.get(provider);
+        const lastGlobal = pluginLastVersionGlobal.get(pluginName);
         if (lastGlobal && compareVersions(lastGlobal, version) <= 0) {
-          errors.push(`Changelog:${lineNumber}: versions under provider '${provider}' must be strictly descending; '${version}' must be lower than '${lastGlobal}'.`);
+          errors.push(`Changelog:${lineNumber}: versions under plugin '${pluginName}' must be strictly descending; '${version}' must be lower than '${lastGlobal}'.`);
         }
-        providerLastVersionGlobal.set(provider, version);
+        pluginLastVersionGlobal.set(pluginName, version);
       }
 
-      currentVersion = { version, provider, line: lineNumber, body: [] };
+      currentVersion = { version, plugin: pluginName, line: lineNumber, body: [] };
       continue;
     }
 
@@ -455,13 +456,12 @@ function validatePlugin(base, changelogHeadings, name) {
   }
 
   if (versions.length === 0) errors.push(`plugins/${name}: no plugin manifest exists at HEAD.`);
-  const provider = pluginDirToProvider(name);
-  if (!provider) {
+  if (!pluginDirToProvider(name)) {
     errors.push(`plugins/${name}: unknown provider; add it to PROVIDERS in scripts/providers.js.`);
   } else {
     for (const version of new Set(versions)) {
-      if (!changelogHeadings.has(`${version} - ${provider}`)) {
-        errors.push(`Changelog: missing heading '#### ${version}' under '### ${provider}'.`);
+      if (!changelogHeadings.has(`${version} - ${name}`)) {
+        errors.push(`Changelog: missing heading '#### ${version}' under '### ${name}'.`);
       }
     }
   }

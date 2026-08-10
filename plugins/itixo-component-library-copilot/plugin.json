@@ -1,0 +1,9 @@
+{
+  "name": "itixo-component-library",
+  "description": "Consumer guide for the @itixo/component-library design system: install, Tailwind v4 wiring, DashboardLayout, design tokens, and the component/prop reference.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Itixo"
+  },
+  "skills": "skills/"
+}

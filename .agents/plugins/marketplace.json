@@ -11,6 +11,14 @@
         "path": "./plugins/itixo-codex"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "itixo-component-library",
+      "source": {
+        "source": "local",
+        "path": "./plugins/itixo-component-library-codex"
+      },
+      "category": "Developer Tools"
     }
   ]
 }
