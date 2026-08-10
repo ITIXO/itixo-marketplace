@@ -13,6 +13,11 @@
       "source": "./plugins/itixo-copilot",
       "description": "Itixo library for Copilot CLI users: agents, skills, rules, prompts. Orchestration module included (delegation to cheaper-model subagents). Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
       "hooks": "hooks/hooks.json"
+    },
+    {
+      "name": "itixo-turborepo",
+      "source": "./plugins/itixo-turborepo-copilot",
+      "description": "A pack of microfrontends managing skills for Turborepo monorepos."
     }
   ]
 }
