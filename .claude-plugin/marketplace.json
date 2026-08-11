@@ -15,8 +15,8 @@
       "category": "Developer Tools"
     },
     {
-      "name": "itixo-turborepo",
-      "source": "./plugins/itixo-turborepo-claude",
+      "name": "turborepo",
+      "source": "./plugins/turborepo-claude",
       "description": "A pack of microfrontends managing skills for Turborepo monorepos.",
       "category": "Developer Tools"
     }

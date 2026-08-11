@@ -15,8 +15,8 @@
       "hooks": "hooks/hooks.json"
     },
     {
-      "name": "itixo-turborepo",
-      "source": "./plugins/itixo-turborepo-copilot",
+      "name": "turborepo",
+      "source": "./plugins/turborepo-copilot",
       "description": "A pack of microfrontends managing skills for Turborepo monorepos."
     }
   ]
