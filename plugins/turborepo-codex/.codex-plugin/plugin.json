@@ -1,7 +1,7 @@
 {
   "name": "turborepo",
   "description": "A pack of microfrontends managing skills for Turborepo monorepos.",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "author": {
     "name": "Itixo",
     "url": "https://github.com/ITIXO-Playground"

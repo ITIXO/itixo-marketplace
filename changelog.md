@@ -1,28 +1,6 @@
-## 2026-08-11
-
-- **Breaking:** the Turborepo plugin's ID is now `turborepo` (formerly `itixo-turborepo`), and its marketplace source folder is now `plugins/turborepo-<provider>`; update references that use the former plugin ID.
-
-### claude
-
-#### turborepo
-
-##### 0.2.0
-
-### codex
-
-#### turborepo
-
-##### 0.2.0
-
-### copilot
-
-#### turborepo
-
-##### 0.2.0
-
 ## 2026-08-06
 
-- Add `itixo-turborepo` plugin pack containing Turborepo microfrontend monorepo skills (`turborepo-mfe`, `add-app`, `add-package`).
+- Add `turborepo` plugin pack containing Turborepo microfrontend monorepo skills (`turborepo-mfe`, `add-app`, `add-package`).
 
 ### claude
 
@@ -30,7 +8,7 @@
 
 ##### 0.1.0
 
-- Initial release of the `itixo-turborepo` plugin for Claude.
+- Initial release of the `turborepo` plugin for Claude.
 
 ### codex
 
@@ -38,7 +16,7 @@
 
 ##### 0.1.0
 
-- Initial release of the `itixo-turborepo` plugin for Codex.
+- Initial release of the `turborepo` plugin for Codex.
 
 ### copilot
 
@@ -46,7 +24,7 @@
 
 ##### 0.1.0
 
-- Initial release of the `itixo-turborepo` plugin for Copilot.
+- Initial release of the `turborepo` plugin for Copilot.
 
 ## 2026-07-30
 
