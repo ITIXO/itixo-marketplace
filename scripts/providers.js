@@ -12,8 +12,7 @@ const PROVIDERS = Object.freeze(["claude", "codex", "copilot"]);
 
 function pluginDirToProvider(dirName) {
   if (!dirName.startsWith(PLUGIN_DIR_PREFIX)) return null;
-  const match = dirName.match(/-(claude|codex|copilot)$/);
-  return match && PROVIDERS.includes(match[1]) ? match[1] : null;
+  return PROVIDERS.find((provider) => dirName.endsWith(`-${provider}`)) ?? null;
 }
 
 function providerToPluginDir(provider) {
