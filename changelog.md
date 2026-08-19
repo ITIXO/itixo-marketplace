@@ -8,6 +8,18 @@
 
 - Initial release of the `itixo-component-library-tables` plugin for Claude.
 
+### itixo-component-library-tables-codex
+
+#### 0.1.0
+
+- Initial release of the `itixo-component-library-tables` plugin for Codex.
+
+### itixo-component-library-tables-copilot
+
+#### 0.1.0
+
+- Initial release of the `itixo-component-library-tables` plugin for Copilot.
+
 ## 2026-07-30
 
 - Every agent now uses the `caveman:caveman` skill when it is available and otherwise keeps its responses terse.

@@ -13,6 +13,11 @@
       "source": "./plugins/itixo-copilot",
       "description": "Itixo library for Copilot CLI users: agents, skills, rules, prompts. Orchestration module included (delegation to cheaper-model subagents). Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
       "hooks": "hooks/hooks.json"
+    },
+    {
+      "name": "itixo-component-library-tables",
+      "source": "./plugins/itixo-component-library-tables-copilot",
+      "description": "This plugin provides the icl-tables skill for building server-side paginated, filterable, sortable, and searchable table endpoints and CSV export using the Itixo.ComponentLibrary.Tables NuGet package."
     }
   ]
 }
