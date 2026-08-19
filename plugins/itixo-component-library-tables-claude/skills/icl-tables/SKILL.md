@@ -158,3 +158,7 @@ If the task is inside `src/Itixo.ComponentLibrary.Tables/` in the package's own 
 - Keep helpers generic over `TEntity`/`TDto`/`TFilter` — no consumer-specific logic.
 - Preserve expression-tree translatability (`Expression<Func<...>>`) — do not replace an expression tree with a compiled delegate, EF Core needs the tree to build SQL.
 - One public type per file, PascalCase file name matching the type name, under `Domain/` (contracts/metadata) or `Helpers/` (stateless logic).
+
+## Installing the package
+
+Consuming this package from its private feed needs a `nuget.config` with package source mapping, not just the default `nuget.org` source. See `references/nuget-setup.md` for the exact config.
