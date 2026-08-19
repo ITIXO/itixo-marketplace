@@ -1,10 +1,12 @@
 ## 2026-08-19
 
-### claude
+- Add the `itixo-component-library-tables` plugin, which packages the `icl-tables` skill: a consumer guide to the `Itixo.ComponentLibrary.Tables` NuGet package covering server-side paginated, filterable, sortable, and searchable table endpoints, and CSV export.
+
+### itixo-component-library-tables-claude
 
 #### 0.1.0
 
-- New plugin: itixo-component-library-tables provides the icl-tables skill for building server-side paginated, filterable, sortable, and searchable table endpoints and CSV export using the Itixo.ComponentLibrary.Tables NuGet package.
+- Initial release of the `itixo-component-library-tables` plugin for Claude.
 
 ## 2026-07-30
 
