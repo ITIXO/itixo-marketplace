@@ -1,3 +1,11 @@
+## 2026-08-19
+
+### claude
+
+#### 0.1.0
+
+- New plugin: itixo-component-library-tables provides the icl-tables skill for building server-side paginated, filterable, sortable, and searchable table endpoints and CSV export using the Itixo.ComponentLibrary.Tables NuGet package.
+
 ## 2026-07-30
 
 - Every agent now uses the `caveman:caveman` skill when it is available and otherwise keeps its responses terse.

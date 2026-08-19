@@ -13,6 +13,12 @@
       "source": "./plugins/itixo-claude",
       "description": "Itixo library for Claude users: agents, skills, rules, prompts. Orchestration module included (delegation to sonnet/haiku subagents). Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
       "category": "Developer Tools"
+    },
+    {
+      "name": "itixo-component-library-tables",
+      "source": "./plugins/itixo-component-library-tables-claude",
+      "description": "This plugin provides the icl-tables skill for building server-side paginated, filterable, sortable, and searchable table endpoints and CSV export using the Itixo.ComponentLibrary.Tables NuGet package.",
+      "category": "Developer Tools"
     }
   ]
 }
