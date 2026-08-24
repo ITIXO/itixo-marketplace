@@ -14,6 +14,7 @@ const PLUGIN_MANIFESTS = [
   ".codex-plugin/plugin.json",
   "plugin.json",
 ];
+const RELOCATABLE_TEXT_EXTENSIONS = new Set([".json", ".js", ".md", ".toml", ".yaml"]);
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 function parseArgs(args) {
@@ -405,7 +406,8 @@ function pluginExistsAtBase(base, pluginDir) {
   }
 }
 
-function migrationContent(content, provider, name) {
+function migrationContent(content, relativePath, provider, name) {
+  if (!RELOCATABLE_TEXT_EXTENSIONS.has(path.posix.extname(relativePath))) return null;
   const text = content.toString("utf8");
   if (!Buffer.from(text, "utf8").equals(content)) return null;
   return text
@@ -427,7 +429,7 @@ function isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name
       !== git(["ls-tree", "--format=%(objectmode) %(objecttype)", "HEAD", "--", headFile])) return false;
     const baseContent = execFileSync("git", ["show", `${base}:${baseFile}`]);
     const headContent = execFileSync("git", ["show", `HEAD:${headFile}`]);
-    const normalizedBase = migrationContent(baseContent, provider, name);
+    const normalizedBase = migrationContent(baseContent, relativePath, provider, name);
     if (normalizedBase === null) {
       if (!baseContent.equals(headContent)) return false;
     } else if (!Buffer.from(normalizedBase).equals(headContent)) return false;
