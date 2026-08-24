@@ -7,10 +7,10 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
-const { install } = require("../plugins/itixo-codex/scripts/install-agents.js");
+const { install } = require("../plugins/codex/itixo/scripts/install-agents.js");
 
 const ROOT = path.join(__dirname, "..");
-const SOURCE_PLUGIN = path.join(ROOT, "plugins", "itixo-codex");
+const SOURCE_PLUGIN = path.join(ROOT, "plugins", "codex", "itixo");
 const AGENT_IDS = [
   "itixo-builder",
   "itixo-docs-updater",

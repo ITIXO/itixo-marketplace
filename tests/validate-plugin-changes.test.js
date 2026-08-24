@@ -46,17 +46,21 @@ function marketplace(...entries) {
   return { name: "test-marketplace", plugins: entries };
 }
 
-function writeBaselinePlugin(root, name = "itixo-claude", version = "1.0.0") {
-  writeBaselinePlugins(root, [[name, version]]);
+function pluginDirectory(provider, name = "itixo") {
+  return path.posix.join("plugins", provider, name);
+}
+
+function writeBaselinePlugin(root, provider = "claude", version = "1.0.0", name = "itixo") {
+  writeBaselinePlugins(root, [[provider, version, name]]);
 }
 
 function writeBaselinePlugins(root, entries) {
-  for (const [name, version] of entries) {
-    writeJson(root, `plugins/${name}/.claude-plugin/plugin.json`, plugin(name, version));
+  for (const [provider, version, name = "itixo"] of entries) {
+    writeJson(root, `${pluginDirectory(provider, name)}/.claude-plugin/plugin.json`, plugin(name, version));
   }
-  writeJson(root, ".claude-plugin/marketplace.json", marketplace(...entries.map(([name]) => ({
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace(...entries.map(([provider, , name = "itixo"]) => ({
     name,
-    source: `./plugins/${name}`,
+    source: `./${pluginDirectory(provider, name)}`,
     description: `${name} plugin`,
     category: "Developer Tools",
   }))));
@@ -92,12 +96,12 @@ function doc(...blocks) {
   return `${blocks.join("\n")}\n`;
 }
 
-// Baseline `itixo-claude` plugin bumped from `fromVersion` to `toVersion`;
+// Baseline `claude/itixo` plugin bumped from `fromVersion` to `toVersion`;
 // returns the base commit SHA for the bump.
 function setupBumpedClaude(root, fromVersion = "1.0.0", toVersion = "1.0.1") {
-  writeBaselinePlugin(root, "itixo-claude", fromVersion);
+  writeBaselinePlugin(root, "claude", fromVersion);
   const base = commit(root, "baseline");
-  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo-claude", toVersion));
+  writeJson(root, "plugins/claude/itixo/.claude-plugin/plugin.json", plugin("itixo", toVersion));
   commit(root, "bump plugin");
   return base;
 }
@@ -122,10 +126,34 @@ test("policy checker passes when no plugin changed", () => withRepository((root)
   assert.match(result.stdout, /Plugin release policy validation passed/);
 }));
 
+test("policy checker accepts legacy layout relocation without release metadata", () => withRepository((root) => {
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "1.0.0"));
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/itixo-claude",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  const base = commit(root, "baseline");
+  fs.mkdirSync(path.join(root, "plugins/claude"), { recursive: true });
+  fs.renameSync(path.join(root, "plugins/itixo-claude"), path.join(root, "plugins/claude/itixo"));
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/claude/itixo",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  commit(root, "relocate plugin");
+
+  const result = runChecker(root, base, "");
+
+  assert.equal(result.status, 0, result.output);
+}));
+
 test("policy checker rejects plugin content change without version bump", () => withRepository((root) => {
   writeBaselinePlugin(root);
   const base = commit(root, "baseline");
-  fs.writeFileSync(path.join(root, "plugins/itixo-claude/README.md"), "changed plugin content\n");
+  fs.writeFileSync(path.join(root, "plugins/claude/itixo/README.md"), "changed plugin content\n");
   commit(root, "change plugin");
   const changelog = doc(dateBlock("2026-07-28", {
     providers: [{ provider: "claude", versions: [{ version: "1.0.0", body: ["- Note."] }] }],
@@ -148,12 +176,12 @@ test("policy checker accepts bumped version with matching heading", () => withRe
   assert.equal(result.status, 0, result.output);
 }));
 
-test("policy checker accepts changed root-layout manifest with matching heading", () => withRepository((root) => {
-  writeJson(root, "plugins/itixo-copilot/plugin.json", plugin("itixo-copilot", "1.0.0"));
+test("policy checker accepts changed nested manifest with matching heading", () => withRepository((root) => {
+  writeJson(root, "plugins/copilot/itixo/plugin.json", plugin("itixo", "1.0.0"));
   const base = commit(root, "baseline");
-  writeJson(root, "plugins/itixo-copilot/plugin.json", plugin("itixo-copilot", "1.0.1"));
-  fs.writeFileSync(path.join(root, "plugins/itixo-copilot/README.md"), "updated plugin content\n");
-  commit(root, "bump root-layout plugin");
+  writeJson(root, "plugins/copilot/itixo/plugin.json", plugin("itixo", "1.0.1"));
+  fs.writeFileSync(path.join(root, "plugins/copilot/itixo/README.md"), "updated plugin content\n");
+  commit(root, "bump nested plugin");
   const changelog = doc(dateBlock("2026-07-28", {
     providers: [{ provider: "copilot", versions: [{ version: "1.0.1", body: ["- Copilot update."] }] }],
   }));
@@ -213,10 +241,10 @@ test("policy checker rejects a lower minor version despite a higher patch", () =
 }));
 
 test("policy checker compares replacement manifest against the base plugin version", () => withRepository((root) => {
-  writeBaselinePlugin(root, "itixo-claude", "1.2.0");
+  writeBaselinePlugin(root, "claude", "1.2.0");
   const base = commit(root, "baseline");
-  fs.rmSync(path.join(root, "plugins/itixo-claude/.claude-plugin"), { recursive: true, force: true });
-  writeJson(root, "plugins/itixo-claude/.codex-plugin/plugin.json", plugin("itixo-claude", "0.1.0"));
+  fs.rmSync(path.join(root, "plugins/claude/itixo/.claude-plugin"), { recursive: true, force: true });
+  writeJson(root, "plugins/claude/itixo/.codex-plugin/plugin.json", plugin("itixo", "0.1.0"));
   commit(root, "replace provider manifest");
   const changelog = doc(dateBlock("2026-07-28", {
     providers: [{ provider: "claude", versions: [{ version: "0.1.0", body: ["- Replacement."] }] }],
@@ -229,10 +257,10 @@ test("policy checker compares replacement manifest against the base plugin versi
 }));
 
 test("policy checker accepts replacement manifest with a higher version", () => withRepository((root) => {
-  writeBaselinePlugin(root, "itixo-claude", "1.2.0");
+  writeBaselinePlugin(root, "claude", "1.2.0");
   const base = commit(root, "baseline");
-  fs.rmSync(path.join(root, "plugins/itixo-claude/.claude-plugin"), { recursive: true, force: true });
-  writeJson(root, "plugins/itixo-claude/.codex-plugin/plugin.json", plugin("itixo-claude", "1.2.1"));
+  fs.rmSync(path.join(root, "plugins/claude/itixo/.claude-plugin"), { recursive: true, force: true });
+  writeJson(root, "plugins/claude/itixo/.codex-plugin/plugin.json", plugin("itixo", "1.2.1"));
   commit(root, "replace provider manifest");
   const changelog = doc(dateBlock("2026-07-28", {
     providers: [{ provider: "claude", versions: [{ version: "1.2.1", body: ["- Provider migration."] }] }],
@@ -247,9 +275,9 @@ test("policy checker treats marketplace-only category changes as plugin changes"
   writeBaselinePlugin(root);
   const base = commit(root, "baseline");
   writeJson(root, ".claude-plugin/marketplace.json", marketplace({
-    name: "itixo-claude",
-    source: "./plugins/itixo-claude",
-    description: "itixo-claude plugin",
+    name: "itixo",
+    source: "./plugins/claude/itixo",
+    description: "itixo plugin",
     category: "Productivity",
   }));
   commit(root, "change category");
@@ -264,17 +292,17 @@ test("policy checker treats marketplace-only category changes as plugin changes"
 }));
 
 test("policy checker uses marketplace source folder for shared plugin names", () => withRepository((root) => {
-  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "0.6.0"));
+  writeJson(root, "plugins/claude/itixo/.claude-plugin/plugin.json", plugin("itixo", "0.6.0"));
   writeJson(root, ".claude-plugin/marketplace.json", marketplace({
     name: "itixo",
-    source: "./plugins/itixo-claude",
+    source: "./plugins/claude/itixo",
     description: "Claude plugin",
     category: "Developer Tools",
   }));
   const base = commit(root, "baseline");
   writeJson(root, ".claude-plugin/marketplace.json", marketplace({
     name: "itixo",
-    source: "./plugins/itixo-claude",
+    source: "./plugins/claude/itixo",
     description: "Claude plugin",
     category: "Productivity",
   }));
@@ -283,14 +311,14 @@ test("policy checker uses marketplace source folder for shared plugin names", ()
   const result = runChecker(root, base, "");
 
   assert.equal(result.status, 1);
-  assert.match(result.output, /plugins\/itixo-claude\/\.claude-plugin\/plugin\.json: version 0\.6\.0 must be greater/);
+  assert.match(result.output, /plugins\/claude\/itixo\/\.claude-plugin\/plugin\.json: version 0\.6\.0 must be greater/);
   assert.doesNotMatch(result.output, /Plugin 'itixo' was deleted/);
 }));
 
-test("policy checker accepts new plugin with strict version and matching heading", () => withRepository((root) => {
+test("policy checker accepts another nested plugin with strict version and matching heading", () => withRepository((root) => {
   fs.writeFileSync(path.join(root, "README.md"), "baseline\n");
   const base = commit(root, "baseline");
-  writeJson(root, "plugins/itixo-codex/.claude-plugin/plugin.json", plugin("itixo-codex", "0.1.0"));
+  writeJson(root, "plugins/codex/second/.claude-plugin/plugin.json", plugin("second", "0.1.0"));
   commit(root, "add plugin");
   const changelog = doc(dateBlock("2026-07-28", {
     providers: [{ provider: "codex", versions: [{ version: "0.1.0", body: ["- New plugin."] }] }],
@@ -304,20 +332,20 @@ test("policy checker accepts new plugin with strict version and matching heading
 test("policy checker explicitly skips fully deleted plugins", () => withRepository((root) => {
   writeBaselinePlugin(root);
   const base = commit(root, "baseline");
-  fs.rmSync(path.join(root, "plugins/itixo-claude"), { recursive: true, force: true });
+  fs.rmSync(path.join(root, "plugins/claude/itixo"), { recursive: true, force: true });
   commit(root, "delete plugin");
 
   const result = runChecker(root, base, "");
 
   assert.equal(result.status, 0, result.output);
-  assert.match(result.stdout, /Plugin 'itixo-claude' was deleted; no HEAD manifest to validate/);
+  assert.match(result.stdout, /Plugin 'claude\/itixo' was deleted; no HEAD manifest to validate/);
 }));
 
 test("policy checker allows historical releases for providers no longer present", () => withRepository((root) => {
-  writeBaselinePlugins(root, [["itixo-claude", "1.0.0"], ["itixo-codex", "9.0.0"]]);
+  writeBaselinePlugins(root, [["claude", "1.0.0"], ["codex", "9.0.0"]]);
   const base = commit(root, "baseline");
-  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo-claude", "1.0.1"));
-  fs.rmSync(path.join(root, "plugins/itixo-codex"), { recursive: true, force: true });
+  writeJson(root, "plugins/claude/itixo/.claude-plugin/plugin.json", plugin("itixo", "1.0.1"));
+  fs.rmSync(path.join(root, "plugins/codex/itixo"), { recursive: true, force: true });
   commit(root, "bump claude and retire codex");
   const changelog = doc(
     dateBlock("2026-07-28", {
@@ -334,7 +362,7 @@ test("policy checker allows historical releases for providers no longer present"
   const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 0, result.output);
-  assert.match(result.stdout, /Plugin 'itixo-codex' was deleted/);
+  assert.match(result.stdout, /Plugin 'codex\/itixo' was deleted/);
 }));
 
 test("policy checker rejects a malformed date heading", () => withRepository((root) => {
@@ -592,7 +620,7 @@ test("policy checker rejects an orphan version heading before any provider headi
 test("policy checker rejects a plugin directory with an unmapped provider", () => withRepository((root) => {
   writeBaselinePlugin(root, "not-itixo-prefixed", "1.0.0");
   const base = commit(root, "baseline");
-  writeJson(root, "plugins/not-itixo-prefixed/.claude-plugin/plugin.json", plugin("not-itixo-prefixed", "1.0.1"));
+  writeJson(root, "plugins/not-itixo-prefixed/itixo/.claude-plugin/plugin.json", plugin("itixo", "1.0.1"));
   commit(root, "bump plugin");
   const changelog = doc(dateBlock("2026-07-28", {
     providers: [{ provider: "claude", versions: [{ version: "1.0.1", body: ["- Fix."] }] }],
@@ -601,7 +629,7 @@ test("policy checker rejects a plugin directory with an unmapped provider", () =
   const result = runChecker(root, base, changelog);
 
   assert.equal(result.status, 1);
-  assert.match(result.output, /plugins\/not-itixo-prefixed: unknown provider; add it to PROVIDERS in scripts\/providers\.js\./);
+  assert.match(result.output, /plugins\/not-itixo-prefixed\/itixo: unknown provider; add it to PROVIDERS in scripts\/providers\.js\./);
 }));
 
 test("policy checker accepts a bodyless version when the date has common bullets", () => withRepository((root) => {
