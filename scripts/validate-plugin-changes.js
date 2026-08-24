@@ -451,6 +451,7 @@ function hasOnlyMarketplaceRelocation(base) {
 }
 
 function isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name) {
+  if (!pluginExistsAtBase(base, legacyPluginDir) || pluginExistsAtBase("HEAD", legacyPluginDir)) return false;
   if (!hasOnlyMarketplaceRelocation(base)) return false;
   const baseFiles = git(["ls-tree", "-r", "--name-only", base, "--", legacyPluginDir]).split("\n").filter(Boolean);
   const headFiles = git(["ls-tree", "-r", "--name-only", "HEAD", "--", pluginDir]).split("\n").filter(Boolean);

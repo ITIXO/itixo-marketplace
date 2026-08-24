@@ -178,6 +178,32 @@ test("policy checker accepts all provider legacy relocations without release met
   assert.equal(result.status, 0, result.output);
 }));
 
+test("policy checker rejects copied legacy relocation when legacy root remains", () => withRepository((root) => {
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "1.0.0"));
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/itixo-claude",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  const base = commit(root, "baseline");
+  fs.mkdirSync(path.join(root, "plugins/claude"), { recursive: true });
+  fs.cpSync(path.join(root, "plugins/itixo-claude"), path.join(root, "plugins/claude/itixo"), { recursive: true });
+  fs.writeFileSync(path.join(root, "plugins/itixo-claude/README.md"), "legacy root changed\\n");
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/claude/itixo",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  commit(root, "copy plugin and retain legacy root");
+
+  const result = runChecker(root, base, "");
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /version 1\.0\.0 must be greater than same-provider base version 1\.0\.0/);
+}));
+
 test("policy checker rejects Copilot relocation with marketplace metadata change", () => withRepository((root) => {
   writeJson(root, "plugins/itixo-copilot/plugin.json", plugin("itixo", "1.0.0"));
   writeJson(root, ".github/plugin/marketplace.json", marketplace({
