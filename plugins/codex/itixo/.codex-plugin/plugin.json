@@ -1,7 +1,7 @@
 {
   "name": "itixo",
   "description": "Itixo library for Codex users: custom-agent TOML templates, safe installer, prompts and rules. Includes Dirigent orchestration with shared itixo-* agent IDs. Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "author": {
     "name": "Itixo",
     "url": "https://github.com/ITIXO"

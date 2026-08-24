@@ -1,3 +1,9 @@
+### 2026-08-24
+
+#### 0.7.3
+
+- Corrected the Codex custom-agent installation command to `itixo:install-agents`.
+
 ### 2026-08-03
 
 #### 0.7.2

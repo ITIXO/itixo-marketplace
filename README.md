@@ -19,9 +19,12 @@ base/                     # Shared source of truth for all orchestration plugins
   rules/agents.md         # Delegation rules + model tier table
   agents/                 # Canonical platform-neutral agent role definitions
 plugins/
-  itixo-claude/           # itixo library for Claude users (generated agents, skills, rules, prompts)
-  itixo-codex/            # itixo library for Codex users (custom-agent templates, installer, skills, prompts, rules)
-  itixo-copilot/          # itixo library for Copilot CLI users (generated agents, skills, rules)
+  claude/
+    itixo/                # itixo library for Claude users (generated agents, skills, rules, prompts)
+  codex/
+    itixo/                # itixo library for Codex users (custom-agent templates, installer, skills, prompts, rules)
+  copilot/
+    itixo/                # itixo library for Copilot CLI users (generated agents, skills, rules)
 scripts/
   generate-agents.js      # Generates Claude agents, Codex TOML templates, and Copilot agents from base/agents
 ```
@@ -53,7 +56,7 @@ On a pull request, findings are posted inline when they map to changed lines, or
 
 ## Developing agent roles
 
-`base/agents` is the canonical source for agent roles. Edit those files only; never hand-edit generated Claude agents under `plugins/itixo-claude/agents/` or Codex templates under `plugins/itixo-codex/templates/agents/`. Generate and commit provider copies with:
+`base/agents` is the canonical source for agent roles. Edit those files only; never hand-edit generated Claude agents under `plugins/claude/itixo/agents/` or Codex templates under `plugins/codex/itixo/templates/agents/`. Generate and commit provider copies with:
 
 ```
 node scripts/generate-agents.js
@@ -117,7 +120,7 @@ Use the `dirigent` skill for multi-step orchestration. It loads and enforces `ru
 
 ## Adding a new plugin
 
-1. Create `plugins/<name>/.claude-plugin/plugin.json` (Claude), `plugins/<name>/.codex-plugin/plugin.json` (Codex), and/or `plugins/<name>/plugin.json` (Copilot CLI).
+1. Create `plugins/<provider>/<plugin>/.claude-plugin/plugin.json` (Claude), `plugins/<provider>/<plugin>/.codex-plugin/plugin.json` (Codex), and/or `plugins/<provider>/<plugin>/plugin.json` (Copilot CLI).
 2. Add skills/commands/agents as needed.
 3. Register Claude plugins in `.claude-plugin/marketplace.json`, Codex plugins in `.agents/plugins/marketplace.json`, and Copilot CLI plugins in `.github/plugin/marketplace.json`.
 4. If adding or changing shared agent roles, generate committed Claude agents, Codex TOML templates, and Copilot agents with `node scripts/generate-agents.js`.

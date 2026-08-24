@@ -3,7 +3,7 @@ const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 const test = require("node:test");
 
-const script = path.join(__dirname, "..", "plugins", "itixo-codex", "scripts", "runtime-model.js");
+const script = path.join(__dirname, "..", "plugins", "codex", "itixo", "scripts", "runtime-model.js");
 
 function run(input) {
   return spawnSync(process.execPath, [script], {

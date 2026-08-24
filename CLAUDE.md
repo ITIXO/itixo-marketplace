@@ -1,6 +1,6 @@
 # Itixo Marketplace
 
-Marketplace with an `itixo` plugin for each provider: Claude (Claude Code / Cowork), Codex, and Copilot. Provider-specific source directories remain `plugins/itixo-claude`, `plugins/itixo-codex`, and `plugins/itixo-copilot`; the shared plugin ID is `itixo`. Orchestration (dirigent + agent roles) is the first module; more skills, agents, and rules accumulate over time.
+Marketplace with an `itixo` plugin for each provider: Claude (Claude Code / Cowork), Codex, and Copilot. Provider-specific source directories are `plugins/claude/itixo`, `plugins/codex/itixo`, and `plugins/copilot/itixo`; the shared plugin ID is `itixo`. Orchestration (dirigent + agent roles) is the first module; more skills, agents, and rules accumulate over time.
 
 ## README is a product artifact
 
@@ -15,9 +15,9 @@ README = product front door. Non-technical people read it to decide if caveman w
 .wiki/                             # Checkout of GitHub Wiki repository ITIXO/itixo-marketplace.wiki — place at root of main repository; separate Git repository, ignored by main repository
 base/rules/agents.md              # Delegation rules + model tier table (source of truth)
 base/agents/                      # Canonical platform-neutral agent role definitions
-plugins/itixo-claude/             # Claude plugin (generated native agents, skills, rules, prompts)
-plugins/itixo-codex/              # Codex plugin (generated TOML templates, installer, skills, prompts, rules)
-plugins/itixo-copilot/            # Copilot plugin (native agent, skills, prompts)
+plugins/claude/itixo/             # Claude plugin (generated native agents, skills, rules, prompts)
+plugins/codex/itixo/              # Codex plugin (generated TOML templates, installer, skills, prompts, rules)
+plugins/copilot/itixo/            # Copilot plugin (native agent, skills, prompts)
 scripts/generate-agents.js        # Generates Claude agents and Codex TOML templates from base/agents
 tests/                            # generate-agents.test.js, validate.js
 .github/workflows/                # CI workflows
@@ -28,7 +28,7 @@ tests/                            # generate-agents.test.js, validate.js
 ### Agent roles — generated files
 
 - `base/agents/` is the canonical source for agent roles. Edit only there.
-- Never hand-edit generated Claude agents in `plugins/itixo-claude/agents/` or generated Codex TOML templates in `plugins/itixo-codex/templates/agents/` — they carry a "Do not edit" marker and are overwritten by the generator.
+- Never hand-edit generated Claude agents in `plugins/claude/itixo/agents/` or generated Codex TOML templates in `plugins/codex/itixo/templates/agents/` — they carry a "Do not edit" marker and are overwritten by the generator.
 - After changing `base/agents/`, regenerate and commit the Claude agents and Codex TOML templates: `node scripts/generate-agents.js`.
 - `rules/` and `AGENTS.md` files are maintained by hand and are not generated.
 
@@ -61,20 +61,20 @@ Security reviews are user-triggered in natural language, such as “Review my cu
 
 ### Adding a new plugin
 
-1. Create `plugins/<name>/.claude-plugin/plugin.json` (Claude) and/or `plugins/<name>/.codex-plugin/plugin.json` (Codex).
+1. Create `plugins/<provider>/<plugin>/.claude-plugin/plugin.json` (Claude) and/or `plugins/<provider>/<plugin>/.codex-plugin/plugin.json` (Codex).
 2. Add skills/commands/agents as needed.
 3. Register Claude plugins in `.claude-plugin/marketplace.json` and Codex plugins in `.agents/plugins/marketplace.json`. The `itixo` Codex plugin is native-Codex-only and must not be listed in the Claude marketplace.
 4. If adding or changing agent roles, regenerate Claude agents and Codex TOML templates with `node scripts/generate-agents.js`.
 5. Run the verification commands above.
 
-Provider identity is hardcoded in `scripts/providers.js`, shared by `scripts/generate-agents.js` and `scripts/validate-plugin-changes.js`; introducing a new provider requires updating `PROVIDERS` in `scripts/providers.js`. An unlisted `plugins/<dir>` fails validation with a hard error.
+Provider identity is hardcoded in `scripts/providers.js`, shared by `scripts/generate-agents.js` and `scripts/validate-plugin-changes.js`; introducing a new provider requires updating `PROVIDERS` in `scripts/providers.js`. An unlisted `plugins/<provider>/<plugin>` fails validation with a hard error.
 
 ### Workflow
 
 - Do not assume — ask when requirement, constraint, or scope is unclear.
 - Start all future work in this repository on a new branch or in a new worktree; never work directly on `main` unless the user specifically asks.
 - Non-trivial engineering work follows `base/rules/agents.md`: orchestrator decomposes and integrates; precisely specified steps are delegated to the prescribed role and model tier.
-- Every plugin change requires a version bump in that plugin's manifest (`plugins/<name>/.claude-plugin/plugin.json` and/or `.codex-plugin/plugin.json`), in semver format `MAJOR.MINOR.PATCH` with this project's mapping: nonbreaking change bumps patch, breaking change bumps minor, major rework bumps major. If unsure which bump applies, ask the user.
+- Every plugin change requires a version bump in that plugin's manifest (`plugins/<provider>/<plugin>/.claude-plugin/plugin.json` and/or `.codex-plugin/plugin.json`), in semver format `MAJOR.MINOR.PATCH` with this project's mapping: nonbreaking change bumps patch, breaking change bumps minor, major rework bumps major. If unsure which bump applies, ask the user.
 - Marketplace manifests do not mirror plugin version — `plugin.json` is the sole source of truth for each plugin's version, and manifests reference plugins via local relative paths, so there's no network-avoidance reason to cache a version as remote marketplaces (VS Code's, npm's) do.
 - Three per-provider changelog files at repo root: `changelog.claude.md`, `changelog.codex.md`, `changelog.copilot.md`; each file has no provider heading (implicit from filename) and no cross-provider common section. Format per file: `### YYYY-MM-DD` date headings (strictly descending, each date unique) with no preamble before the first date, then nested `#### MAJOR.MINOR.PATCH` version headings (strictly descending per provider across the whole file) with `-` bullet bodies; every date requires at least one version heading. A change affecting multiple providers must bump every affected provider's plugin version on the same date, with the (duplicated) bullet text written into each affected provider's file under that date's version heading. Breaking changes are marked inline as `- **Breaking:** ...`. Every plugin version change must add `#### <newversion>` under the appropriate date in the provider's file; CI validation runs `node scripts/validate-plugin-changes.js --base <commit> --changelog-dir .`, which validates each file independently and matches changed plugin versions only against that provider's file. New entries report only changes directly affecting plugin end users; omit repository or marketplace infrastructure, CI, build/release plumbing, generators, validation tooling, internal refactors, and any change without end-user impact. Wiki synchronization occurs automatically after a pull request, composing the wiki's `Changelog.md` as `# Changelog` followed by `## <provider>` headings (claude then codex then copilot in that fixed order) with each provider's file content verbatim.
 - Commit after every meaningful unit of work. Conventional Commits: subject ≤50 chars, imperative; body only when "why" is not obvious.

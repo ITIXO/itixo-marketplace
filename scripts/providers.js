@@ -6,23 +6,8 @@
 // wiring provider-specific data (models, efforts, directories, etc.) into
 // each consumer.
 
-const PLUGIN_DIR_PREFIX = "itixo-";
-
 const PROVIDERS = Object.freeze(["claude", "codex", "copilot"]);
 
-function pluginDirToProvider(dirName) {
-  if (!dirName.startsWith(PLUGIN_DIR_PREFIX)) return null;
-  const provider = dirName.slice(PLUGIN_DIR_PREFIX.length);
-  return PROVIDERS.includes(provider) ? provider : null;
-}
-
-function providerToPluginDir(provider) {
-  return `${PLUGIN_DIR_PREFIX}${provider}`;
-}
-
 module.exports = {
-  PLUGIN_DIR_PREFIX,
   PROVIDERS,
-  pluginDirToProvider,
-  providerToPluginDir,
 };
