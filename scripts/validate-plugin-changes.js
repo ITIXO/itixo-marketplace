@@ -410,12 +410,43 @@ function migrationContent(content, relativePath, provider, name) {
   if (!RELOCATABLE_TEXT_EXTENSIONS.has(path.posix.extname(relativePath))) return null;
   const text = content.toString("utf8");
   if (!Buffer.from(text, "utf8").equals(content)) return null;
+  const legacyPath = `plugins/${name}-${provider}`;
+  const nestedPath = `plugins/${provider}/${name}`;
   return text
-    .replaceAll(`plugins/${name}-${provider}`, `plugins/${provider}/${name}`)
+    .replace(new RegExp(`${legacyPath}(?=$|[\\s/"'.,;:!?)}\\]])`, "g"), nestedPath)
     .replaceAll(`${name}-${provider}:install-agents`, `${name}:install-agents`);
 }
 
+function normalizedMarketplace(manifest, legacyPluginDir, pluginDir) {
+  if (!manifest || !Array.isArray(manifest.plugins)) return manifest;
+  const normalizeSource = (source) => {
+    if (source === pluginDir) return legacyPluginDir;
+    if (source === `./${pluginDir}`) return `./${legacyPluginDir}`;
+    return source;
+  };
+  return {
+    ...manifest,
+    plugins: manifest.plugins.map((plugin) => {
+      if (!plugin || typeof plugin !== "object") return plugin;
+      if (typeof plugin.source === "string") return { ...plugin, source: normalizeSource(plugin.source) };
+      if (plugin.source && typeof plugin.source === "object") {
+        return { ...plugin, source: { ...plugin.source, path: normalizeSource(plugin.source.path) } };
+      }
+      return plugin;
+    }),
+  };
+}
+
+function hasOnlyMarketplaceRelocation(base, legacyPluginDir, pluginDir) {
+  return MARKETPLACE_FILES.every((marketplacePath) => {
+    const previous = readBaseJson(base, marketplacePath);
+    const current = fs.existsSync(marketplacePath) ? readJson(marketplacePath) : null;
+    return stableJson(previous) === stableJson(normalizedMarketplace(current, legacyPluginDir, pluginDir));
+  });
+}
+
 function isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name) {
+  if (!hasOnlyMarketplaceRelocation(base, legacyPluginDir, pluginDir)) return false;
   const baseFiles = git(["ls-tree", "-r", "--name-only", base, "--", legacyPluginDir]).split("\n").filter(Boolean);
   const headFiles = git(["ls-tree", "-r", "--name-only", "HEAD", "--", pluginDir]).split("\n").filter(Boolean);
   const baseByRelativePath = new Map(baseFiles.map((file) => [file.slice(legacyPluginDir.length + 1), file]));
