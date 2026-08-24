@@ -1,3 +1,15 @@
+## 2026-08-03
+
+- The repository moved from the `ITIXO-Playground` organization to `ITIXO`; install the marketplace from `ITIXO/itixo-marketplace`.
+
+### claude
+
+#### 0.8.2
+
+### codex
+
+#### 0.7.2
+
 ## 2026-07-30
 
 - Every agent now uses the `caveman:caveman` skill when it is available and otherwise keeps its responses terse.

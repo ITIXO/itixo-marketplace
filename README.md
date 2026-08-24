@@ -4,7 +4,7 @@
 
 ## Changelog
 
-See the [full changelog in the project Wiki](https://github.com/ITIXO-Playground/itixo-marketplace/wiki/Changelog).
+See the [full changelog in the project Wiki](https://github.com/ITIXO/itixo-marketplace/wiki/Changelog).
 
 ## Structure
 
@@ -74,7 +74,7 @@ node tests/validate.js
 Add this marketplace:
 
 ```
-/plugin marketplace add ITIXO-Playground/itixo-marketplace
+/plugin marketplace add ITIXO/itixo-marketplace
 ```
 
 Install a plugin:
@@ -88,7 +88,7 @@ Install a plugin:
 Codex (since March 2026) has native plugin/marketplace support:
 
 ```
-codex plugin marketplace add ITIXO-Playground/itixo-marketplace
+codex plugin marketplace add ITIXO/itixo-marketplace
 ```
 
 Then install `itixo` (Codex plugin) via the `/plugins` browser. It is published only in the native `.agents/plugins/marketplace.json` marketplace; the Claude marketplace publishes only `itixo` (Claude plugin).
@@ -104,7 +104,7 @@ The installer creates or replaces only TOML files with its exact Itixo-managed m
 Add this marketplace:
 
 ```
-copilot plugin marketplace add ITIXO-Playground/itixo-marketplace
+copilot plugin marketplace add ITIXO/itixo-marketplace
 ```
 
 Install the plugin:
