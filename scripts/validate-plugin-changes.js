@@ -8,6 +8,7 @@ const { PROVIDERS, pluginDirToProvider } = require("./providers");
 const MARKETPLACE_FILES = [
   ".claude-plugin/marketplace.json",
   ".agents/plugins/marketplace.json",
+  ".github/plugin/marketplace.json",
 ];
 const PLUGIN_MANIFESTS = [
   ".claude-plugin/plugin.json",
@@ -406,6 +407,10 @@ function pluginExistsAtBase(base, pluginDir) {
   }
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function migrationContent(content, relativePath, provider, name) {
   if (!RELOCATABLE_TEXT_EXTENSIONS.has(path.posix.extname(relativePath))) return null;
   const text = content.toString("utf8");
@@ -413,15 +418,15 @@ function migrationContent(content, relativePath, provider, name) {
   const legacyPath = `plugins/${name}-${provider}`;
   const nestedPath = `plugins/${provider}/${name}`;
   return text
-    .replace(new RegExp(`${legacyPath}(?=$|[\\s/"'.,;:!?)}\\]])`, "g"), nestedPath)
+    .replace(new RegExp(`${escapeRegExp(legacyPath)}(?=$|[\\s/"'.,;:!?)}\\]])`, "g"), nestedPath)
     .replaceAll(`${name}-${provider}:install-agents`, `${name}:install-agents`);
 }
 
-function normalizedMarketplace(manifest, legacyPluginDir, pluginDir) {
+function normalizedMarketplace(manifest) {
   if (!manifest || !Array.isArray(manifest.plugins)) return manifest;
   const normalizeSource = (source) => {
-    if (source === pluginDir) return legacyPluginDir;
-    if (source === `./${pluginDir}`) return `./${legacyPluginDir}`;
+    const match = /^(\.\/)?plugins\/([^/]+)\/([^/]+)\/?$/.exec(source);
+    if (match) return `${match[1] ?? ""}plugins/${match[3]}-${match[2]}`;
     return source;
   };
   return {
@@ -437,16 +442,16 @@ function normalizedMarketplace(manifest, legacyPluginDir, pluginDir) {
   };
 }
 
-function hasOnlyMarketplaceRelocation(base, legacyPluginDir, pluginDir) {
+function hasOnlyMarketplaceRelocation(base) {
   return MARKETPLACE_FILES.every((marketplacePath) => {
     const previous = readBaseJson(base, marketplacePath);
     const current = fs.existsSync(marketplacePath) ? readJson(marketplacePath) : null;
-    return stableJson(previous) === stableJson(normalizedMarketplace(current, legacyPluginDir, pluginDir));
+    return stableJson(previous) === stableJson(normalizedMarketplace(current));
   });
 }
 
 function isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name) {
-  if (!hasOnlyMarketplaceRelocation(base, legacyPluginDir, pluginDir)) return false;
+  if (!hasOnlyMarketplaceRelocation(base)) return false;
   const baseFiles = git(["ls-tree", "-r", "--name-only", base, "--", legacyPluginDir]).split("\n").filter(Boolean);
   const headFiles = git(["ls-tree", "-r", "--name-only", "HEAD", "--", pluginDir]).split("\n").filter(Boolean);
   const baseByRelativePath = new Map(baseFiles.map((file) => [file.slice(legacyPluginDir.length + 1), file]));
