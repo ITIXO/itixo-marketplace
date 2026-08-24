@@ -176,6 +176,33 @@ test("policy checker rejects legacy relocation with plugin content change", () =
   assert.match(result.output, /version 1\.0\.0 must be greater than same-provider base version 1\.0\.0/);
 }));
 
+test("policy checker rejects legacy relocation with changed binary content", () => withRepository((root) => {
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "1.0.0"));
+  fs.writeFileSync(path.join(root, "plugins/itixo-claude/icon.png"), Buffer.from([0, 255]));
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/itixo-claude",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  const base = commit(root, "baseline");
+  fs.mkdirSync(path.join(root, "plugins/claude"), { recursive: true });
+  fs.renameSync(path.join(root, "plugins/itixo-claude"), path.join(root, "plugins/claude/itixo"));
+  fs.writeFileSync(path.join(root, "plugins/claude/itixo/icon.png"), Buffer.from([0, 254]));
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/claude/itixo",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  commit(root, "relocate and change binary plugin content");
+
+  const result = runChecker(root, base, "");
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /version 1\.0\.0 must be greater than same-provider base version 1\.0\.0/);
+}));
+
 test("policy checker rejects plugin content change without version bump", () => withRepository((root) => {
   writeBaselinePlugin(root);
   const base = commit(root, "baseline");

@@ -426,7 +426,9 @@ function isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name
     const baseContent = execFileSync("git", ["show", `${base}:${baseFile}`]);
     const headContent = execFileSync("git", ["show", `HEAD:${headFile}`]);
     if (baseContent.equals(headContent)) continue;
-    if (migrationContent(baseContent, provider, name) !== migrationContent(headContent, provider, name)) return false;
+    const normalizedBase = migrationContent(baseContent, provider, name);
+    const normalizedHead = migrationContent(headContent, provider, name);
+    if (normalizedBase === null || normalizedHead === null || normalizedBase !== normalizedHead) return false;
   }
   return true;
 }
