@@ -51,7 +51,7 @@ const CODEX_MODEL = {
   orchestrator: "user-selected",
 };
 const COPILOT_MODEL = { cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }; // orchestrator inherits (no model field)
-const ORCHESTRATION_PLUGINS = ["itixo-claude", "itixo-codex", "itixo-copilot"];
+const ORCHESTRATION_PLUGINS = ["claude/itixo", "codex/itixo", "copilot/itixo"];
 
 // --- 1. Claude marketplace registrations have valid Claude manifests ---
 const marketplace = readJson(".claude-plugin/marketplace.json");
@@ -96,16 +96,16 @@ const copilotAgentRoles = (directory) => fs
   .sort();
 const baseAgents = agentRoles("base/agents");
 const codexTemplateRoles = fs
-  .readdirSync(path.join(ROOT, "plugins/itixo-codex/templates/agents"), { withFileTypes: true })
+  .readdirSync(path.join(ROOT, "plugins/codex/itixo/templates/agents"), { withFileTypes: true })
   .filter((entry) => entry.isFile() && entry.name.endsWith(".toml"))
   .map((entry) => entry.name.slice(0, -5))
   .sort();
 
 for (const [label, actualRoles] of [
   ["base/agents", baseAgents],
-  ["plugins/itixo-claude/agents", agentRoles("plugins/itixo-claude/agents")],
-  ["plugins/itixo-codex/templates/agents", codexTemplateRoles],
-  ["plugins/itixo-copilot/agents", copilotAgentRoles("plugins/itixo-copilot/agents")],
+  ["plugins/claude/itixo/agents", agentRoles("plugins/claude/itixo/agents")],
+  ["plugins/codex/itixo/templates/agents", codexTemplateRoles],
+  ["plugins/copilot/itixo/agents", copilotAgentRoles("plugins/copilot/itixo/agents")],
 ]) {
   if (JSON.stringify(actualRoles) !== JSON.stringify(expectedRoles)) {
     fail(`${label}: role set ${JSON.stringify(actualRoles)}, expected ${JSON.stringify(expectedRoles)}`);
@@ -150,8 +150,8 @@ function providerBody(text, provider) {
 for (const agent of expectedRoles) {
   for (const [provider, extension] of [["claude", "md"], ["codex", "toml"]]) {
     const rel = provider === "claude"
-      ? `plugins/itixo-claude/agents/${agent}.${extension}`
-      : `plugins/itixo-codex/templates/agents/${agent}.${extension}`;
+      ? `plugins/claude/itixo/agents/${agent}.${extension}`
+      : `plugins/codex/itixo/templates/agents/${agent}.${extension}`;
     const p = path.join(ROOT, rel);
     if (!fs.existsSync(p)) continue;
     const body = providerBody(fs.readFileSync(p, "utf8"), provider);
@@ -185,9 +185,9 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
 }
 if (failures === 0) ok("dirigent skills exist and reference canonical agent IDs");
 
-// --- 4. itixo-claude: frontmatter model matches tier ---
+// --- 4. claude/itixo: frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
-  const rel = `plugins/itixo-claude/agents/${agent}.md`;
+  const rel = `plugins/claude/itixo/agents/${agent}.md`;
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) continue; // already reported
   const text = readFile(rel);
@@ -205,11 +205,11 @@ for (const agent of Object.keys(TIERS)) {
     if (!new RegExp(`^${field}:`, "m").test(fm[1])) fail(`${rel}: frontmatter missing '${field}'`);
   }
 }
-if (failures === 0) ok("itixo-claude agent models match tiers");
+if (failures === 0) ok("claude/itixo agent models match tiers");
 
-// --- 4b. itixo-copilot: .agent.md frontmatter model matches tier ---
+// --- 4b. copilot/itixo: .agent.md frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
-  const rel = `plugins/itixo-copilot/agents/${agent}.agent.md`;
+  const rel = `plugins/copilot/itixo/agents/${agent}.agent.md`;
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) continue;
   const text = readFile(rel);
@@ -233,11 +233,11 @@ for (const agent of Object.keys(TIERS)) {
     if (!new RegExp(`^${field}:`, "m").test(fm[1])) fail(`${rel}: frontmatter missing '${field}'`);
   }
 }
-if (failures === 0) ok("itixo-copilot agent models match tiers");
+if (failures === 0) ok("copilot/itixo agent models match tiers");
 
-// --- 5. itixo-codex: custom TOML templates model tiers ---
+// --- 5. codex/itixo: custom TOML templates model tiers ---
 for (const agent of Object.keys(TIERS)) {
-  const rel = `plugins/itixo-codex/templates/agents/${agent}.toml`;
+  const rel = `plugins/codex/itixo/templates/agents/${agent}.toml`;
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) continue;
   const text = readFile(rel);
@@ -261,17 +261,17 @@ for (const agent of Object.keys(TIERS)) {
     if (effort !== expectedEffort) fail(`${rel}: effort '${effort}', expected '${expectedEffort}'`);
   }
 }
-const obsoleteCodexAgentsDirectory = path.join(ROOT, "plugins/itixo-codex/agents");
+const obsoleteCodexAgentsDirectory = path.join(ROOT, "plugins/codex/itixo/agents");
 if (fs.existsSync(obsoleteCodexAgentsDirectory)) {
   const obsolete = fs.readdirSync(obsoleteCodexAgentsDirectory, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".md"));
-  if (obsolete.length > 0) fail("plugins/itixo-codex/agents: obsolete Markdown agent files remain");
+  if (obsolete.length > 0) fail("plugins/codex/itixo/agents: obsolete Markdown agent files remain");
 }
-if (failures === 0) ok("itixo-codex custom agent templates match tiers");
+if (failures === 0) ok("codex/itixo custom agent templates match tiers");
 
 // --- 5a. Codex custom-agent installer is packaged with its explicit setup skill ---
-const installerScriptRel = "plugins/itixo-codex/scripts/install-agents.js";
-const installerSkillRel = "plugins/itixo-codex/skills/install-agents/SKILL.md";
+const installerScriptRel = "plugins/codex/itixo/scripts/install-agents.js";
+const installerSkillRel = "plugins/codex/itixo/skills/install-agents/SKILL.md";
 for (const rel of [installerScriptRel, installerSkillRel]) {
   if (!fs.existsSync(path.join(ROOT, rel))) fail(`${rel} missing`);
 }
@@ -291,10 +291,10 @@ if (fs.existsSync(path.join(ROOT, installerSkillRel))) {
     fail(`${installerSkillRel}: must invoke plugin installer script`);
   }
 }
-if (failures === 0) ok("itixo-codex custom-agent installer packaged");
+if (failures === 0) ok("codex/itixo custom-agent installer packaged");
 
 // --- 5b. Codex orchestration references canonical agent IDs ---
-const codexAgentsRel = "plugins/itixo-codex/AGENTS.md";
+const codexAgentsRel = "plugins/codex/itixo/AGENTS.md";
 const codexAgentsPath = path.join(ROOT, codexAgentsRel);
 if (fs.existsSync(codexAgentsPath)) {
   const codexAgents = readFile(codexAgentsRel);
@@ -302,15 +302,15 @@ if (fs.existsSync(codexAgentsPath)) {
     if (!codexAgents.includes(agent)) fail(`${codexAgentsRel}: missing canonical agent ID '${agent}'`);
   }
 }
-if (failures === 0) ok("itixo-codex references canonical agent IDs");
+if (failures === 0) ok("codex/itixo references canonical agent IDs");
 
 // --- 6. rules files exist ---
 for (const rel of [
   "base/rules/agents.md",
-  "plugins/itixo-claude/rules/agents.md",
-  "plugins/itixo-codex/rules/agents.md",
-  "plugins/itixo-codex/AGENTS.md",
-  "plugins/itixo-copilot/rules/agents.md",
+  "plugins/claude/itixo/rules/agents.md",
+  "plugins/codex/itixo/rules/agents.md",
+  "plugins/codex/itixo/AGENTS.md",
+  "plugins/copilot/itixo/rules/agents.md",
 ]) {
   if (!fs.existsSync(path.join(ROOT, rel))) fail(`${rel} missing`);
 }
@@ -383,12 +383,12 @@ if (copilotMarketplace) {
 }
 if (failures === 0) ok("Copilot-native manifests valid and consistent");
 
-// --- 8. itixo-codex: default runtime-model reporting hook ---
-const claudePluginManifestRel = "plugins/itixo-claude/.claude-plugin/plugin.json";
-const codexPluginManifestRel = "plugins/itixo-codex/.codex-plugin/plugin.json";
+// --- 8. codex/itixo: default runtime-model reporting hook ---
+const claudePluginManifestRel = "plugins/claude/itixo/.claude-plugin/plugin.json";
+const codexPluginManifestRel = "plugins/codex/itixo/.codex-plugin/plugin.json";
 const claudePluginManifest = readJson(claudePluginManifestRel);
 const codexPluginManifest = readJson(codexPluginManifestRel);
-const copilotPluginManifestRel = "plugins/itixo-copilot/plugin.json";
+const copilotPluginManifestRel = "plugins/copilot/itixo/plugin.json";
 const copilotPluginManifest = readJson(copilotPluginManifestRel);
 const sharedManifestFields = ["author", "homepage", "repository", "skills", "keywords"];
 
@@ -406,7 +406,7 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
 }
 for (const [rel, manifest, technicalName, version] of [
   [claudePluginManifestRel, claudePluginManifest, "itixo", "0.8.2"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.7.2"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.7.3"],
   [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.7.1"],
 ]) {
   if (!manifest) continue;
@@ -516,7 +516,7 @@ if (claudePluginManifest && codexPluginManifest) {
       if (codexInterface[field] !== "./assets/icon.png") {
         fail(`${codexPluginManifestRel}: interface ${field} must be './assets/icon.png'`);
       }
-      const assetRel = path.join("plugins/itixo-codex", codexInterface[field] || "");
+      const assetRel = path.join("plugins/codex/itixo", codexInterface[field] || "");
       if (!fs.existsSync(path.join(ROOT, assetRel))) {
         fail(`${codexPluginManifestRel}: interface ${field} references missing '${assetRel}'`);
       } else {
@@ -527,13 +527,13 @@ if (claudePluginManifest && codexPluginManifest) {
 }
 if (failures === 0) ok("provider manifest metadata valid and consistent");
 
-// --- 9. itixo-codex: default runtime-model reporting hook ---
+// --- 9. codex/itixo: default runtime-model reporting hook ---
 if (codexPluginManifest && Object.hasOwn(codexPluginManifest, "hooks")) {
   fail(`${codexPluginManifestRel}: hooks must be auto-discovered from hooks/hooks.json`);
 }
 
-const runtimeModelHookRel = "plugins/itixo-codex/hooks/hooks.json";
-const runtimeModelScriptRel = "plugins/itixo-codex/scripts/runtime-model.js";
+const runtimeModelHookRel = "plugins/codex/itixo/hooks/hooks.json";
+const runtimeModelScriptRel = "plugins/codex/itixo/scripts/runtime-model.js";
 const runtimeModelHook = readJson(runtimeModelHookRel);
 if (!fs.existsSync(path.join(ROOT, runtimeModelScriptRel))) {
   fail(`${runtimeModelScriptRel} missing`);
@@ -551,7 +551,7 @@ if (!hookCommands.some((hook) => hook.type === "command" && hook.command === exp
 if (runtimeModelHook?.hooks?.SubagentStart?.some((entry) => entry.matcher !== "*")) {
   fail(`${runtimeModelHookRel}: SubagentStart hook must apply to all agents`);
 }
-if (failures === 0) ok("itixo-codex runtime-model hook configured");
+if (failures === 0) ok("codex/itixo runtime-model hook configured");
 
 // --- result ---
 if (failures > 0) {

@@ -1,3 +1,11 @@
+## 2026-08-24
+
+### codex
+
+#### 0.7.3
+
+- Corrected the Codex custom-agent installation command to `itixo:install-agents`.
+
 ## 2026-08-03
 
 - The repository moved from the `ITIXO-Playground` organization to `ITIXO`; install the marketplace from `ITIXO/itixo-marketplace`.
