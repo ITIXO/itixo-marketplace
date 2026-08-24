@@ -150,6 +150,32 @@ test("policy checker accepts legacy layout relocation without release metadata",
   assert.equal(result.status, 0, result.output);
 }));
 
+test("policy checker rejects legacy relocation with mode change", () => withRepository((root) => {
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "1.0.0"));
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/itixo-claude",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  const base = commit(root, "baseline");
+  fs.mkdirSync(path.join(root, "plugins/claude"), { recursive: true });
+  fs.renameSync(path.join(root, "plugins/itixo-claude"), path.join(root, "plugins/claude/itixo"));
+  fs.chmodSync(path.join(root, "plugins/claude/itixo/.claude-plugin/plugin.json"), 0o755);
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/claude/itixo",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  commit(root, "relocate and change mode");
+
+  const result = runChecker(root, base, "");
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /version 1\.0\.0 must be greater than same-provider base version 1\.0\.0/);
+}));
+
 test("policy checker rejects legacy relocation with plugin content change", () => withRepository((root) => {
   writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "1.0.0"));
   writeJson(root, ".claude-plugin/marketplace.json", marketplace({

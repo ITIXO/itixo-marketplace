@@ -423,6 +423,8 @@ function isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name
   for (const [relativePath, baseFile] of baseByRelativePath) {
     const headFile = headByRelativePath.get(relativePath);
     if (!headFile) return false;
+    if (git(["ls-tree", "--format=%(objectmode) %(objecttype)", base, "--", baseFile])
+      !== git(["ls-tree", "--format=%(objectmode) %(objecttype)", "HEAD", "--", headFile])) return false;
     const baseContent = execFileSync("git", ["show", `${base}:${baseFile}`]);
     const headContent = execFileSync("git", ["show", `HEAD:${headFile}`]);
     if (baseContent.equals(headContent)) continue;
