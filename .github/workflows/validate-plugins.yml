@@ -52,4 +52,4 @@ jobs:
           echo "sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Validate plugin release policy
-        run: node scripts/validate-plugin-changes.js --base "${{ steps.base.outputs.sha }}" --changelog changelog.md
+        run: node scripts/validate-plugin-changes.js --base "${{ steps.base.outputs.sha }}" --changelog-dir .
