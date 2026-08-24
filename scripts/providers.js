@@ -8,16 +8,6 @@
 
 const PROVIDERS = Object.freeze(["claude", "codex", "copilot"]);
 
-function pluginDirToProvider(dirName) {
-  return PROVIDERS.includes(dirName) ? dirName : null;
-}
-
-function providerToPluginDir(provider) {
-  return provider;
-}
-
 module.exports = {
   PROVIDERS,
-  pluginDirToProvider,
-  providerToPluginDir,
 };

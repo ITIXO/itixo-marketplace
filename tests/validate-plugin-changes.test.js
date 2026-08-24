@@ -9,6 +9,7 @@ const test = require("node:test");
 
 const ROOT = path.join(__dirname, "..");
 const CHECKER = path.join(ROOT, "scripts", "validate-plugin-changes.js");
+const { gitBuffer } = require("../scripts/validate-plugin-changes.js");
 
 function writeJson(root, relativePath, value) {
   const filePath = path.join(root, relativePath);
@@ -584,6 +585,48 @@ test("policy checker explicitly skips fully deleted plugins", () => withReposito
   assert.equal(result.status, 0, result.output);
   assert.match(result.stdout, /Plugin 'claude\/itixo' was deleted; no HEAD manifest to validate/);
 }));
+
+test("policy checker skips deleted legacy plugins by provider", () => withRepository((root) => {
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "1.0.0"));
+  const base = commit(root, "baseline");
+  fs.rmSync(path.join(root, "plugins/itixo-claude"), { recursive: true, force: true });
+  commit(root, "delete legacy plugin");
+
+  const result = runChecker(root, base, "");
+
+  assert.equal(result.status, 0, result.output);
+  assert.match(result.stdout, /Plugin 'claude\/itixo' was deleted; no HEAD manifest to validate/);
+}));
+
+test("policy checker accepts legacy relocation in backtick-quoted paths", () => withRepository((root) => {
+  writeJson(root, "plugins/itixo-claude/.claude-plugin/plugin.json", plugin("itixo", "1.0.0"));
+  fs.writeFileSync(path.join(root, "plugins/itixo-claude/README.md"), "Use `plugins/itixo-claude`.\n");
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/itixo-claude",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  const base = commit(root, "baseline");
+  fs.mkdirSync(path.join(root, "plugins/claude"), { recursive: true });
+  fs.renameSync(path.join(root, "plugins/itixo-claude"), path.join(root, "plugins/claude/itixo"));
+  fs.writeFileSync(path.join(root, "plugins/claude/itixo/README.md"), "Use `plugins/claude/itixo`.\n");
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "itixo",
+    source: "./plugins/claude/itixo",
+    description: "itixo plugin",
+    category: "Developer Tools",
+  }));
+  commit(root, "relocate plugin");
+
+  const result = runChecker(root, base, "");
+
+  assert.equal(result.status, 0, result.output);
+}));
+
+test("git buffer returns null when git show fails", () => {
+  assert.equal(gitBuffer(["show", "does-not-exist"]), null);
+});
 
 test("policy checker allows historical releases for providers no longer present", () => withRepository((root) => {
   writeBaselinePlugins(root, [["claude", "1.0.0"], ["codex", "9.0.0"]]);

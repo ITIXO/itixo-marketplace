@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
-const { PROVIDERS, pluginDirToProvider } = require("./providers");
+const { PROVIDERS } = require("./providers");
 
 const MARKETPLACE_FILES = [
   ".claude-plugin/marketplace.json",
@@ -43,6 +43,17 @@ function git(args, options = {}) {
     stdio: ["ignore", "pipe", "pipe"],
     ...options,
   }).trim();
+}
+
+function gitBuffer(args) {
+  try {
+    return execFileSync("git", args, {
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch {
+    return null;
+  }
 }
 
 function readJson(filePath) {
@@ -121,10 +132,10 @@ function changedMarketplacePlugins(base) {
 function changedPluginPaths(base) {
   const files = git(["diff", "--name-only", "--find-renames", `${base}...HEAD`]).split("\n").filter(Boolean);
   return new Set(files.map((file) => {
-    const sourceMatch = /^plugins\/([^/]+)\/([^/]+)\//.exec(file);
-    if (sourceMatch) return `${sourceMatch[1]}/${sourceMatch[2]}`;
     const legacyMatch = /^plugins\/itixo-([^/]+)\//.exec(file);
-    return legacyMatch ? `${legacyMatch[1]}/itixo` : null;
+    if (legacyMatch) return `${legacyMatch[1]}/itixo`;
+    const sourceMatch = /^plugins\/([^/]+)\/([^/]+)\//.exec(file);
+    return sourceMatch ? `${sourceMatch[1]}/${sourceMatch[2]}` : null;
   }).filter(Boolean));
 }
 
@@ -418,8 +429,7 @@ function migrationContent(content, relativePath, provider, name) {
   const legacyPath = `plugins/${name}-${provider}`;
   const nestedPath = `plugins/${provider}/${name}`;
   return text
-    .replace(new RegExp(`${escapeRegExp(legacyPath)}(?=$|[\\s/"'.,;:!?)}\\]])`, "g"), nestedPath)
-    .replaceAll(`${name}-${provider}:install-agents`, `${name}:install-agents`);
+    .replace(new RegExp(`${escapeRegExp(legacyPath)}(?=$|[\\s/"'.,;:!?)}\\]\\x60])`, "g"), nestedPath);
 }
 
 function normalizedMarketplace(manifest) {
@@ -464,8 +474,9 @@ function isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name
     if (!headFile) return false;
     if (git(["ls-tree", "--format=%(objectmode) %(objecttype)", base, "--", baseFile])
       !== git(["ls-tree", "--format=%(objectmode) %(objecttype)", "HEAD", "--", headFile])) return false;
-    const baseContent = execFileSync("git", ["show", `${base}:${baseFile}`]);
-    const headContent = execFileSync("git", ["show", `HEAD:${headFile}`]);
+    const baseContent = gitBuffer(["show", `${base}:${baseFile}`]);
+    const headContent = gitBuffer(["show", `HEAD:${headFile}`]);
+    if (!baseContent || !headContent) return false;
     const normalizedBase = migrationContent(baseContent, relativePath, provider, name);
     if (normalizedBase === null) {
       if (!baseContent.equals(headContent)) return false;
@@ -480,7 +491,7 @@ function validatePlugin(base, changelogHeadings, key) {
     return { errors: [`plugins/${key}: unknown plugin layout; expected plugins/<provider>/<plugin>.`], skipped: null };
   }
   const [, provider, name] = pluginMatch;
-  if (!pluginDirToProvider(provider)) {
+  if (!PROVIDERS.includes(provider)) {
     return { errors: [`plugins/${provider}/${name}: unknown provider; add it to PROVIDERS in scripts/providers.js.`], skipped: null };
   }
 
@@ -599,6 +610,7 @@ module.exports = {
   changedMarketplacePlugins,
   changedPluginPaths,
   compareVersions,
+  gitBuffer,
   highestVersion,
   isGreaterVersion,
   parseArgs,
