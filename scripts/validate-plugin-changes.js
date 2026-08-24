@@ -427,10 +427,10 @@ function isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name
       !== git(["ls-tree", "--format=%(objectmode) %(objecttype)", "HEAD", "--", headFile])) return false;
     const baseContent = execFileSync("git", ["show", `${base}:${baseFile}`]);
     const headContent = execFileSync("git", ["show", `HEAD:${headFile}`]);
-    if (baseContent.equals(headContent)) continue;
     const normalizedBase = migrationContent(baseContent, provider, name);
-    const normalizedHead = migrationContent(headContent, provider, name);
-    if (normalizedBase === null || normalizedHead === null || normalizedBase !== normalizedHead) return false;
+    if (normalizedBase === null) {
+      if (!baseContent.equals(headContent)) return false;
+    } else if (!Buffer.from(normalizedBase).equals(headContent)) return false;
   }
   return true;
 }
