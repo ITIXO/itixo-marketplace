@@ -206,6 +206,12 @@ function parseChangelog(markdown, filename) {
     if (nonBlank.length > 0) {
       checkBulletLines(currentVersion.body, errors, filename, `version body for '#### ${currentVersion.version}'`);
     }
+    const bulletLines = currentVersion.body.filter(
+      (entry) => !entry.inFence && entry.line.trim() !== "" && /^- \S/.test(entry.line),
+    );
+    if (bulletLines.length === 0) {
+      errors.push(`${filename}:${currentVersion.line}: version '#### ${currentVersion.version}' must have at least one '- ' bullet line.`);
+    }
     currentVersion = null;
   };
 

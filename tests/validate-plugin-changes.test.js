@@ -648,13 +648,14 @@ test("policy checker rejects a plugin directory with an unmapped provider", () =
   assert.match(result.output, /plugins\/not-itixo-prefixed\/itixo: unknown provider; add it to PROVIDERS in scripts\/providers\.js\./);
 }));
 
-test("policy checker accepts a bodyless version", () => withRepository((root) => {
+test("policy checker rejects a bodyless version", () => withRepository((root) => {
   const base = setupBumpedClaude(root);
   const changelog = doc(dateBlock("2026-07-28", [{ version: "1.0.1" }]));
 
   const result = runChecker(root, base, { claude: changelog });
 
-  assert.equal(result.status, 0, result.output);
+  assert.equal(result.status, 1);
+  assert.match(result.output, /version '#### 1\.0\.1' must have at least one '- ' bullet line\./);
 }));
 
 test("policy checker does not enforce bullet formatting inside fenced code blocks", () => withRepository((root) => {
@@ -871,3 +872,72 @@ test("Wiki update workflow syncs per-provider changelogs to Wiki master", () => 
   assert.match(workflow, /git -C wiki commit -m "docs: sync changelog"/);
   assert.match(workflow, /git -C wiki push origin HEAD:master/);
 });
+
+test("policy checker accepts multiple plugins bumped across different providers in one PR", () => withRepository((root) => {
+  writeBaselinePlugins(root, [["claude", "1.0.0"], ["codex", "1.0.0"]]);
+  const base = commit(root, "baseline");
+  writeJson(root, "plugins/claude/itixo/.claude-plugin/plugin.json", plugin("itixo", "1.0.1"));
+  writeJson(root, "plugins/codex/itixo/.claude-plugin/plugin.json", plugin("itixo", "2.0.0"));
+  commit(root, "bump both providers");
+  const claudeChangelog = doc(dateBlock("2026-07-28", [{ version: "1.0.1", body: ["- Claude fix."] }]));
+  const codexChangelog = doc(dateBlock("2026-07-28", [{ version: "2.0.0", body: ["- Codex release."] }]));
+
+  const result = runChecker(root, base, { claude: claudeChangelog, codex: codexChangelog });
+
+  assert.equal(result.status, 0, result.output);
+}));
+
+test("policy checker rejects one of two bumped providers missing its changelog heading", () => withRepository((root) => {
+  writeBaselinePlugins(root, [["claude", "1.0.0"], ["codex", "1.0.0"]]);
+  const base = commit(root, "baseline");
+  writeJson(root, "plugins/claude/itixo/.claude-plugin/plugin.json", plugin("itixo", "1.0.1"));
+  writeJson(root, "plugins/codex/itixo/.claude-plugin/plugin.json", plugin("itixo", "2.0.0"));
+  commit(root, "bump both providers");
+  const claudeChangelog = doc(dateBlock("2026-07-28", [{ version: "1.0.1", body: ["- Claude fix."] }]));
+  const codexChangelog = doc(dateBlock("2026-07-28", [{ version: "1.9.0", body: ["- Unrelated codex entry."] }]));
+
+  const result = runChecker(root, base, { claude: claudeChangelog, codex: codexChangelog });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /Changelog: missing heading '#### 2\.0\.0' under '### codex'/);
+  assert.doesNotMatch(result.output, /Changelog: missing heading '#### 1\.0\.1' under '### claude'/);
+}));
+
+test("policy checker validates two plugins under the same provider against one changelog file", () => withRepository((root) => {
+  writeJson(root, "plugins/claude/itixo/.claude-plugin/plugin.json", plugin("itixo", "1.0.0"));
+  writeJson(root, "plugins/claude/other/.claude-plugin/plugin.json", plugin("other", "1.0.0"));
+  const base = commit(root, "baseline");
+  writeJson(root, "plugins/claude/itixo/.claude-plugin/plugin.json", plugin("itixo", "1.0.1"));
+  writeJson(root, "plugins/claude/other/.claude-plugin/plugin.json", plugin("other", "2.0.0"));
+  commit(root, "bump both claude plugins");
+  const changelog = doc(dateBlock("2026-07-28", [
+    { version: "2.0.0", body: ["- Other plugin release."] },
+    { version: "1.0.1", body: ["- Itixo fix."] },
+  ]));
+
+  const result = runChecker(root, base, { claude: changelog });
+
+  assert.equal(result.status, 0, result.output);
+}));
+
+test("policy checker rejects a malformed plugin layout key from a non-standard marketplace source", () => withRepository((root) => {
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "solo-plugin",
+    source: "./tools/solo-plugin",
+    description: "solo plugin",
+    category: "Developer Tools",
+  }));
+  const base = commit(root, "baseline");
+  writeJson(root, ".claude-plugin/marketplace.json", marketplace({
+    name: "solo-plugin",
+    source: "./tools/solo-plugin",
+    description: "solo plugin",
+    category: "Productivity",
+  }));
+  commit(root, "change category");
+
+  const result = runChecker(root, base);
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /plugins\/solo-plugin: unknown plugin layout; expected plugins\/<provider>\/<plugin>\./);
+}));
