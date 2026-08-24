@@ -90,8 +90,11 @@ function pluginEntries(manifest) {
 }
 
 function pluginNameFromEntry(plugin) {
-  const sourceMatch = /^(?:\.\/)?plugins\/([^/]+)\/?$/.exec(pluginSourcePath(plugin));
-  return sourceMatch?.[1] ?? plugin?.name;
+  const source = pluginSourcePath(plugin);
+  const sourceMatch = /^(?:\.\/)?plugins\/([^/]+)\/([^/]+)\/?$/.exec(source);
+  if (sourceMatch) return `${sourceMatch[1]}/${sourceMatch[2]}`;
+  const legacyMatch = /^(?:\.\/)?plugins\/itixo-([^/]+)\/?$/.exec(source);
+  return legacyMatch ? `${legacyMatch[1]}/itixo` : plugin?.name;
 }
 
 function changedMarketplacePlugins(base) {
@@ -115,7 +118,12 @@ function changedMarketplacePlugins(base) {
 
 function changedPluginPaths(base) {
   const files = git(["diff", "--name-only", "--find-renames", `${base}...HEAD`]).split("\n").filter(Boolean);
-  return new Set(files.map((file) => /^plugins\/([^/]+)\//.exec(file)?.[1]).filter(Boolean));
+  return new Set(files.map((file) => {
+    const sourceMatch = /^plugins\/([^/]+)\/([^/]+)\//.exec(file);
+    if (sourceMatch) return `${sourceMatch[1]}/${sourceMatch[2]}`;
+    const legacyMatch = /^plugins\/itixo-([^/]+)\//.exec(file);
+    return legacyMatch ? `${legacyMatch[1]}/itixo` : null;
+  }).filter(Boolean));
 }
 
 function parseVersion(version) {
@@ -388,28 +396,42 @@ function requiredBaseVersion(baseManifest, highestBaseVersion) {
   return null;
 }
 
-function pluginExistsAtBase(base, name) {
+function pluginExistsAtBase(base, pluginDir) {
   try {
-    git(["cat-file", "-e", `${base}:plugins/${name}`]);
+    git(["cat-file", "-e", `${base}:${pluginDir}`]);
     return true;
   } catch {
     return false;
   }
 }
 
-function validatePlugin(base, changelogHeadings, name) {
-  const pluginDir = path.join("plugins", name);
+function validatePlugin(base, changelogHeadings, key) {
+  const pluginMatch = /^([^/]+)\/([^/]+)$/.exec(key);
+  if (!pluginMatch) {
+    return { errors: [`plugins/${key}: unknown plugin layout; expected plugins/<provider>/<plugin>.`], skipped: null };
+  }
+  const [, provider, name] = pluginMatch;
+  if (!pluginDirToProvider(provider)) {
+    return { errors: [`plugins/${provider}/${name}: unknown provider; add it to PROVIDERS in scripts/providers.js.`], skipped: null };
+  }
+
+  const pluginDir = path.join("plugins", provider, name);
   if (!fs.existsSync(pluginDir)) {
-    return { errors: [], skipped: `Plugin '${name}' was deleted; no HEAD manifest to validate.` };
+    return { errors: [], skipped: `Plugin '${provider}/${name}' was deleted; no HEAD manifest to validate.` };
   }
 
   const errors = [];
-  const isNewPlugin = !pluginExistsAtBase(base, name);
+  const legacyPluginDir = path.join("plugins", `${name}-${provider}`);
+  const basePluginDir = pluginExistsAtBase(base, pluginDir)
+    ? pluginDir
+    : (pluginExistsAtBase(base, legacyPluginDir) ? legacyPluginDir : null);
+  const isNewPlugin = basePluginDir === null;
+  const relocatedFromLegacyLayout = basePluginDir === legacyPluginDir;
   const baseManifests = new Map();
   const baseVersions = [];
   if (!isNewPlugin) {
     for (const manifestRelativePath of PLUGIN_MANIFESTS) {
-      const manifestLabel = path.posix.join(pluginDir, manifestRelativePath);
+      const manifestLabel = path.posix.join(basePluginDir, manifestRelativePath);
       const state = readBaseManifest(base, manifestLabel);
       baseManifests.set(manifestRelativePath, state);
       if (!state.exists) continue;
@@ -422,7 +444,7 @@ function validatePlugin(base, changelogHeadings, name) {
       }
     }
     if (baseVersions.length === 0 && errors.length === 0) {
-      errors.push(`plugins/${name}: existing base plugin has no valid release manifest; cannot validate version bump.`);
+      errors.push(`${basePluginDir}: existing base plugin has no valid release manifest; cannot validate version bump.`);
     }
   }
   const highestBaseVersion = highestVersion(baseVersions);
@@ -446,7 +468,7 @@ function validatePlugin(base, changelogHeadings, name) {
     versions.push(version);
     const baseManifest = baseManifests.get(manifestRelativePath);
     const requiredBase = isNewPlugin ? null : requiredBaseVersion(baseManifest, highestBaseVersion);
-    if (requiredBase && !isGreaterVersion(version, requiredBase.version)) {
+    if (requiredBase && !relocatedFromLegacyLayout && !isGreaterVersion(version, requiredBase.version)) {
       const context = requiredBase.kind === "same-provider"
         ? `same-provider base version ${requiredBase.version}`
         : `highest base plugin version ${requiredBase.version} after provider replacement`;
@@ -454,11 +476,8 @@ function validatePlugin(base, changelogHeadings, name) {
     }
   }
 
-  if (versions.length === 0) errors.push(`plugins/${name}: no plugin manifest exists at HEAD.`);
-  const provider = pluginDirToProvider(name);
-  if (!provider) {
-    errors.push(`plugins/${name}: unknown provider; add it to PROVIDERS in scripts/providers.js.`);
-  } else {
+  if (versions.length === 0) errors.push(`${pluginDir}: no plugin manifest exists at HEAD.`);
+  if (!relocatedFromLegacyLayout) {
     for (const version of new Set(versions)) {
       if (!changelogHeadings.has(`${version} - ${provider}`)) {
         errors.push(`Changelog: missing heading '#### ${version}' under '### ${provider}'.`);

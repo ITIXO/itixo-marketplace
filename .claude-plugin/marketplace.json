@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "itixo",
-      "source": "./plugins/itixo-claude",
+      "source": "./plugins/claude/itixo",
       "description": "Itixo library for Claude users: agents, skills, rules, prompts. Orchestration module included (delegation to sonnet/haiku subagents). Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
       "category": "Developer Tools"
     }

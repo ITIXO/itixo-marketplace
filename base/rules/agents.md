@@ -1,6 +1,6 @@
 # Orchestration & Delegation Rules
 
-Source of truth for all provider plugins (`itixo-claude`, `itixo-codex`, `itixo-copilot`). Edit here, then sync to plugins.
+Source of truth for all provider plugins (`claude/itixo`, `codex/itixo`, `copilot/itixo`). Edit here, then sync to plugins.
 
 ## Core idea
 
@@ -38,7 +38,7 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 ## Provider dispatch
 
 - Claude invokes the native plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model and effort. Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
-- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/itixo-codex/agents/*.md`; the installed TOML owns instructions, model, and effort. Explicit user-requested per-agent overrides are installed with `itixo-codex:install-agents` and then owned by the matching TOML. Do not pass an additional invocation override. Explicit planner Sol may exceed the caller model.
+- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the installed TOML owns instructions, model, and effort. Explicit user-requested per-agent overrides are installed with `itixo-codex:install-agents` and then owned by the matching TOML. Do not pass an additional invocation override. Explicit planner Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
 - If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo-codex:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is Luna + high; Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
 - Copilot CLI invokes the native Copilot plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model. Copilot has no effort field; never pass an effort override to a Copilot agent.
