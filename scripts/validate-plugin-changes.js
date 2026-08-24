@@ -405,6 +405,32 @@ function pluginExistsAtBase(base, pluginDir) {
   }
 }
 
+function migrationContent(content, provider, name) {
+  const text = content.toString("utf8");
+  if (!Buffer.from(text, "utf8").equals(content)) return null;
+  return text
+    .replaceAll(`plugins/${name}-${provider}`, `plugins/${provider}/${name}`)
+    .replaceAll(`${name}-${provider}:install-agents`, `${name}:install-agents`);
+}
+
+function isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name) {
+  const baseFiles = git(["ls-tree", "-r", "--name-only", base, "--", legacyPluginDir]).split("\n").filter(Boolean);
+  const headFiles = git(["ls-tree", "-r", "--name-only", "HEAD", "--", pluginDir]).split("\n").filter(Boolean);
+  const baseByRelativePath = new Map(baseFiles.map((file) => [file.slice(legacyPluginDir.length + 1), file]));
+  const headByRelativePath = new Map(headFiles.map((file) => [file.slice(pluginDir.length + 1), file]));
+  if (baseByRelativePath.size !== headByRelativePath.size) return false;
+
+  for (const [relativePath, baseFile] of baseByRelativePath) {
+    const headFile = headByRelativePath.get(relativePath);
+    if (!headFile) return false;
+    const baseContent = execFileSync("git", ["show", `${base}:${baseFile}`]);
+    const headContent = execFileSync("git", ["show", `HEAD:${headFile}`]);
+    if (baseContent.equals(headContent)) continue;
+    if (migrationContent(baseContent, provider, name) !== migrationContent(headContent, provider, name)) return false;
+  }
+  return true;
+}
+
 function validatePlugin(base, changelogHeadings, key) {
   const pluginMatch = /^([^/]+)\/([^/]+)$/.exec(key);
   if (!pluginMatch) {
@@ -427,6 +453,8 @@ function validatePlugin(base, changelogHeadings, key) {
     : (pluginExistsAtBase(base, legacyPluginDir) ? legacyPluginDir : null);
   const isNewPlugin = basePluginDir === null;
   const relocatedFromLegacyLayout = basePluginDir === legacyPluginDir;
+  const pureLegacyRelocation = relocatedFromLegacyLayout
+    && isPureLegacyRelocation(base, legacyPluginDir, pluginDir, provider, name);
   const baseManifests = new Map();
   const baseVersions = [];
   if (!isNewPlugin) {
@@ -468,7 +496,7 @@ function validatePlugin(base, changelogHeadings, key) {
     versions.push(version);
     const baseManifest = baseManifests.get(manifestRelativePath);
     const requiredBase = isNewPlugin ? null : requiredBaseVersion(baseManifest, highestBaseVersion);
-    if (requiredBase && !relocatedFromLegacyLayout && !isGreaterVersion(version, requiredBase.version)) {
+    if (requiredBase && !pureLegacyRelocation && !isGreaterVersion(version, requiredBase.version)) {
       const context = requiredBase.kind === "same-provider"
         ? `same-provider base version ${requiredBase.version}`
         : `highest base plugin version ${requiredBase.version} after provider replacement`;
@@ -477,7 +505,7 @@ function validatePlugin(base, changelogHeadings, key) {
   }
 
   if (versions.length === 0) errors.push(`${pluginDir}: no plugin manifest exists at HEAD.`);
-  if (!relocatedFromLegacyLayout) {
+  if (!pureLegacyRelocation) {
     for (const version of new Set(versions)) {
       if (!changelogHeadings.has(`${version} - ${provider}`)) {
         errors.push(`Changelog: missing heading '#### ${version}' under '### ${provider}'.`);
