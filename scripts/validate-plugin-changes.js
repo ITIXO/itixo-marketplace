@@ -498,9 +498,12 @@ function validatePlugin(base, changelogHeadingsMap, key) {
 
   if (versions.length === 0) errors.push(`${pluginDir}: no plugin manifest exists at HEAD.`);
   if (!pureLegacyRelocation) {
-    for (const version of new Set(versions)) {
-      if (!changelogHeadingsMap.get(provider)?.has(version)) {
-        errors.push(`Changelog: missing heading '#### ${version}' under '### ${provider}'.`);
+    const headings = changelogHeadingsMap.get(provider);
+    if (headings) {
+      for (const version of new Set(versions)) {
+        if (!headings.has(version)) {
+          errors.push(`changelog.${provider}.md: missing heading '#### ${version}'.`);
+        }
       }
     }
   }
@@ -518,6 +521,7 @@ function validatePluginChanges({ base, changelogDir }) {
     const changelogPath = path.join(changelogDir, filename);
     if (!fs.existsSync(changelogPath)) {
       errors.push(`Changelog not found: ${changelogPath}`);
+      changelogHeadingsMap.set(provider, null);
       continue;
     }
     const changelog = parseChangelog(fs.readFileSync(changelogPath, "utf8"), filename);

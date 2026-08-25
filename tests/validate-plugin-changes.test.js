@@ -436,7 +436,7 @@ test("policy checker rejects bumped version without matching heading", () => wit
   const result = runChecker(root, base, { claude: changelog });
 
   assert.equal(result.status, 1);
-  assert.match(result.output, /Changelog: missing heading '#### 1\.0\.1' under '### claude'/);
+  assert.match(result.output, /changelog\.claude\.md: missing heading '#### 1\.0\.1'/);
 }));
 
 test("policy checker does not accept a longer version heading as a match", () => withRepository((root) => {
@@ -446,7 +446,7 @@ test("policy checker does not accept a longer version heading as a match", () =>
   const result = runChecker(root, base, { claude: changelog });
 
   assert.equal(result.status, 1);
-  assert.match(result.output, /Changelog: missing heading '#### 1\.0\.1' under '### claude'/);
+  assert.match(result.output, /changelog\.claude\.md: missing heading '#### 1\.0\.1'/);
 }));
 
 test("policy checker requires the version heading to start its own line", () => withRepository((root) => {
@@ -459,7 +459,7 @@ test("policy checker requires the version heading to start its own line", () => 
   const result = runChecker(root, base, { claude: changelog });
 
   assert.equal(result.status, 1);
-  assert.match(result.output, /Changelog: missing heading '#### 1\.0\.1' under '### claude'/);
+  assert.match(result.output, /changelog\.claude\.md: missing heading '#### 1\.0\.1'/);
 }));
 
 test("policy checker rejects a lower minor version despite a higher patch", () => withRepository((root) => {
@@ -632,7 +632,24 @@ test("policy checker reports a missing changelog file per provider and keeps che
   assert.equal(result.status, 1);
   assert.match(result.output, /Changelog not found: .*changelog\.codex\.md/);
   assert.match(result.output, /Changelog not found: .*changelog\.copilot\.md/);
-  assert.doesNotMatch(result.output, /Changelog: missing heading '#### 1\.0\.1' under '### claude'/);
+  assert.doesNotMatch(result.output, /changelog\.claude\.md: missing heading '#### 1\.0\.1'/);
+}));
+
+test("policy checker reports only 'Changelog not found' for a missing provider file, not a redundant missing-heading error", () => withRepository((root) => {
+  writeBaselinePlugins(root, [["claude", "1.0.0"], ["codex", "1.0.0"]]);
+  const base = commit(root, "baseline");
+  writeJson(root, "plugins/claude/itixo/.claude-plugin/plugin.json", plugin("itixo", "1.0.1"));
+  writeJson(root, "plugins/codex/itixo/.claude-plugin/plugin.json", plugin("itixo", "2.0.0"));
+  commit(root, "bump both providers");
+  const claudeChangelog = doc(dateBlock("2026-07-28", [{ version: "1.0.1", body: ["- Claude fix."] }]));
+
+  const result = runChecker(root, base, { claude: claudeChangelog, codex: null });
+
+  assert.equal(result.status, 1);
+  assert.match(result.output, /Changelog not found: .*changelog\.codex\.md/);
+  assert.doesNotMatch(result.output, /changelog\.codex\.md: missing heading '#### 2\.0\.0'/);
+  const notFoundOccurrences = (result.output.match(/Changelog not found: .*changelog\.codex\.md/g) ?? []).length;
+  assert.equal(notFoundOccurrences, 1);
 }));
 
 test("policy checker rejects a plugin directory with an unmapped provider", () => withRepository((root) => {
@@ -863,8 +880,9 @@ test("Wiki update workflow syncs per-provider changelogs to Wiki master", () => 
   assert.match(workflow, /^\s*push:\s*\n\s*branches:\s*\n\s*- main\s*$/m);
   assert.match(workflow, /git clone --branch master --single-branch[\s\S]*?\.wiki\.git[\s\S]*?\s+wiki/);
   assert.match(workflow, /for provider in claude codex copilot; do/);
-  assert.ok(workflow.includes('cat "changelog.$provider.md"'), "reads changelog.$provider.md per provider");
-  assert.ok(workflow.includes('"# Changelog"'), "composes a # Changelog heading");
+  assert.ok(workflow.includes('cat "changelog.$provider.md"'), "streams changelog.$provider.md directly per provider");
+  assert.doesNotMatch(workflow, /content=\$\(cat/, "must not capture file content via command substitution");
+  assert.ok(workflow.includes("printf '# Changelog\\n'"), "composes a # Changelog heading");
   assert.match(workflow, /cmp -s [^\n]*wiki\/Changelog\.md/);
   assert.match(workflow, /Wiki changelog already current\.[\s\S]*?exit 0/);
   assert.match(workflow, /cp [^\n]*wiki\/Changelog\.md/);
@@ -899,8 +917,8 @@ test("policy checker rejects one of two bumped providers missing its changelog h
   const result = runChecker(root, base, { claude: claudeChangelog, codex: codexChangelog });
 
   assert.equal(result.status, 1);
-  assert.match(result.output, /Changelog: missing heading '#### 2\.0\.0' under '### codex'/);
-  assert.doesNotMatch(result.output, /Changelog: missing heading '#### 1\.0\.1' under '### claude'/);
+  assert.match(result.output, /changelog\.codex\.md: missing heading '#### 2\.0\.0'/);
+  assert.doesNotMatch(result.output, /changelog\.claude\.md: missing heading '#### 1\.0\.1'/);
 }));
 
 test("policy checker validates two plugins under the same provider against one changelog file", () => withRepository((root) => {

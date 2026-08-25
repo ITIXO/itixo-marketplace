@@ -25,16 +25,10 @@ jobs:
             wiki
 
           {
-            printf '%s\n\n' "# Changelog"
-            first=true
+            printf '# Changelog\n'
             for provider in claude codex copilot; do
-              content=$(cat "changelog.$provider.md")
-              if [ "$first" = true ]; then
-                first=false
-              else
-                printf '\n'
-              fi
-              printf '## %s\n\n%s\n' "$provider" "$content"
+              printf '\n## %s\n\n' "$provider"
+              cat "changelog.$provider.md"
             done
           } > /tmp/changelog-composed.md
 
