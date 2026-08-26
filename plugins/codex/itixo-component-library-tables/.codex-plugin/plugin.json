@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "author": {
     "name": "Itixo",
-    "url": "https://github.com/ITIXO-Playground"
+    "url": "https://github.com/ITIXO"
   },
-  "homepage": "https://github.com/ITIXO-Playground/itixo-marketplace",
-  "repository": "https://github.com/ITIXO-Playground/itixo-marketplace",
+  "homepage": "https://github.com/ITIXO/itixo-marketplace",
+  "repository": "https://github.com/ITIXO/itixo-marketplace",
   "keywords": ["codex", "tables", "component-library", "developer-tools"],
   "skills": "./skills/",
   "interface": {
@@ -17,7 +17,7 @@
     "developerName": "Itixo",
     "category": "Developer Tools",
     "capabilities": ["Read", "Write"],
-    "websiteURL": "https://github.com/ITIXO-Playground/itixo-marketplace",
+    "websiteURL": "https://github.com/ITIXO/itixo-marketplace",
     "defaultPrompt": ["Use icl-tables to build a paginated/filterable/sortable table endpoint with Itixo.ComponentLibrary.Tables."]
   }
 }

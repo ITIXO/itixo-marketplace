@@ -16,7 +16,7 @@
     },
     {
       "name": "itixo-component-library-tables",
-      "source": "./plugins/itixo-component-library-tables-copilot",
+      "source": "./plugins/copilot/itixo-component-library-tables",
       "description": "This plugin provides the icl-tables skill for building server-side paginated, filterable, sortable, and searchable table endpoints and CSV export using the Itixo.ComponentLibrary.Tables NuGet package."
     }
   ]

@@ -16,7 +16,7 @@
       "name": "itixo-component-library-tables",
       "source": {
         "source": "local",
-        "path": "./plugins/itixo-component-library-tables-codex"
+        "path": "./plugins/codex/itixo-component-library-tables"
       },
       "category": "Developer Tools"
     }
