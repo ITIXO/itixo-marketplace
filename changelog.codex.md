@@ -1,89 +1,89 @@
-### 2026-08-24
+## 2026-08-24
 
-#### 0.7.3
+### itixo 0.7.3
 
 - Corrected the Codex custom-agent installation command to `itixo:install-agents`.
 
-### 2026-08-19
+## 2026-08-19
 
-#### 0.1.0
+### itixo-component-library-tables 0.1.0
 
 - Initial release of the `itixo-component-library-tables` plugin for Codex, which packages the `icl-tables` skill: a consumer guide to the `Itixo.ComponentLibrary.Tables` NuGet package covering server-side paginated, filterable, sortable, and searchable table endpoints, and CSV export.
 
-### 2026-08-03
+## 2026-08-03
 
-#### 0.7.2
+### itixo 0.7.2
 
 - The repository moved from the `ITIXO-Playground` organization to `ITIXO`; install the marketplace from `ITIXO/itixo-marketplace`.
 
-### 2026-07-30
+## 2026-07-30
 
-#### 0.7.1
+### itixo 0.7.1
 
 - Every agent now uses the `caveman:caveman` skill when it is available and otherwise keeps its responses terse.
 - The orchestrator now uses `mattpocock-skills:grill-me` when available to ask clarifying questions before delegating on assumptions; subagents still return open questions to the orchestrator.
 - All three plugins and the delegation rules now recommend installing the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).
 
-### 2026-07-28
+## 2026-07-28
 
-#### 0.7.0
+### itixo 0.7.0
 
 - **Breaking:** The Codex plugin's technical ID is now `itixo` (formerly `itixo-codex`). Its provider folder remains `plugins/itixo-codex`; update references that use the plugin ID.
 
-#### 0.6.1
+### itixo 0.6.1
 
 - Codex adds the user-triggered, read-only `itixo-security-reviewer` with a `gpt-5.6-sol` + max default.
 - It reviews the current-branch diff, staged and unstaged changes, and relevant untracked files unless broader scope is explicitly requested; pull-request findings are inline where possible or general otherwise, with `REQUEST_CHANGES` for unresolved Critical or High findings when supported, self-review `COMMENT` fallback, and a neutral clean-review comment.
 
-#### 0.6.0
+### itixo 0.6.0
 
 - The Codex plugin release is aligned to version `0.6.0`.
 
-#### 0.5.0
+### itixo 0.5.0
 
 - The Codex plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-codex`.
 
-### 2026-07-27
+## 2026-07-27
 
-#### 0.4.0
+### itixo 0.4.0
 
 - Codex removed `/dirigent-stats`.
 
-#### 0.3.1
+### itixo 0.3.1
 
 - Codex now automatically and safely removes temporary worktrees and branches created by its agents after work completes.
 
-#### 0.3.0
+### itixo 0.3.0
 
 - **Breaking:** `/dirigent-stats` now reports only cache-backed root and unique subagent-run token totals, grouped by role, provider, and model; unavailable cache data uses the no-data result.
 
-### 2026-07-23
+## 2026-07-23
 
-#### 0.2.13
+### itixo 0.2.13
 
 - Claude and Codex marketplace listings now provide richer plugin details, and Codex has a dedicated marketplace icon.
 - Codex Dirigent statistics can now show agent usage, model usage, or both through `--view agents|models|both`, with both tables remaining the default.
 - Reports use exact `kToks` values, and totals cover the root session plus recursive agents and each agent's input, cache, and output work without double-counting alternate table groupings.
 
-#### 0.2.12
+### itixo 0.2.12
 
 - Codex Dirigent statistics now reproduce the cached hook report without internal markers or instructions.
 - Before usage is recorded, the command returns only `No token usage available yet.`; nonzero reports contain only their heading, tables, total, and warnings.
 - Counting starts automatically through session hooks after a new task or Codex restart following installation or update.
 
-#### 0.2.11
+### itixo 0.2.11
 
 - Codex users can now install model and effort overrides independently for any of the seven `itixo-*` agents while preserving existing tier defaults when no override is supplied.
 - An explicitly selected Sol planner may exceed the caller where provider and organization policy permits.
 
-#### 0.2.10
+### itixo 0.2.10
 
 - The Codex agent installer now asks separately for the cheap-role model and effort, recommending Luna + high and supporting Terra + low as a fallback.
 - Scope selection remains explicit, and each choice can be overridden with `--cheap-model` and `--cheap-effort`.
 
-### 2026-07-22
+## 2026-07-22
 
-#### 0.2.8
+### itixo 0.2.8
 
 - Namespaced marketplace invocations now return current-session reports for Claude `/itixo-claude:dirigent-stats` and Codex `$itixo-codex:dirigent-stats`. Existing unqualified forms remain supported.
 - Both `itixo-claude` and `itixo-codex` initialize Dirigent statistics at `SessionStart`.
@@ -103,17 +103,17 @@
 - Claude uses ordinary subagents, not experimental Agent Teams; Codex requires `agents.max_threads >= 5` and recommends `max_depth = 1`.
 - The skill saturates available independent work, refills freed slots, and reports concurrency-cap or dependency shortfalls.
 
-### 2026-07-21
+## 2026-07-21
 
-#### 0.2.2
+### itixo 0.2.2
 
 - Both `itixo-claude` and `itixo-codex` are now version `0.2.2`.
 - This release documents structured responsibilities for orchestration, explicit strict tool and refusal boundaries, and unchanged capability allowlists.
 - Claude and Codex provider artifacts were regenerated from the canonical agent definitions.
 
-### 2026-07-20
+## 2026-07-20
 
-#### 0.2.1
+### itixo 0.2.1
 
 - GitHub issue planning now uses native GitHub IssueTypes with readback: multi-workstream roots are `Feature`, direct children default to `Task`, and larger direct children may be `Feature` only when split into terminal `Task` children, bounded to `Feature -> Feature -> Task`.
 - Personal repositories without native IssueTypes use lowercase `feature` and `task` labels as a narrow fallback, creating only missing fallback labels and reading assignments back on each parent and child.
