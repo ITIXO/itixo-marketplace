@@ -1,0 +1,19 @@
+{
+  "name": "itixo-component-library-tables",
+  "displayName": "itixo-component-library-tables",
+  "description": "This plugin provides the icl-tables skill for building server-side paginated, filterable, sortable, and searchable table endpoints and CSV export using the Itixo.ComponentLibrary.Tables NuGet package.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Itixo",
+    "url": "https://github.com/ITIXO"
+  },
+  "homepage": "https://github.com/ITIXO/itixo-marketplace",
+  "repository": "https://github.com/ITIXO/itixo-marketplace",
+  "keywords": [
+    "claude",
+    "tables",
+    "component-library",
+    "developer-tools"
+  ],
+  "skills": "./skills/"
+}

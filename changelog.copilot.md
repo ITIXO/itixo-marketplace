@@ -1,3 +1,9 @@
+## 2026-08-19
+
+### itixo-component-library-tables 0.1.0
+
+- Initial release of the `itixo-component-library-tables` plugin for Copilot, which packages the `icl-tables` skill: a consumer guide to the `Itixo.ComponentLibrary.Tables` NuGet package covering server-side paginated, filterable, sortable, and searchable table endpoints, and CSV export.
+
 ## 2026-07-30
 
 ### itixo 0.7.1
