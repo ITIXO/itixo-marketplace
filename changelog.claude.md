@@ -1,0 +1,112 @@
+### 2026-08-19
+
+#### 0.1.0
+
+- Initial release of the `itixo-component-library-tables` plugin for Claude, which packages the `icl-tables` skill: a consumer guide to the `Itixo.ComponentLibrary.Tables` NuGet package covering server-side paginated, filterable, sortable, and searchable table endpoints, and CSV export.
+
+### 2026-08-03
+
+#### 0.8.2
+
+- The repository moved from the `ITIXO-Playground` organization to `ITIXO`; install the marketplace from `ITIXO/itixo-marketplace`.
+
+### 2026-07-30
+
+#### 0.8.1
+
+- Every agent now uses the `caveman:caveman` skill when it is available and otherwise keeps its responses terse.
+- The orchestrator now uses `mattpocock-skills:grill-me` when available to ask clarifying questions before delegating on assumptions; subagents still return open questions to the orchestrator.
+- All three plugins and the delegation rules now recommend installing the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).
+- The Claude plugin no longer declares `caveman` and `mattpocock-skills` as hard plugin dependencies; it only recommends installing them (see description).
+
+#### 0.8.0
+
+- **Breaking:** the Claude plugin now declares `caveman` and `mattpocock-skills` as plugin dependencies, so enabling it installs them.
+
+### 2026-07-28
+
+#### 0.7.0
+
+- **Breaking:** The Claude plugin's technical ID is now `itixo` (formerly `itixo-claude`). Its provider folder remains `plugins/itixo-claude`; update references that use the plugin ID.
+
+#### 0.6.1
+
+- Claude adds the user-triggered, read-only `itixo-security-reviewer` with an `opus` + max default.
+- It reviews the current-branch diff, staged and unstaged changes, and relevant untracked files unless broader scope is explicitly requested; pull-request findings are inline where possible or general otherwise, with `REQUEST_CHANGES` for unresolved Critical or High findings when supported, self-review `COMMENT` fallback, and a neutral clean-review comment.
+
+#### 0.6.0
+
+- Claude no longer provides the `design-baseline-handover` skill or its design-baseline templates.
+
+#### 0.5.0
+
+- The Claude plugin's public display name is now `itixo`; its technical plugin ID remains `itixo-claude`.
+
+### 2026-07-27
+
+#### 0.4.0
+
+- Claude removed `/dirigent-stats`.
+
+#### 0.3.1
+
+- Claude now automatically and safely removes temporary worktrees and branches created by its agents after work completes.
+
+#### 0.3.0
+
+- **Breaking:** `/dirigent-stats` now reports only cache-backed root and unique subagent-run token totals, grouped by role, provider, and model; unavailable cache data uses the no-data result.
+
+### 2026-07-23
+
+#### 0.2.11
+
+- Claude and Codex marketplace listings now provide richer plugin details, and Codex has a dedicated marketplace icon.
+- Claude Dirigent statistics can now show agent usage, model usage, or both through `--view agents|models|both`, with both tables remaining the default.
+- Reports use exact `kToks` values, and totals cover the root session plus recursive agents and each agent's input, cache, and output work without double-counting alternate table groupings.
+
+#### 0.2.10
+
+- Claude users can explicitly override the model and effort for a matching agent invocation while omitted values keep generated defaults.
+- An explicitly selected Opus planner may exceed the caller where provider and organization policy permits.
+
+### 2026-07-22
+
+#### 0.2.8
+
+- Namespaced marketplace invocations now return current-session reports for Claude `/itixo-claude:dirigent-stats` and Codex `$itixo-codex:dirigent-stats`. Existing unqualified forms remain supported.
+- Both `itixo-claude` and `itixo-codex` initialize Dirigent statistics at `SessionStart`.
+- After completed turns, `Stop` refreshes an atomic per-session cached report, so explicit stats requests normally return nearly instantly; a bounded fallback self-heals missing or invalid cache data.
+- Recoverable and no-data cases no longer report the former context error, while same-session isolation remains preserved.
+- GitHub Actions now validates plugins on pull requests and manual workflow dispatch, enforcing changed-plugin version bumps and a corresponding published Wiki version heading.
+- Both marketplace entries are categorized as Developer Tools.
+- Both `itixo-claude` and `itixo-codex` now register Dirigent statistics with the current session identity at `SessionStart` and report only the current root session plus its recursive subagents; cross-session selection is not supported.
+- The skill description makes this per-session scope explicit.
+- Orchestration now uses one root orchestrator with up to (and exactly, when fully provisioned) three direct workers.
+- Codex recommends `agents.max_threads >= 4` and `max_depth = 1`; runtime-cap reductions are not reported.
+- Both `itixo-claude` and `itixo-codex` now provide the explicitly invoked `dirigent-stats` skill (`/dirigent-stats` and `$dirigent-stats`).
+- It reports exact current-task recorded token consumption for the orchestrator and all recursive subagents, aggregated by agent type and runtime model with run counts and one-decimal shares.
+- Active and missing data are labeled; estimates and savings are not reported.
+- The Codex runtime-model hook is preserved.
+- Both providers now support four direct workers plus the orchestrator for safe parallel work.
+- Claude uses ordinary subagents, not experimental Agent Teams; Codex requires `agents.max_threads >= 5` and recommends `max_depth = 1`.
+- The skill saturates available independent work, refills freed slots, and reports concurrency-cap or dependency shortfalls.
+
+### 2026-07-21
+
+#### 0.2.2
+
+- Both `itixo-claude` and `itixo-codex` are now version `0.2.2`.
+- This release documents structured responsibilities for orchestration, explicit strict tool and refusal boundaries, and unchanged capability allowlists.
+- Claude and Codex provider artifacts were regenerated from the canonical agent definitions.
+
+### 2026-07-20
+
+#### 0.2.1
+
+- GitHub issue planning now uses native GitHub IssueTypes with readback: multi-workstream roots are `Feature`, direct children default to `Task`, and larger direct children may be `Feature` only when split into terminal `Task` children, bounded to `Feature -> Feature -> Task`.
+- Personal repositories without native IssueTypes use lowercase `feature` and `task` labels as a narrow fallback, creating only missing fallback labels and reading assignments back on each parent and child.
+- GitHub issue assessment, structuring, and creation must be delegated to exactly one `itixo-github-issues` agent with repository and owner context.
+- Added validation coverage for IssueTypes, fallback labels, bounded hierarchy, and mandatory delegation; bumped both plugin manifests to `0.2.1`.
+- **Breaking:** Generic agent identifiers were replaced by seven canonical `itixo-*` IDs. Migrate any configs or prompts that use the former generic IDs. Mappings: `builder` → `itixo-builder`; `docs-updater` → `itixo-docs-updater`; `github-issues` → `itixo-github-issues`; `investigator` → `itixo-investigator`; `planner` → `itixo-planner`; `reviewer` → `itixo-reviewer`; `tester` → `itixo-tester`.
+- **Breaking:** Codex custom agents now require explicit installation with `itixo-codex:install-agents` before they can be discovered.
+- **Breaking:** `itixo-codex` is a native `.codex-plugin` and is no longer listed in the Claude marketplace.

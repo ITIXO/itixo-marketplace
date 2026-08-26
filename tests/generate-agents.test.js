@@ -305,7 +305,7 @@ test("renderCopilot produces correct frontmatter for each tier", () => {
     // output path uses .agent.md extension
     const outputs = expectedOutputs([{ name, agent }], "/tmp/root");
     const copilotOutput = outputs.find((o) => o.provider === "copilot");
-    assert.ok(copilotOutput.path.replace(/\\/g, "/").includes("itixo-copilot/agents/"));
+    assert.ok(copilotOutput.path.replace(/\\/g, "/").includes("copilot/itixo/agents/"));
     assert.ok(copilotOutput.path.endsWith(`${name}.agent.md`));
   }
 });
@@ -393,9 +393,9 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
       },
     ];
     const outputs = expectedOutputs(agents, root);
-    const claudePath = path.join(root, "plugins/itixo-claude/agents/itixo-investigator.md");
-    const orphanPath = path.join(root, "plugins/itixo-codex/templates/agents/orphan.toml");
-    const obsoletePath = path.join(root, "plugins/itixo-codex/agents/itixo-investigator.md");
+    const claudePath = path.join(root, "plugins/claude/itixo/agents/itixo-investigator.md");
+    const orphanPath = path.join(root, "plugins/codex/itixo/templates/agents/orphan.toml");
+    const obsoletePath = path.join(root, "plugins/codex/itixo/agents/itixo-investigator.md");
     fs.mkdirSync(path.dirname(claudePath), { recursive: true });
     fs.mkdirSync(path.dirname(orphanPath), { recursive: true });
     fs.mkdirSync(path.dirname(obsoletePath), { recursive: true });
@@ -409,13 +409,13 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
     };
     assert.deepEqual(normalizePaths(collectStaleness(outputs, root)), {
       missing: [
-        "plugins/itixo-codex/templates/agents/itixo-investigator.toml",
-        "plugins/itixo-copilot/agents/itixo-investigator.agent.md",
+        "plugins/codex/itixo/templates/agents/itixo-investigator.toml",
+        "plugins/copilot/itixo/agents/itixo-investigator.agent.md",
       ],
-      stale: ["plugins/itixo-claude/agents/itixo-investigator.md"],
+      stale: ["plugins/claude/itixo/agents/itixo-investigator.md"],
       orphan: [
-        "plugins/itixo-codex/agents/itixo-investigator.md",
-        "plugins/itixo-codex/templates/agents/orphan.toml",
+        "plugins/codex/itixo/agents/itixo-investigator.md",
+        "plugins/codex/itixo/templates/agents/orphan.toml",
       ],
     });
   });

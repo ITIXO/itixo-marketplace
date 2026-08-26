@@ -8,7 +8,7 @@
       "name": "itixo",
       "source": {
         "source": "local",
-        "path": "./plugins/itixo-codex"
+        "path": "./plugins/codex/itixo"
       },
       "category": "Developer Tools"
     },

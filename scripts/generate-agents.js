@@ -12,18 +12,18 @@ const BASE_DIR = path.join(ROOT, "base", "agents");
 // shared via scripts/providers.js.
 const PROVIDER_CONFIG = {
   claude: {
-    directory: path.join(ROOT, "plugins", "itixo-claude", "agents"),
+    directory: path.join(ROOT, "plugins", "claude", "itixo", "agents"),
     models: Object.freeze({ cheap: "haiku", mid: "sonnet", security: "opus", orchestrator: "inherit" }),
     efforts: Object.freeze({ security: "max" }),
   },
   codex: {
-    directory: path.join(ROOT, "plugins", "itixo-codex", "templates", "agents"),
-    obsoleteDirectory: path.join(ROOT, "plugins", "itixo-codex", "agents"),
+    directory: path.join(ROOT, "plugins", "codex", "itixo", "templates", "agents"),
+    obsoleteDirectory: path.join(ROOT, "plugins", "codex", "itixo", "agents"),
     models: Object.freeze({ cheap: "gpt-5.6-luna", mid: "gpt-5.6-terra", security: "gpt-5.6-sol" }),
     efforts: Object.freeze({ cheap: "high", mid: "medium", security: "max" }),
   },
   copilot: {
-    directory: path.join(ROOT, "plugins", "itixo-copilot", "agents"),
+    directory: path.join(ROOT, "plugins", "copilot", "itixo", "agents"),
     // orchestrator tier omits model field (inherits); cheap and mid use full Copilot CLI model IDs
     models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }),
     fileExtension: ".agent.md",
@@ -198,9 +198,9 @@ function readBaseAgents(root = ROOT) {
 function expectedOutputs(agents, root = ROOT) {
   const outputs = [];
   for (const { name, agent } of agents) {
-    outputs.push({ provider: "claude", name, path: path.join(root, "plugins", "itixo-claude", "agents", `${name}.md`), content: renderClaude(name, agent) });
-    outputs.push({ provider: "codex", name, path: path.join(root, "plugins", "itixo-codex", "templates", "agents", `${name}.toml`), content: renderCodex(name, agent) });
-    outputs.push({ provider: "copilot", name, path: path.join(root, "plugins", "itixo-copilot", "agents", `${name}.agent.md`), content: renderCopilot(name, agent) });
+    outputs.push({ provider: "claude", name, path: path.join(root, "plugins", "claude", "itixo", "agents", `${name}.md`), content: renderClaude(name, agent) });
+    outputs.push({ provider: "codex", name, path: path.join(root, "plugins", "codex", "itixo", "templates", "agents", `${name}.toml`), content: renderCodex(name, agent) });
+    outputs.push({ provider: "copilot", name, path: path.join(root, "plugins", "copilot", "itixo", "agents", `${name}.agent.md`), content: renderCopilot(name, agent) });
   }
   return outputs;
 }
