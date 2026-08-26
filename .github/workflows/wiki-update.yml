@@ -25,10 +25,10 @@ jobs:
             wiki
 
           {
-            printf '# Changelog\n'
             for provider in claude codex copilot; do
-              printf '\n## %s\n\n' "$provider"
+              printf '# %s\n\n' "$provider"
               cat "changelog.$provider.md"
+              printf '\n'
             done
           } > /tmp/changelog-composed.md
 
