@@ -176,7 +176,7 @@ function checkBulletLines(entries, errors, filename, contextLabel) {
 
 function parseChangelog(markdown, filename) {
   const errors = [];
-  const headings = new Set();
+  const headings = new Map();
   const visibleMarkdown = String(markdown).replace(
     /<!--[\s\S]*?(?:-->|$)/g,
     (comment) => comment.replace(/[^\n]/g, " "),
@@ -185,51 +185,53 @@ function parseChangelog(markdown, filename) {
 
   let fence = null;
   let currentDate = null;
-  let currentVersion = null;
+  let currentPlugin = null;
   let dateBuffer = [];
   let lastDateSeen = null;
-  let lastVersionGlobal = null;
-  const seenVersions = new Set();
+  const lastVersionByPlugin = new Map();
+  const seenVersionsByPlugin = new Map();
 
   const pushLine = (line, lineNumber, entryInFence, isFenceDelimiter) => {
     const entry = { line, lineNumber, inFence: entryInFence, isFenceDelimiter };
-    if (currentVersion) {
-      currentVersion.body.push(entry);
-    } else if (currentDate && !currentDate.hasFirstVersion) {
+    if (currentPlugin) {
+      currentPlugin.body.push(entry);
+    } else if (currentDate && !currentDate.hasFirstPlugin) {
       dateBuffer.push(entry);
+    } else if (!currentDate && line.trim() !== "") {
+      errors.push(`${filename}:${lineNumber}: no preamble is allowed before the first '## YYYY-MM-DD' heading; got ${JSON.stringify(line)}.`);
     }
   };
 
-  const finishVersion = () => {
-    if (!currentVersion) return;
-    const nonBlank = currentVersion.body.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
+  const finishPlugin = () => {
+    if (!currentPlugin) return;
+    const nonBlank = currentPlugin.body.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
     if (nonBlank.length > 0) {
-      checkBulletLines(currentVersion.body, errors, filename, `version body for '#### ${currentVersion.version}'`);
+      checkBulletLines(currentPlugin.body, errors, filename, `plugin body for '### ${currentPlugin.name} ${currentPlugin.version}'`);
     }
-    const bulletLines = currentVersion.body.filter(
+    const bulletLines = currentPlugin.body.filter(
       (entry) => !entry.inFence && entry.line.trim() !== "" && /^- \S/.test(entry.line),
     );
     if (bulletLines.length === 0) {
-      errors.push(`${filename}:${currentVersion.line}: version '#### ${currentVersion.version}' must have at least one '- ' bullet line.`);
+      errors.push(`${filename}:${currentPlugin.line}: plugin '${currentPlugin.name} ${currentPlugin.version}' must have at least one '- ' bullet line.`);
     }
-    currentVersion = null;
+    currentPlugin = null;
   };
 
   const finishDateBuffer = () => {
     const nonBlank = dateBuffer.filter((entry) => entry.line.trim() !== "" && !entry.isFenceDelimiter);
     if (nonBlank.length > 0) {
       const first = nonBlank[0];
-      errors.push(`${filename}:${first.lineNumber}: content between '### ${currentDate.date}' and its first '#### <version>' heading is not allowed; got ${JSON.stringify(first.line)}.`);
+      errors.push(`${filename}:${first.lineNumber}: content between '## ${currentDate.date}' and its first '### <plugin> <version>' heading is not allowed; got ${JSON.stringify(first.line)}.`);
     }
     dateBuffer = [];
   };
 
   const finishDate = () => {
     if (!currentDate) return;
-    finishVersion();
-    if (!currentDate.hasFirstVersion) {
+    finishPlugin();
+    if (!currentDate.hasFirstPlugin) {
       finishDateBuffer();
-      errors.push(`${filename}:${currentDate.line}: date section '${currentDate.date}' must contain at least one version heading.`);
+      errors.push(`${filename}:${currentDate.line}: date section '${currentDate.date}' must contain at least one plugin heading.`);
     }
   };
 
@@ -251,72 +253,76 @@ function parseChangelog(markdown, filename) {
 
     const h1 = /^#(?!#)(.*)$/.exec(line);
     if (h1) {
-      errors.push(`${filename}:${lineNumber}: only '### YYYY-MM-DD' and '#### MAJOR.MINOR.PATCH' headings are allowed; got ${JSON.stringify(line)}.`);
+      errors.push(`${filename}:${lineNumber}: only '## YYYY-MM-DD' and '### <plugin> MAJOR.MINOR.PATCH' headings are allowed; got ${JSON.stringify(line)}.`);
       continue;
     }
 
     const h2 = /^##(?!#)(.*)$/.exec(line);
     if (h2) {
-      errors.push(`${filename}:${lineNumber}: only '### YYYY-MM-DD' and '#### MAJOR.MINOR.PATCH' headings are allowed; got ${JSON.stringify(line)}.`);
-      continue;
-    }
-
-    const h3 = /^###(?!#)(.*)$/.exec(line);
-    if (h3) {
       finishDate();
-      const heading = h3[1];
+      const heading = h2[1];
       const dateMatch = /^ (\d{4}-\d{2}-\d{2})$/.exec(heading);
       const dateString = dateMatch?.[1];
       if (!dateMatch || !isValidCalendarDate(dateString)) {
-        errors.push(`${filename}:${lineNumber}: date heading must be exactly '### YYYY-MM-DD' with a real calendar date; got ${JSON.stringify(line)}.`);
+        errors.push(`${filename}:${lineNumber}: date heading must be exactly '## YYYY-MM-DD' with a real calendar date; got ${JSON.stringify(line)}.`);
         currentDate = null;
-        currentVersion = null;
+        currentPlugin = null;
         dateBuffer = [];
         continue;
       }
       if (lastDateSeen !== null) {
         if (dateString === lastDateSeen) {
-          errors.push(`${filename}:${lineNumber}: duplicate date section '### ${dateString}'; each date may appear once.`);
+          errors.push(`${filename}:${lineNumber}: duplicate date section '## ${dateString}'; each date may appear once.`);
         } else if (dateString > lastDateSeen) {
           errors.push(`${filename}:${lineNumber}: date sections must be strictly descending; '${dateString}' must be earlier than '${lastDateSeen}'.`);
         }
       }
       lastDateSeen = dateString;
-      currentDate = { date: dateString, line: lineNumber, hasFirstVersion: false };
-      currentVersion = null;
+      currentDate = { date: dateString, line: lineNumber, hasFirstPlugin: false };
+      currentPlugin = null;
       dateBuffer = [];
       continue;
     }
 
-    const h4 = /^####(?!#)(.*)$/.exec(line);
-    if (h4) {
-      finishVersion();
+    const h3 = /^###(?!#)(.*)$/.exec(line);
+    if (h3) {
+      finishPlugin();
       if (!currentDate) {
-        errors.push(`${filename}:${lineNumber}: version heading '####${h4[1]}' is an orphan; it must follow a date heading.`);
+        errors.push(`${filename}:${lineNumber}: plugin heading '###${h3[1]}' is an orphan; it must follow a date heading.`);
         continue;
       }
-      const versionMatch = /^ ((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/.exec(h4[1]);
-      if (!versionMatch) {
-        errors.push(`${filename}:${lineNumber}: version heading must be exactly '#### MAJOR.MINOR.PATCH'; got ${JSON.stringify(line)}.`);
+      const pluginMatch = /^ (\S+) ((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/.exec(h3[1]);
+      if (!pluginMatch) {
+        errors.push(`${filename}:${lineNumber}: plugin heading must be exactly '### <plugin> MAJOR.MINOR.PATCH'; got ${JSON.stringify(line)}.`);
         continue;
       }
-      const [, version] = versionMatch;
-      if (!currentDate.hasFirstVersion) {
+      const [, name, version] = pluginMatch;
+      if (!currentDate.hasFirstPlugin) {
         finishDateBuffer();
-        currentDate.hasFirstVersion = true;
+        currentDate.hasFirstPlugin = true;
       }
+      const seenVersions = seenVersionsByPlugin.get(name) ?? new Set();
       if (seenVersions.has(version)) {
-        errors.push(`${filename}:${lineNumber}: duplicate version heading '#### ${version}'; each version may appear at most once.`);
+        errors.push(`${filename}:${lineNumber}: duplicate plugin heading '### ${name} ${version}'; each plugin version may appear at most once.`);
       } else {
         seenVersions.add(version);
-        headings.add(version);
-        if (lastVersionGlobal && compareVersions(lastVersionGlobal, version) <= 0) {
-          errors.push(`${filename}:${lineNumber}: versions must be strictly descending; '${version}' must be lower than '${lastVersionGlobal}'.`);
+        seenVersionsByPlugin.set(name, seenVersions);
+        const pluginHeadings = headings.get(name) ?? new Set();
+        pluginHeadings.add(version);
+        headings.set(name, pluginHeadings);
+        const lastVersion = lastVersionByPlugin.get(name);
+        if (lastVersion && compareVersions(lastVersion, version) <= 0) {
+          errors.push(`${filename}:${lineNumber}: versions for '${name}' must be strictly descending; '${version}' must be lower than '${lastVersion}'.`);
         }
-        lastVersionGlobal = version;
+        lastVersionByPlugin.set(name, version);
       }
 
-      currentVersion = { version, line: lineNumber, body: [] };
+      currentPlugin = { name, version, line: lineNumber, body: [] };
+      continue;
+    }
+
+    if (/^####/.test(line)) {
+      errors.push(`${filename}:${lineNumber}: only '## YYYY-MM-DD' and '### <plugin> MAJOR.MINOR.PATCH' headings are allowed; got ${JSON.stringify(line)}.`);
       continue;
     }
 
@@ -498,11 +504,12 @@ function validatePlugin(base, changelogHeadingsMap, key) {
 
   if (versions.length === 0) errors.push(`${pluginDir}: no plugin manifest exists at HEAD.`);
   if (!pureLegacyRelocation) {
-    const headings = changelogHeadingsMap.get(provider);
-    if (headings) {
+    const headingsByPlugin = changelogHeadingsMap.get(provider);
+    if (headingsByPlugin) {
+      const headings = headingsByPlugin.get(name) ?? new Set();
       for (const version of new Set(versions)) {
         if (!headings.has(version)) {
-          errors.push(`changelog.${provider}.md: missing heading '#### ${version}'.`);
+          errors.push(`changelog.${provider}.md: missing heading '### ${name} ${version}'.`);
         }
       }
     }
