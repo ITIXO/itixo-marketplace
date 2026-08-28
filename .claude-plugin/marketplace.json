@@ -13,6 +13,12 @@
       "source": "./plugins/claude/itixo",
       "description": "Itixo library for Claude users: agents, skills, rules, prompts. Orchestration module included (delegation to sonnet/haiku subagents). Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
       "category": "Developer Tools"
+    },
+    {
+      "name": "itixo-component-library",
+      "source": "./plugins/claude/itixo-component-library",
+      "description": "Consumer guide for the @itixo/component-library design system: install, Tailwind v4 wiring, DashboardLayout, design tokens, and the component/prop reference.",
+      "category": "Developer Tools"
     }
   ]
 }

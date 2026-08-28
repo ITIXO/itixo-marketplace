@@ -1,0 +1,21 @@
+{
+  "name": "itixo-component-library",
+  "displayName": "itixo-component-library",
+  "description": "Consumer guide for the @itixo/component-library design system: install, Tailwind v4 wiring, DashboardLayout, design tokens, and the component/prop reference.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Itixo",
+    "url": "https://github.com/ITIXO"
+  },
+  "homepage": "https://github.com/ITIXO/itixo-marketplace",
+  "repository": "https://github.com/ITIXO/itixo-marketplace",
+  "keywords": [
+    "claude",
+    "component-library",
+    "design-system",
+    "react",
+    "skills",
+    "developer-tools"
+  ],
+  "skills": "./skills/"
+}

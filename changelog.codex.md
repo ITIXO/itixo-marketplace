@@ -1,3 +1,9 @@
+## 2026-08-28
+
+### itixo-component-library 0.1.0
+
+- New `itixo-component-library` plugin: a consumer guide for the `@itixo/component-library` design system — installation, Tailwind v4 wiring, the `DashboardLayout` shell, design tokens, and the component and prop reference.
+
 ## 2026-08-24
 
 ### itixo 0.7.3
