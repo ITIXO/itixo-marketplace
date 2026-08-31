@@ -1,3 +1,9 @@
+## 2026-08-28
+
+### turborepo 0.1.0
+
+- New `turborepo` plugin: skills for pnpm + Turborepo microfrontend monorepos — bootstrap a new monorepo, add another Next.js application behind the path-prefix gateway, and add shared workspace packages.
+
 ## 2026-08-24
 
 ### itixo 0.7.3

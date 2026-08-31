@@ -11,6 +11,14 @@
         "path": "./plugins/codex/itixo"
       },
       "category": "Developer Tools"
+    },
+    {
+      "name": "turborepo",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex/turborepo"
+      },
+      "category": "Developer Tools"
     }
   ]
 }
