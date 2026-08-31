@@ -85,10 +85,10 @@ Against `http://localhost:3000`, confirm all four:
 
 | Request | Expected | Catches |
 | --- | --- | --- |
-| `/<prefix>` | answered by the new application | the prefix filter never matching |
-| `/<prefix>` unauthenticated | a redirect, not 200 | the `matcher` missing its bare `'/'` |
-| `/<prefix>/anything` | redirect to `/login` on **port 3000** | redirects leaking the internal port |
-| `/<prefix>s` | not served by the new application | the prefix capturing a longer sibling |
+| `<prefix>` | answered by the new application | the prefix filter never matching |
+| `<prefix>` unauthenticated | a redirect, not 200 | the `matcher` missing its bare `'/'` |
+| `<prefix>/anything` | redirect to `/login` on **port 3000** | redirects leaking the internal port |
+| `<prefix>s` | not served by the new application | the prefix capturing a longer sibling |
 
 **Start only the new application and the gateway — never a full `pnpm dev` for this.**
 While the shell runs, it answers a mis-routed prefix exactly as the new application would:
