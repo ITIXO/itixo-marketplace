@@ -118,7 +118,7 @@ const listener = server.listen(port, () => {
 listener.on('upgrade', (req, socket, head) => {
   const url = req.url ?? '/';
   const match =
-    routes.find(({ app }) => app.basePath !== '/' && url.startsWith(app.basePath)) ??
+    routes.find(({ app }) => app.basePath !== '/' && matchesBasePath(app.basePath)(url)) ??
     routes.find(({ app }) => app.basePath === '/');
   match?.proxy.upgrade(req, socket, head);
 });
