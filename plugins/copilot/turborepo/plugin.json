@@ -1,0 +1,9 @@
+{
+  "name": "turborepo",
+  "description": "A pack of microfrontends managing skills for Turborepo monorepos.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Itixo"
+  },
+  "skills": "skills/"
+}

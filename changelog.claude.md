@@ -15,6 +15,10 @@
 
 - New `itixo-component-library` plugin: a consumer guide for the `@itixo/component-library` design system — installation, Tailwind v4 wiring, the `DashboardLayout` shell, design tokens, and the component and prop reference.
 
+### turborepo 0.1.0
+
+- New `turborepo` plugin: skills for pnpm + Turborepo microfrontend monorepos — bootstrap a new monorepo, add another Next.js application behind the path-prefix gateway, and add shared workspace packages.
+
 ## 2026-08-03
 
 ### itixo 0.8.2

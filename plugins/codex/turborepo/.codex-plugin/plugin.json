@@ -1,0 +1,19 @@
+{
+  "name": "turborepo",
+  "description": "A pack of microfrontends managing skills for Turborepo monorepos.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Itixo",
+    "url": "https://github.com/ITIXO"
+  },
+  "homepage": "https://github.com/ITIXO/itixo-marketplace",
+  "repository": "https://github.com/ITIXO/itixo-marketplace",
+  "keywords": [
+    "codex",
+    "turborepo",
+    "microfrontends",
+    "skills",
+    "developer-tools"
+  ],
+  "skills": "./skills/"
+}
