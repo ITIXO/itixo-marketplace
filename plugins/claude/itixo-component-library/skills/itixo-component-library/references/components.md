@@ -96,7 +96,7 @@ For server-driven tables use `GenericTable` (below).
 |---|---|
 | `DashboardLayout` ✎ | The app shell. Full prop walkthrough in [dashboard-layout.md](dashboard-layout.md). |
 | `DashboardLayoutContainer` | Sidebar-aware container if you compose your own shell. |
-| `Navbar`, `NavbarAccountDropdown`, `NavbarBreadcrumbPage`, `NavbarNotificationsTrigger`, `BurgerMenu`, `WaffleMenu` | Navbar building blocks. `NavbarNotificationsTrigger` `unreadCount`; `WaffleMenu` `agendas: IRoute[]`, `className?`. |
+| `Navbar`, `NavbarAccountDropdown`, `NavbarBreadcrumbPage`, `NavbarNotificationsTrigger`, `BurgerMenu`, `WaffleMenu`, `PortalBanner` | Navbar building blocks. `NavbarNotificationsTrigger` `unreadCount`; `WaffleMenu` `agendas?: IRoute[]`, `portal?: PortalLink`, `LinkComponent?`, `className?`; `PortalBanner` `portal: PortalLink`, `LinkComponent?`, `ImageComponent?`, `onNavigate?`, `className?` — the primary-colored back-to-portal banner, normally driven by `navigation.portal`. |
 | `NavbarBreadcrumbHorizon` ⚠️ deprecated | Use `NavbarBreadcrumbPage`. |
 | `Breadcrumb`, `BreadcrumbList`, `BreadcrumbItem`, `BreadcrumbLink`, `BreadcrumbPage`, `BreadcrumbSeparator`, `BreadcrumbEllipsis` | `BreadcrumbLink` `asChild?`. |
 | `NavigationMenu` + sub-parts, `navigationMenuTriggerStyle` | `NavigationMenu` `viewport?`. Sub-parts: `List`, `Item`, `Content`, `Trigger`, `Link`, `Indicator`, `Viewport`. |
