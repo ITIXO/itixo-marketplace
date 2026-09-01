@@ -106,7 +106,7 @@ For server-driven tables use `GenericTable` (below).
 | `EventCard` | `title`, `description`, `className?`. |
 | `LayoutStripe`, `layoutRibbonVariants` | `isVisible`, `message`, `className?`, `variant`: `info`\|`warning`\|`critical`\|`custom`. |
 | `FloorSwitchButtons` | `minLevel`, `maxLevel`, `currentLevel`, `onLevelChange`. |
-| `buildSiteMap` ✎ | `buildSiteMap(routes: Record<string, { name }>) => SiteMapNode[]`. Builds a breadcrumb tree from a flat `ROUTE_DEFINITIONS` map. See [authenticated-layout.md](authenticated-layout.md). |
+| `buildSiteMap` ✎ | `buildSiteMap(routes: Record<string, { name }>) => SiteMapNode[]`. Builds a breadcrumb tree from a flat `ROUTE_DEFINITIONS` map. See [dashboard-layout.md](dashboard-layout.md). |
 
 ## Data — `GenericTable` (server-driven)
 
