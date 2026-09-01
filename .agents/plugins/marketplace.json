@@ -13,6 +13,14 @@
       "category": "Developer Tools"
     },
     {
+      "name": "itixo-component-library",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex/itixo-component-library"
+      },
+      "category": "Developer Tools"
+    },
+    {
       "name": "turborepo",
       "source": {
         "source": "local",

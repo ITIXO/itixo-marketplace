@@ -1,4 +1,19 @@
+## 2026-08-31
+
+### itixo-component-library 0.1.1
+
+- The `DashboardLayout` reference now documents the grouped props introduced in library 1.0 (`user`, `navbar`, `navigation`, `stripe`, `roleView`, `accountSwitching`, `settings`, `adapters`, `footer`, `slots`), replacing the outdated flat prop list that no longer compiles.
+- Documented the `footer` prop (`FooterConfig`, sticky positioning is desktop-only) and the `slots.footer` override.
+- Documented `navigation.portal` and `slots.portalBanner`, plus the `PortalBanner` navbar export and the `WaffleMenu` `portal` prop.
+- Documented `navigation.areParamsHidden` for trimming URL params out of derived breadcrumbs.
+- Clarified that theming is configured on `ComponentLibraryProvider`, not on `DashboardLayout`, and listed the `language` and `toaster` config options.
+- Corrected the `AuthenticatedLayout` note: it and `AuthenticatedLayoutContainer` are deprecated aliases that are still exported as of library 1.9.1, rather than already removed.
+
 ## 2026-08-28
+
+### itixo-component-library 0.1.0
+
+- New `itixo-component-library` plugin: a consumer guide for the `@itixo/component-library` design system — installation, Tailwind v4 wiring, the `DashboardLayout` shell, design tokens, and the component and prop reference.
 
 ### turborepo 0.1.0
 
