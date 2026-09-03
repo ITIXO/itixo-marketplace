@@ -1,3 +1,12 @@
+## 2026-09-03
+
+### itixo-component-library 0.1.2
+
+- The package registry moved from ITIXO's internal Azure Artifacts feed to **GitHub Packages** under the `ITIXO` organization. `references/install-and-setup.md` now documents the `@itixo:registry=https://npm.pkg.github.com` scope mapping, the classic PAT with `read:packages` (plus SSO authorization), the `npm login --auth-type=legacy` alternative, and what a 404 versus a 401 actually means. All of it verified against a clean install.
+- Warned that the `<PAT_TOKEN>` placeholder must be replaced *including* the angle brackets — leaving them in yields a silent 401 on the next install.
+- Added an agent guardrail: never set `allowCustomTypography: true` unprompted. It is a backward-compatibility escape hatch that disables the type-scale guard app-wide; ask the developer to confirm and offer the token-based fix first.
+- Documented the `GenericTable` row context menu shipped in library 1.11.0 (`rowContextMenu`, `slots.rowContextMenu`, the `GenericTableRowContextMenu` / `GenericTableCopyCellItem` / `GenericTableCopyRowItem` / `GenericTableCopyColumnItem` exports, the CSV helpers, and the new types).
+
 ## 2026-08-31
 
 ### itixo-component-library 0.1.1

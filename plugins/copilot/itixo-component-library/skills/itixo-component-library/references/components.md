@@ -115,7 +115,7 @@ Wrap in `GenericTableProvider` and render `GenericTable`. Pagination, sorting, f
 | Export | Notable props / notes |
 |---|---|
 | `GenericTableProvider` | `tableData: GenericTableData \| null`, `isLoading`, `onRefetch`, `filtersStorageKey`, `children`, plus optional `onChange(state: GenericTableQueryState)`, `isRefetching?`, `detailData?`, `isDetailLoading?`, `onSelectedRowChange?(ids: RowId[])`, `onUpdateCell?`, `isUpdatingCell?`, `translate?`, `badgeMap?`, `maxColumnWidth?`. |
-| `GenericTable` | `header?`, `showFilters?`, `checkboxSelection?`, `exportDataURL?`. (`headerButtons` is ⚠️ deprecated — use `header`.) |
+| `GenericTable` | `header?`, `showFilters?`, `checkboxSelection?`, `exportDataURL?`, `rowContextMenu?`, `slots?`. (`headerButtons` is ⚠️ deprecated — use `header`.) |
 | `GenericTableHeaderFilters` | `columns: ExtendedColumnDef[]`, `showFilters?`, `header?`, `exportDataURL?`. |
 | `GenericTableModalFilters` | `columns: ExtendedColumnDef[]`. |
 | `GenericTableSearchBar` | `placeholder?`, `debounceMs?`, `minChars?`, `wrapperClassName?`. |
@@ -123,10 +123,42 @@ Wrap in `GenericTableProvider` and render `GenericTable`. Pagination, sorting, f
 | `GenericTableAddRowButton` ✎ | `onSubmit(data) => Promise<void>` (called on confirm), `isPending`. |
 | `GenericTableExportDataModal` ✎ | Accepts the new callback API (`onExport(payload: ExportPayload) => Promise<void>`, `isPending?`) **or** the legacy `exportDataURL` string. Prefer the callback API. |
 | `useGenericTableContext` | Hook — returns the full `GenericTableModel` (table instance, paging, filters, selection, etc.). |
+| `GenericTableRowContextMenu` | The default row menu (`ctx`, `config?`). Use inside a `slots.rowContextMenu` override to keep the built-ins. |
+| `GenericTableCopyCellItem` / `GenericTableCopyRowItem` / `GenericTableCopyColumnItem` | The individual built-in entries (`ctx`). |
 
-**Helpers:** `getFiltersFromLocalStorage(key)`, `saveFiltersToLocalStorage(key, filters)`, `getColorMap(inputColor, prefix?)`.
+### Row context menu
 
-**Types & enums:** `GenericTableData`, `GenericTableModel`, `GenericTableQueryState`, `ExtendedColumnDef`, `DownloadableColumn`, `ExportPayload`, `FilterCondition`, `FiltersState`, `FilterOperand` (enum), `TableFilterType` (enum), `TableFilterTypes` (enum: `Select`\|`Text`\|`Number`\|`Check`\|`DateTimeSelect`\|`None`), `HighlightMap`, `RowId` (= `string | number`).
+Right-click on any row is **on by default** since 1.11.0 — `Copy cell`, `Copy row`, `Copy column (page)`. Rows and columns are copied as CSV (`separatorChar`, default `";"`, RFC 4180 quoting); a single cell is copied as plain text, exactly as displayed. A column copy only covers the current page, since the table is server-driven.
+
+```tsx
+<GenericTable
+  rowContextMenu={{
+    separatorChar: ";",            // CSV separator for row/column copies
+    copyColumn: false,             // drop a built-in entry
+    toast: false,                  // silence the copy confirmation
+    onCopy: ({ kind, text }) => track(kind, text),
+    items: [                       // appended after the built-ins
+      {
+        id: "deactivate",
+        label: "Deactivate",
+        icon: <Trash2 />,
+        variant: "destructive",
+        disabled: (ctx) => ctx.row.original.active !== true,
+        onSelect: (ctx) => deactivate(ctx.row.original),
+      },
+    ],
+  }}
+/>
+```
+
+- `rowContextMenu={false}` keeps the browser's native menu. It is also kept while a cell is being inline-edited.
+- `slots.rowContextMenu` (`ReactNode | ((ctx) => ReactNode)`) replaces the entries entirely; `items` and the `copyCell` / `copyRow` / `copyColumn` flags are then ignored, while `separatorChar`, `toast` and `onCopy` still apply. Compose the built-ins back in with the exported item components.
+- `ctx` (`RowContextMenuContext`) carries the TanStack `row` and `cell` (`cell` is `undefined` on the checkbox / filler column), the derived `cellText` / `rowText` / `columnText`, `copy(kind)` and `close()`.
+- Right-clicking never changes the row selection — the menu acts on the row under the cursor.
+
+**Helpers:** `getFiltersFromLocalStorage(key)`, `saveFiltersToLocalStorage(key, filters)`, `getColorMap(inputColor, prefix?)`, `getCellText(options)`, `escapeCSVValue(value, separatorChar?)`, `buildCSVRow(values, separatorChar?)`, `buildCSVColumn(values, separatorChar?)`, `DEFAULT_SEPARATOR_CHAR`.
+
+**Types & enums:** `GenericTableData`, `GenericTableModel`, `GenericTableQueryState`, `ExtendedColumnDef`, `DownloadableColumn`, `ExportPayload`, `FilterCondition`, `FiltersState`, `FilterOperand` (enum), `TableFilterType` (enum), `TableFilterTypes` (enum: `Select`\|`Text`\|`Number`\|`Check`\|`DateTimeSelect`\|`None`), `HighlightMap`, `RowId` (= `string | number`), `GenericTableSlots`, `RowContextMenuConfig`, `RowContextMenuContext`, `RowContextMenuItem`, `CopyKind`.
 
 ## Charts
 

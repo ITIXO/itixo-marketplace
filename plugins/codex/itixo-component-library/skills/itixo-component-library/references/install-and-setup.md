@@ -6,7 +6,22 @@
 npm install @itixo/component-library@latest
 ```
 
-The package is published to ITIXO's internal Azure Artifacts npm feed. If `npm install` fails with a 404 or auth error, the consumer's `.npmrc` is missing the feed registration. Get the `.npmrc` snippet from the component-library repo or from a teammate.
+The package is published to **GitHub Packages** under the `ITIXO` organization, not to the public npm registry. The consumer needs a project `.npmrc` mapping the scope:
+
+```ini
+registry=https://registry.npmjs.org
+@itixo:registry=https://npm.pkg.github.com
+```
+
+plus a credential in the **user-level** `~/.npmrc` (never the committed project one) — a classic GitHub PAT with the `read:packages` scope, authorized for the `ITIXO` organization via *Configure SSO* if the token page offers that button:
+
+```ini
+//npm.pkg.github.com/:_authToken=<PAT_TOKEN>
+```
+
+Replace the whole placeholder `<PAT_TOKEN>` — **angle brackets included** — with the token itself. `npm login --scope=@itixo --auth-type=legacy --registry=https://npm.pkg.github.com` does the same thing interactively; it prompts only for **Username** (the GitHub username) and **Password** (the PAT), not for an email, and `--auth-type=legacy` is required because GitHub Packages does not support npm's default web login.
+
+Failure modes: a **404** on `https://registry.npmjs.org/@itixo%2fcomponent-library` means the `@itixo:registry` scope mapping is missing; a **401** means the token is missing, still wrapped in angle brackets, lacks `read:packages`, or has not been SSO-authorized for the `ITIXO` organization. Never write the token into the project `.npmrc`.
 
 Peer requirement: `tailwindcss ^4.1.10`. The library brings in React 19, react-router 7, all Radix primitives, recharts, react-hook-form, zod, sonner, react-hot-toast, lucide-react, react-icons, date-fns, motion, embla-carousel, vaul, cmdk, and i18next. You don't need to install any of those directly.
 
