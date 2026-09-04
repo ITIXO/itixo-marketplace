@@ -1,3 +1,10 @@
+## 2026-09-04
+
+### itixo-component-library 0.1.2
+
+- The package moved from ITIXO's internal Azure Artifacts feed to **GitHub Packages** under the `ITIXO` organization. The install reference now documents the `@itixo:registry=https://npm.pkg.github.com` scope mapping and the credential it needs: a **classic** personal access token with `read:packages` (fine-grained tokens are not supported), SSO-authorized where the org requires it.
+- Warned that the `<PAT_TOKEN>` placeholder must be replaced including the angle brackets, and documented how to read a failure: a 404 means the scope mapping is missing, a 401 means the credential is wrong.
+
 ## 2026-08-31
 
 ### itixo-component-library 0.1.1
