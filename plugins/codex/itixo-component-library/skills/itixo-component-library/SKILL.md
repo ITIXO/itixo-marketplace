@@ -66,8 +66,8 @@ import Link from "next/link";
   <DashboardLayout
     currentRoute={pathname}
     user={{
-      name: "Prokop Dveře",
-      email: "prokop@itixo.com",
+      name: "Jan Novák",
+      email: "jan.novak@itixo.com",
       signOut: () => signOutFn(),
       badges: <Badge variant="purple">Admin</Badge>,
     }}
