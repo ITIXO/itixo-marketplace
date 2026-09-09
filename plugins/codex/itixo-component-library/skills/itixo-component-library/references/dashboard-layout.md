@@ -13,7 +13,7 @@
 > <ComponentLibraryProvider config={{ allowTheming: true, allowCustomPrimaryColor: true }}>
 >   <DashboardLayout
 >     currentRoute={pathname}
->     user={{ name: "Prokop Dveře" }}
+>     user={{ name: "Jan Novák" }}
 >     adapters={{ Link }}
 >     navigation={{ sidebarRoutes: ROUTES }}
 >     slots={{ navbar: { center: <MyBreadcrumb /> } }}
@@ -57,8 +57,8 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     <DashboardLayout
       currentRoute={pathname}
       user={{
-        name: "Prokop Dveře",
-        email: "prokop@itixo.com",
+        name: "Jan Novák",
+        email: "jan.novak@itixo.com",
         signOut: () => fetch("/api/logout", { method: "POST" }),
         badges: (
           <>
@@ -100,8 +100,8 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     <DashboardLayout
       currentRoute={pathname}
       user={{
-        name: "Prokop Dveře",
-        email: "prokop@itixo.com",
+        name: "Jan Novák",
+        email: "jan.novak@itixo.com",
         signOut: () => fetch("/api/logout", { method: "POST" }),
         badges: <Badge variant="purple">Admin</Badge>,
       }}
@@ -293,7 +293,7 @@ Renders the library `Footer` at the bottom of the content area. Keys: `variant` 
 // Pattern 1 — explicit
 <DashboardLayout
   currentRoute={pathname}
-  user={{ name: "Prokop Dveře" }}
+  user={{ name: "Jan Novák" }}
   navigation={{
     breadcrumbs: [
       { name: "Customers", route: "/customers" },
@@ -311,7 +311,7 @@ const SITE_MAP = buildSiteMap({
 });
 <DashboardLayout
   currentRoute={pathname}
-  user={{ name: "Prokop Dveře" }}
+  user={{ name: "Jan Novák" }}
   navigation={{ siteMap: SITE_MAP }}
 />
 ```

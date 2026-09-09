@@ -1,3 +1,9 @@
+## 2026-09-09
+
+### itixo-component-library 0.1.2
+
+- Updated mock user names in documentation examples from "Prokop Dveře" to "Jan Novák".
+
 ## 2026-08-31
 
 ### itixo-component-library 0.1.1

@@ -2,7 +2,7 @@
   "name": "itixo-component-library",
   "displayName": "itixo-component-library",
   "description": "Consumer guide for the @itixo/component-library design system: install, Tailwind v4 wiring, DashboardLayout, design tokens, and the component/prop reference.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "Itixo",
     "url": "https://github.com/ITIXO"
