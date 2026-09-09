@@ -5,7 +5,7 @@ description: How to consume the @itixo/component-library npm package inside an e
 
 # `@itixo/component-library` — consumer usage guide
 
-ITIXO's shared design system: React 19 + Tailwind v4 + shadcn/Radix, packaged as `@itixo/component-library` on the internal Azure Artifacts npm registry. It ships a `DashboardLayout` app shell and ~150 named exports (UI primitives, layout, hooks, types, utilities).
+ITIXO's shared design system: React 19 + Tailwind v4 + shadcn/Radix, packaged as `@itixo/component-library` on GitHub Packages under the `ITIXO` organization. It ships a `DashboardLayout` app shell and ~150 named exports (UI primitives, layout, hooks, types, utilities).
 
 This skill is for agents working **inside a consuming app**, not inside the library repo itself.
 
