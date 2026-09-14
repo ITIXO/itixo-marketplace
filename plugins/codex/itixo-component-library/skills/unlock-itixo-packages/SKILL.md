@@ -23,15 +23,41 @@ npm whoami --registry=https://npm.pkg.github.com
 
 Never `cat` the user's `~/.npmrc` or echo its contents — it holds their token. To check whether a token line exists at all, count matches without printing them: `grep -c "npm.pkg.github.com/:_authToken" ~/.npmrc`.
 
+## Recommended: the setup script
+
+This skill ships the same setup script in two versions — `scripts/unlock-itixo-packages.sh` (bash, macOS/Linux; needs `curl`) and `scripts/unlock-itixo-packages.ps1` (PowerShell, Windows; Windows PowerShell 5.1 or PowerShell 7+). It walks the developer through both steps below and handles the parts people get wrong:
+
+- opens the classic-token page with `read:packages` pre-selected,
+- **warns to authorize the token for `ITIXO` via *Configure SSO*** before asking for it,
+- reads the token from a hidden prompt, rejects fine-grained tokens and pasted angle brackets,
+- checks the token with GitHub before saving it: missing `read:packages`, missing SSO authorization (it prints GitHub's authorization link and re-checks after the developer confirms), and access to `@itixo/component-library`,
+- replaces any old `npm.pkg.github.com` token line in the user-level npm config (`~/.npmrc`, or `NPM_CONFIG_USERCONFIG`) and keeps everything else.
+
+The script needs an interactive terminal and the developer's own token, so do not run it yourself. Give the user the absolute path of the matching script inside this skill's directory and tell them to run it in their own terminal:
+
+```bash
+# macOS / Linux
+bash <skill-directory>/scripts/unlock-itixo-packages.sh
+```
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File <skill-directory>\scripts\unlock-itixo-packages.ps1
+```
+
+`-ExecutionPolicy Bypass` applies only to this one run, so the script works even where the machine policy blocks unsigned scripts.
+
+When it finishes, continue with [3. Confirm](#3-confirm). The manual steps below are the fallback when neither script can run.
+
 ## 1. Create the token
 
 The developer creates a **classic Personal Access Token** on GitHub: Settings → Developer settings → Personal access tokens → Tokens (classic).
 
 - Scope: `read:packages`.
 - GitHub Packages does not accept **fine-grained** tokens.
-- If the token page shows a *Configure SSO* button for the `ITIXO` organization, authorize the token there too, or it is rejected.
+- **Authorize the token for SSO.** In the token list, click *Configure SSO* next to the token and choose *Authorize* for the `ITIXO` organization. Always tell the user about this step — without it GitHub rejects the token even though it looks correct.
 
-The token is the developer's personal secret. Never generate, guess, or ask the user to paste it into the chat — give them the commands below and let them run them in their own terminal.
+The token is the developer's personal secret. Never generate, guess, or ask the user to paste it into the chat — give them the script or the commands below and let them run them in their own terminal.
 
 ## 2. Store the token
 
