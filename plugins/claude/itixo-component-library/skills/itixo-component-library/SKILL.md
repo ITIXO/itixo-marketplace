@@ -1,6 +1,6 @@
 ---
 name: itixo-component-library
-description: How to consume the @itixo/component-library npm package inside an external React app — adding it to an app (install, stylesheet, ComponentLibraryProvider), DashboardLayout shell, design tokens, styling rules, and the component/prop reference. If npm cannot download the package (401/404, missing token), use the unlock-itixo-packages skill instead. Use whenever an ITIXO app installs, imports, themes, or upgrades @itixo/component-library, or whenever the user mentions ITIXO components, DashboardLayout, GenericTable, or design tokens. Trigger on indirect phrasing too — "add a button to match our other apps", "set up our shared layout", "what props does X take", "how do I theme this", "wire up the sidebar / breadcrumbs / waffle menu". When in doubt, trigger.
+description: How to consume the @itixo/component-library npm package inside an external React app — DashboardLayout shell, design tokens, styling rules, and the component/prop reference. For adding the library to a project (scope mapping, install, stylesheet, ComponentLibraryProvider), use add-component-library-to-project; if npm cannot download the package on this machine, use unlock-itixo-packages. Use whenever an ITIXO app imports, themes, or upgrades @itixo/component-library, or whenever the user mentions ITIXO components, DashboardLayout, GenericTable, or design tokens. Trigger on indirect phrasing too — "add a button to match our other apps", "set up our shared layout", "what props does X take", "how do I theme this", "wire up the sidebar / breadcrumbs / waffle menu". When in doubt, trigger.
 ---
 
 # `@itixo/component-library` — consumer usage guide
@@ -27,73 +27,9 @@ Don't guess component names or props from memory — the library has its own cat
 
 For design tokens (exact CSS variable names), use the MCP server's `get_theme_tokens`, see **[references/design-tokens.md](references/design-tokens.md)**, or search the installed stylesheet at `node_modules/@itixo/component-library/dist/index.css`.
 
-## Adding the library to an app
+## Project setup
 
-Mirrors the *Installation* step 3 and *Usage* step 1 on the **About project** page of the component library Storybook (`https://storybook.itixo-preview.com/root/storybook/?path=/docs/about-project--documentation`).
-
-**Can't download the package at all** (404 / 401 from npm, new machine, no token)? That is a developer-environment problem, not an app problem — use the **`unlock-itixo-packages`** skill.
-
-### 1. Install
-
-The project `.npmrc` must map the scope to GitHub Packages (commit it):
-
-```ini
-registry=https://registry.npmjs.org
-@itixo:registry=https://npm.pkg.github.com
-```
-
-Then:
-
-```bash
-npm install @itixo/component-library@latest tailwindcss@4.1.10
-```
-
-`tailwindcss ^4.1.10` is the only peer dependency. React 19, react-router 7, Radix primitives, and the library's other runtime dependencies come in with the package.
-
-### 2. Import the stylesheet
-
-In the app's global stylesheet:
-
-```css
-@import "@itixo/component-library/dist/index.css";
-```
-
-`@import "tailwindcss"` and Tailwind source scanning are already handled by the library — don't add them yourself, and don't create a `tailwind.config.*` file. Import the CSS exactly once, never per component.
-
-| Framework | Global stylesheet |
-|---|---|
-| Next.js App Router | `app/globals.css` (imported by `app/layout.tsx`) |
-| Next.js Pages Router | `styles/globals.css` (imported by `pages/_app.tsx`) |
-| Vite + React | `src/index.css` (imported by `src/main.tsx`) |
-| Anything else | Wherever the app's single global stylesheet lives |
-
-### 3. Wrap the app with `ComponentLibraryProvider`
-
-**Required.** Mount `ComponentLibraryProvider` once at the very top of the app — above everything that renders library components. It bundles the providers every library component expects: `I18nextProvider` (the library's own i18n instance), `TooltipProvider`, `ColorSchemeProvider` (light/dark/system theming and per-tenant primary color), and `Toaster` (so never mount `<Toaster />` by hand).
-
-```tsx
-import { ComponentLibraryProvider } from "@itixo/component-library";
-
-export const App = ({ children }) => (
-  <ComponentLibraryProvider
-    config={{
-      allowTheming: true,           // enables light/dark/system toggle
-      allowCustomPrimaryColor: true, // enables per-tenant primary color
-    }}
-  >
-    {children}
-  </ComponentLibraryProvider>
-);
-```
-
-| `config` prop | Type | Default | Description |
-|---|---|---|---|
-| `allowTheming` | `boolean` | `false` | Enables light/dark/system colour-scheme switching |
-| `allowCustomPrimaryColor` | `boolean` | `false` | Enables per-tenant primary-colour overrides |
-| `allowCustomTypography` | `boolean` | `false` | When `false` (strict), raw Tailwind font-size classes (`text-sm`, `text-lg`, …) throw in development. Use library tokens (`text-small-text`, `text-heading-1`, …) or `<Typography>` instead. Set `true` to disable the guard. |
-| `tooltipDelayDuration` | `number` | — | Global tooltip open delay in ms |
-
-`language` and `toaster` config options are covered in [references/dashboard-layout.md](references/dashboard-layout.md). If the app has its own i18next translations, query the MCP server's `get_integration_guide` (topic `i18n`) before wiring them — the app and the library must share one copy of `i18next` and `react-i18next`.
+This skill assumes the project is already set up: the `@itixo:registry` scope mapping in the project `.npmrc`, the package installed, `@itixo/component-library/dist/index.css` imported once in the global stylesheet, and `ComponentLibraryProvider` mounted once at the app root. If any of that is missing, use the **`add-component-library-to-project`** skill. If npm cannot download the package on this machine (401, no token), use the **`unlock-itixo-packages`** skill.
 
 ## Importing components
 
