@@ -1,3 +1,10 @@
+## 2026-09-14
+
+### itixo-component-library 0.1.4
+
+- New `unlock-itixo-packages` skill for a developer who cannot download `@itixo` packages yet: diagnosing the setup with `npm config get @itixo:registry` and `npm whoami`, creating a classic PAT with `read:packages` (SSO-authorized for `ITIXO`), storing it in the user-level `~/.npmrc` or via `npm login`, and reading 404/401 failures. Aligned with the component library Storybook's *About project* page.
+- The `itixo-component-library` skill now covers adding the library to an app in one place, matching Storybook: the project `.npmrc` scope mapping, `npm install @itixo/component-library@latest tailwindcss@4.1.10`, the stylesheet import, and the required `ComponentLibraryProvider` with its `config` options. `references/install-and-setup.md` was removed.
+
 ## 2026-09-09
 
 ### itixo-component-library 0.1.3
