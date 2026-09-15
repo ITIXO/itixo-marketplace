@@ -5,8 +5,6 @@ description: Add @itixo/component-library to a React project — the `@itixo:reg
 
 # Add `@itixo/component-library` to a project
 
-Mirrors *Installation* steps 1 and 3 and *Usage* step 1 on the **About project** page of the component library Storybook (`https://storybook.itixo-preview.com/root/storybook/?path=/docs/about-project--documentation`). When the two disagree, the Storybook page wins — update this skill to match.
-
 This skill is about the **project**: one-time changes to the repository that every developer then shares. It does not set up anyone's machine — if npm fails with 401 or the developer has no token, use the `unlock-itixo-packages` skill. For using components after setup (component/prop reference, `DashboardLayout`, design tokens, styling rules), use the `itixo-component-library` skill.
 
 ## 1. Configure `.npmrc`
@@ -22,11 +20,17 @@ The `@itixo:registry` line scopes only `@itixo/*` package names to GitHub Packag
 
 ## 2. Install the library
 
-This needs a working credential on the machine — if it fails with 401, use the `unlock-itixo-packages` skill.
+Use the project's package manager — tell it from the lockfile:
 
-```bash
-npm install @itixo/component-library@latest tailwindcss@4.1.10
-```
+| Lockfile | Command |
+|---|---|
+| `pnpm-lock.yaml` | `pnpm add @itixo/component-library@latest tailwindcss@4.1.10` |
+| `package-lock.json` (or none) | `npm install @itixo/component-library@latest tailwindcss@4.1.10` |
+| `yarn.lock` | `yarn add @itixo/component-library@latest tailwindcss@4.1.10` |
+
+Run the install yourself. Only when the environment's rules forbid installing packages, give the user the exact command and say which rule applies.
+
+This needs a working credential on the machine — if the install fails with 401, switch to the `unlock-itixo-packages` skill.
 
 `tailwindcss ^4.1.10` is the only peer dependency. React 19, react-router 7, Radix primitives, and the library's other runtime dependencies come in with the package.
 

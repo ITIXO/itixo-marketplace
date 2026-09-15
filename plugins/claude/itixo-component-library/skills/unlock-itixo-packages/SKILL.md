@@ -1,11 +1,9 @@
 ---
 name: unlock-itixo-packages
-description: Set up a developer machine so npm can download @itixo packages (such as @itixo/component-library) from GitHub Packages — classic personal access token with read:packages, SSO authorization, and storing it in the user-level `~/.npmrc` or via `npm login`. Use when a developer is new on a project, runs `npm install` / `pnpm install` for the first time, or the install fails on an @itixo package — 401 "authentication token not provided", "User cannot be authenticated with the token provided", 404 from registry.npmjs.org, or questions about PAT tokens, `~/.npmrc`, SSO authorization, or `npm login`. Trigger on indirect phrasing too — "I can't install the project", "npm can't find @itixo", "how do I get access to our packages".
+description: Set up a developer machine so npm can download @itixo packages (such as @itixo/component-library) from GitHub Packages — classic personal access token with read:packages, SSO authorization, and storing it in the user-level `~/.npmrc`. Use when a developer is new on a project, runs `npm install` / `pnpm install` for the first time, or the install fails on an @itixo package — 401 "authentication token not provided", "User cannot be authenticated with the token provided", 404 from registry.npmjs.org, or questions about PAT tokens, `~/.npmrc`, SSO authorization, or a hanging `npm login`. Trigger on indirect phrasing too — "I can't install the project", "npm can't find @itixo", "how do I get access to our packages".
 ---
 
 # Unlock `@itixo` packages on this machine
-
-Mirrors *Installation* step 2 (*Authenticate*) on the **About project** page of the component library Storybook (`https://storybook.itixo-preview.com/root/storybook/?path=/docs/about-project--documentation`). When the two disagree, the Storybook page wins — update this skill to match.
 
 This skill is about the **developer's machine**: giving npm a credential so the project's normal install command can download `@itixo/*` packages from **GitHub Packages** (`ITIXO` organization). It does not change the project. The project side — the `@itixo:registry` scope mapping in the project `.npmrc`, installing the library, the stylesheet, and `ComponentLibraryProvider` — belongs to the `add-component-library-to-project` skill.
 
@@ -61,18 +59,18 @@ The token is the developer's personal secret. Never generate, guess, or ask the 
 
 ## 2. Store the token
 
-Either log in interactively:
+Do not suggest `npm login --scope=@itixo --registry=https://npm.pkg.github.com` — it hangs indefinitely against GitHub Packages and never finishes. If the user is stuck in it, tell them to cancel with Ctrl+C and store the token as below.
+
+Append the token to the **user-level** `~/.npmrc` (never the project one — that file is committed):
 
 ```bash
-npm login --scope=@itixo --registry=https://npm.pkg.github.com
+# macOS / Linux
+echo "//npm.pkg.github.com/:_authToken=<PAT_TOKEN>" >> ~/.npmrc
 ```
 
-npm prompts for two values — **Username** (the GitHub username) and **Password** (paste the PAT, not the GitHub password). It does not ask for an email. On success npm writes the token *and* an `@itixo:registry` line into the user-level `~/.npmrc`.
-
-Or append the token to the **user-level** `~/.npmrc` directly (never the project one — that file is committed):
-
-```bash
-echo "//npm.pkg.github.com/:_authToken=<PAT_TOKEN>" >> ~/.npmrc
+```powershell
+# Windows — don't use `echo >>` here: Windows PowerShell writes UTF-16, which npm cannot read
+npm config set --location=user "//npm.pkg.github.com/:_authToken" "<PAT_TOKEN>"
 ```
 
 Replace the whole placeholder `<PAT_TOKEN>` — **angle brackets included** — so the finished line reads `//npm.pkg.github.com/:_authToken=ghp_xxxxxxxx…`. Leaving the brackets in produces a line npm accepts silently and then fails with a 401 on the next install.
