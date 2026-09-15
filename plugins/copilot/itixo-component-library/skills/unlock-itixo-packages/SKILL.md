@@ -61,19 +61,23 @@ The token is the developer's personal secret. Never generate, guess, or ask the 
 
 Do not suggest `npm login --scope=@itixo --registry=https://npm.pkg.github.com` — it hangs indefinitely against GitHub Packages and never finishes. If the user is stuck in it, tell them to cancel with Ctrl+C and store the token as below.
 
-Append the token to the **user-level** `~/.npmrc` (never the project one — that file is committed):
+Store the token in the **user-level** `~/.npmrc` (never the project one — that file is committed). Read it from a hidden prompt, so the token never appears on the command line or in shell history:
 
 ```bash
 # macOS / Linux
-echo "//npm.pkg.github.com/:_authToken=<PAT_TOKEN>" >> ~/.npmrc
+printf "GitHub token: "; read -rs NPM_TOKEN; echo
+npm config set --location=user "//npm.pkg.github.com/:_authToken" "$NPM_TOKEN"
+unset NPM_TOKEN
 ```
 
 ```powershell
-# Windows — don't use `echo >>` here: Windows PowerShell writes UTF-16, which npm cannot read
-npm config set --location=user "//npm.pkg.github.com/:_authToken" "<PAT_TOKEN>"
+# Windows
+$token = [Net.NetworkCredential]::new("", (Read-Host "GitHub token" -AsSecureString)).Password
+npm config set --location=user "//npm.pkg.github.com/:_authToken" $token
+Remove-Variable token
 ```
 
-Replace the whole placeholder `<PAT_TOKEN>` — **angle brackets included** — so the finished line reads `//npm.pkg.github.com/:_authToken=ghp_xxxxxxxx…`. Leaving the brackets in produces a line npm accepts silently and then fails with a 401 on the next install.
+`npm config set` replaces an existing token line and keeps the rest of the file. Don't append the line by hand with `echo >>` — on Windows, Windows PowerShell writes UTF-16, which npm cannot read.
 
 Keep the token out of the project `.npmrc` and out of any Docker image layer. For Dockerfile and CI wiring, point the user to [Consuming the Packages](https://github.com/ITIXO/154.ICL/wiki/Consuming-the-Packages) in the library repository wiki.
 
@@ -92,5 +96,5 @@ A username and a version number mean access works. Then run the project's usual 
 |---|---|
 | **404** for `@itixo/...` against `registry.npmjs.org` | The project's `@itixo:registry` scope mapping is missing — see `add-component-library-to-project` |
 | **401** `authentication token not provided` | No token for `npm.pkg.github.com` in `~/.npmrc` |
-| **401** `User cannot be authenticated with the token provided` | Malformed token — angle brackets left in the placeholder are the usual cause |
+| **401** `User cannot be authenticated with the token provided` | Malformed token — usually a placeholder such as `<PAT_TOKEN>` copied along with it, angle brackets included |
 | **401 / 403** with a token that looks right | Token is fine-grained instead of classic, lacks `read:packages`, is expired, or is not SSO-authorized for `ITIXO` |

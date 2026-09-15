@@ -145,6 +145,38 @@ for (const script of scripts) {
     assert.ok(!fs.existsSync(env.userconfig), "npmrc must not be created");
   });
 
+  test(`${provider}: ignores endpoint overrides from the environment`, () => {
+    const env = setup();
+    const result = spawnSync("bash", [script, "--no-browser"], {
+      input: `${VALID}\n`,
+      encoding: "utf8",
+      env: {
+        PATH: `${env.bin}:/usr/bin:/bin`,
+        HOME: path.join(env.dir, "home"),
+        TMPDIR: env.dir,
+        NPM_CONFIG_USERCONFIG: env.userconfig,
+        FAKE_STATE: env.state,
+        FAKE_LOG: env.log,
+        UNLOCK_ITIXO_GITHUB_API: "https://attacker.example",
+        UNLOCK_ITIXO_REGISTRY_URL: "https://attacker.example",
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const log = fs.readFileSync(env.log, "utf8");
+    assert.ok(!log.includes("attacker.example"), "token must only be sent to GitHub");
+    assert.match(log, /https:\/\/api\.github\.com\/orgs\/ITIXO\/packages/);
+    assert.match(log, /https:\/\/npm\.pkg\.github\.com\/@itixo%2fcomponent-library/);
+  });
+
+  test(`${provider}: puts the token on its own line when npmrc lacks a trailing newline`, () => {
+    const env = setup();
+    fs.mkdirSync(path.dirname(env.userconfig), { recursive: true });
+    fs.writeFileSync(env.userconfig, "save-exact=true");
+    const result = run(script, env, `${VALID}\n`);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(fs.readFileSync(env.userconfig, "utf8"), `save-exact=true\n//npm.pkg.github.com/:_authToken=${VALID}\n`);
+  });
+
   test(`${provider}: keeps a symlinked npmrc as a symlink`, () => {
     const env = setup();
     const target = path.join(env.dir, "dotfiles-npmrc");
@@ -298,6 +330,45 @@ for (const script of psScripts) {
       assert.notEqual(result.status, 0);
       assert.match(result.stdout, /missing the read:packages scope/);
       assert.ok(!fs.existsSync(env.userconfig), "npmrc must not be created");
+    } finally {
+      await fake.close();
+    }
+  });
+
+  test(`${provider} ps1: refuses endpoint overrides that are not loopback`, { skip }, async () => {
+    const env = setup();
+    const fake = await startFakeGitHub();
+    try {
+      const result = await runPs(script, env, { base: "https://attacker.example" }, `${VALID}\n`);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stdout + result.stderr, /only for tests and must point to localhost/);
+      assert.ok(!fs.existsSync(env.userconfig), "npmrc must not be created");
+    } finally {
+      await fake.close();
+    }
+  });
+
+  test(`${provider} ps1: creates a new npmrc readable only by the owner`, { skip: skip || (process.platform === "win32" && "POSIX permissions only") }, async () => {
+    const env = setup();
+    const fake = await startFakeGitHub();
+    try {
+      const result = await runPs(script, env, fake, `${VALID}\n`);
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.equal(fs.statSync(env.userconfig).mode & 0o777, 0o600);
+    } finally {
+      await fake.close();
+    }
+  });
+
+  test(`${provider} ps1: puts the token on its own line when npmrc lacks a trailing newline`, { skip }, async () => {
+    const env = setup();
+    const fake = await startFakeGitHub();
+    try {
+      fs.mkdirSync(path.dirname(env.userconfig), { recursive: true });
+      fs.writeFileSync(env.userconfig, "save-exact=true");
+      const result = await runPs(script, env, fake, `${VALID}\n`);
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.equal(fs.readFileSync(env.userconfig, "utf8"), `save-exact=true\n//npm.pkg.github.com/:_authToken=${VALID}\n`);
     } finally {
       await fake.close();
     }

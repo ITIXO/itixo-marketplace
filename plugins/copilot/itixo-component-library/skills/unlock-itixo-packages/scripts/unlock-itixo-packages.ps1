@@ -25,8 +25,8 @@ $ErrorActionPreference = "Stop"
 $Org = "ITIXO"
 $RegistryHost = "npm.pkg.github.com"
 $ProbePackage = "@itixo%2fcomponent-library"
-$GitHubApi = if ($env:UNLOCK_ITIXO_GITHUB_API) { $env:UNLOCK_ITIXO_GITHUB_API } else { "https://api.github.com" }
-$RegistryUrl = if ($env:UNLOCK_ITIXO_REGISTRY_URL) { $env:UNLOCK_ITIXO_REGISTRY_URL } else { "https://$RegistryHost" }
+$GitHubApi = "https://api.github.com"
+$RegistryUrl = "https://$RegistryHost"
 $TokenUrl = "https://github.com/settings/tokens/new?scopes=read:packages&description=itixo-npm"
 $TokensUrl = "https://github.com/settings/tokens"
 
@@ -40,6 +40,20 @@ function Fail([string]$Message) {
   Write-Host $Message -ForegroundColor Red
   exit 1
 }
+
+# Test-only endpoint overrides. They are accepted only for a loopback host, so an
+# inherited environment variable can never send the token to another server.
+function Resolve-TestEndpoint([string]$Name, [string]$Default) {
+  $value = [Environment]::GetEnvironmentVariable($Name)
+  if (-not $value) { return $Default }
+  $uri = $null
+  if (-not [Uri]::TryCreate($value, [UriKind]::Absolute, [ref]$uri) -or -not $uri.IsLoopback) {
+    Fail "$Name is set to '$value'. It is only for tests and must point to localhost - unset it and run the script again."
+  }
+  return $value.TrimEnd("/")
+}
+$GitHubApi = Resolve-TestEndpoint "UNLOCK_ITIXO_GITHUB_API" $GitHubApi
+$RegistryUrl = Resolve-TestEndpoint "UNLOCK_ITIXO_REGISTRY_URL" $RegistryUrl
 
 Add-Type -AssemblyName System.Net.Http
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -172,8 +186,15 @@ while ($true) {
 $configDir = Split-Path -Parent $UserConfig
 if ($configDir -and -not (Test-Path $configDir)) { New-Item -ItemType Directory -Path $configDir -Force | Out-Null }
 
-$existing = ""
-if (Test-Path $UserConfig) { $existing = [IO.File]::ReadAllText($UserConfig) }
+# On macOS/Linux, create the file and restrict it to the owner before the token
+# is written into it.
+if (-not (Test-Path $UserConfig)) { [IO.File]::WriteAllText($UserConfig, "") }
+if ($env:OS -ne "Windows_NT" -and (Get-Command chmod -ErrorAction SilentlyContinue)) {
+  & chmod 600 $UserConfig
+  if ($LASTEXITCODE -ne 0) { Fail "Could not restrict permissions on $UserConfig - the token was not saved." }
+}
+
+$existing = [IO.File]::ReadAllText($UserConfig)
 $newline = if ($existing.Contains("`r`n")) { "`r`n" } else { "`n" }
 $lines = New-Object System.Collections.Generic.List[string]
 foreach ($line in ($existing -split "\r?\n")) {
@@ -184,9 +205,6 @@ $lines.Add("//$RegistryHost/:_authToken=$token")
 $content = ($lines -join $newline) + $newline
 [IO.File]::WriteAllText($UserConfig, $content, (New-Object System.Text.UTF8Encoding($false)))
 
-if ($env:OS -ne "Windows_NT" -and (Get-Command chmod -ErrorAction SilentlyContinue)) {
-  & chmod 600 $UserConfig
-}
 $token = $null
 $candidate = $null
 
