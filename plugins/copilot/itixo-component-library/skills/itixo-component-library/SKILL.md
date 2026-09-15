@@ -1,6 +1,6 @@
 ---
 name: itixo-component-library
-description: How to consume the @itixo/component-library npm package inside an external React app — install, Tailwind v4 wiring, DashboardLayout shell, design tokens, and the component/prop reference. Use whenever an ITIXO app installs, imports, themes, or upgrades @itixo/component-library, or whenever the user mentions ITIXO components, DashboardLayout, GenericTable, or design tokens. Trigger on indirect phrasing too — "add a button to match our other apps", "set up our shared layout", "what props does X take", "how do I theme this", "wire up the sidebar / breadcrumbs / waffle menu". When in doubt, trigger.
+description: How to consume the @itixo/component-library npm package inside an external React app — DashboardLayout shell, design tokens, styling rules, and the component/prop reference. For adding the library to a project (scope mapping, install, stylesheet, ComponentLibraryProvider), use add-component-library-to-project; if npm cannot download the package on this machine, use unlock-itixo-packages. Use whenever an ITIXO app imports, themes, or upgrades @itixo/component-library, or whenever the user mentions ITIXO components, DashboardLayout, GenericTable, or design tokens. Trigger on indirect phrasing too — "add a button to match our other apps", "set up our shared layout", "what props does X take", "how do I theme this", "wire up the sidebar / breadcrumbs / waffle menu". When in doubt, trigger.
 ---
 
 # `@itixo/component-library` — consumer usage guide
@@ -27,21 +27,9 @@ Don't guess component names or props from memory — the library has its own cat
 
 For design tokens (exact CSS variable names), use the MCP server's `get_theme_tokens`, see **[references/design-tokens.md](references/design-tokens.md)**, or search the installed stylesheet at `node_modules/@itixo/component-library/dist/index.css`.
 
-## Install & setup
+## Project setup
 
-Two steps. Full details in [references/install-and-setup.md](references/install-and-setup.md).
-
-```bash
-npm install @itixo/component-library@latest
-```
-
-In the app's global stylesheet (`app/globals.css` for Next.js App Router, `src/index.css` for Vite, etc.):
-
-```css
-@import "@itixo/component-library/dist/index.css";
-```
-
-The library's CSS includes a `@source "./"` directive that tells Tailwind v4 to scan the library's compiled output so its utility classes are emitted. The library brings Tailwind with it — no `tailwind.config.*` file or manual `@source` is needed.
+This skill assumes the project is already set up: the `@itixo:registry` scope mapping in the project `.npmrc`, the package installed, `@itixo/component-library/dist/index.css` imported once in the global stylesheet, and `ComponentLibraryProvider` mounted once at the app root. If any of that is missing, use the **`add-component-library-to-project`** skill. If npm cannot download the package on this machine (401, no token), use the **`unlock-itixo-packages`** skill.
 
 ## Importing components
 
@@ -161,7 +149,6 @@ The library ships frequent fixes and occasional breaking changes (e.g. 0.3.0 rew
 ## Quick map of where things live in this skill
 
 - [references/components.md](references/components.md) — full export catalog by category + notable props (the component/prop reference)
-- [references/install-and-setup.md](references/install-and-setup.md) — install + Tailwind v4 + per-framework CSS placement
 - [references/dashboard-layout.md](references/dashboard-layout.md) — full `DashboardLayout` prop walkthrough + breadcrumb modes + migration notes
 - [references/design-tokens.md](references/design-tokens.md) — color / spacing / radius / shadow / typography tokens
 - [references/design-system-guidelines.md](references/design-system-guidelines.md) — tokens, `cn()`, Typography, color scheme, forms, tables, do's and don'ts
