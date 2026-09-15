@@ -74,3 +74,34 @@ export const App = ({ children }) => (
 | `tooltipDelayDuration` | `number` | — | Global tooltip open delay in ms |
 
 `language` (`"en"` default, `"cs"`) and `toaster` config options are covered in the `itixo-component-library` skill's `references/dashboard-layout.md`. If the app has its own i18next translations, query the `itixo-component-library` MCP server's `get_integration_guide` (topic `i18n`) before wiring them — the app and the library must share one copy of `i18next` and `react-i18next`.
+
+## 5. Ask about `DashboardLayout` (optional, recommended)
+
+Once the provider is mounted, ask the user whether the app should use `DashboardLayout` as its app shell. Recommend it, but it is not required — library components work under `ComponentLibraryProvider` without it. Do not add it without an answer.
+
+When asking, say briefly what it brings: the shared ITIXO navbar (logo, app name, breadcrumbs, agenda waffle menu, account dropdown, settings dialog), an optional sidebar, and a content area — so the app looks and behaves like the other ITIXO apps. If the app already has its own layout, point out that switching replaces it.
+
+If the user says yes, collect what the layout needs before writing code: the current route, the signed-in user (`name`, `email`, `signOut`), the company logo and app name, the sidebar routes, and the framework's `Link` (and `Image`, if used) for `adapters`. Then mount it directly inside `ComponentLibraryProvider`:
+
+```tsx
+import { ComponentLibraryProvider, DashboardLayout } from "@itixo/component-library";
+import Link from "next/link"; // or the router's Link in a non-Next.js app
+
+export const App = ({ children }) => (
+  <ComponentLibraryProvider config={{ allowTheming: true, allowCustomPrimaryColor: true }}>
+    <DashboardLayout
+      currentRoute={pathname}
+      user={{ name: "Jan Novák", email: "jan.novak@company.com", signOut }}
+      navbar={{ companyLogo: LOGO, appName: "Dashboard UI" }}
+      navigation={{ sidebarRoutes: ROUTES }}
+      adapters={{ Link }}
+    >
+      {children}
+    </DashboardLayout>
+  </ComponentLibraryProvider>
+);
+```
+
+For the full prop set (breadcrumbs, agendas, stripe banner, settings, account switching, footer, slots), use the `DashboardLayout` section of the `itixo-component-library` skill and its `references/dashboard-layout.md`, and confirm props with the MCP server's `get_component_props` for `DashboardLayout`.
+
+If the user says no, the setup is complete.

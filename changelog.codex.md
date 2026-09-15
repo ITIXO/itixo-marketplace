@@ -5,7 +5,7 @@
 - Installation is now split by who does it, aligned with the component library Storybook's *About project* page.
 - New `unlock-itixo-packages` skill for a developer whose machine cannot download `@itixo` packages yet: diagnosing with `npm config get @itixo:registry` and `npm whoami`, creating a classic PAT with `read:packages` (SSO-authorized for `ITIXO`), storing it in the user-level `~/.npmrc` or via `npm login`, and reading 404/401 failures.
 - The `unlock-itixo-packages` skill ships a setup script for macOS/Linux (`scripts/unlock-itixo-packages.sh`) and Windows (`scripts/unlock-itixo-packages.ps1`) that opens the classic-token page, warns to authorize the token for `ITIXO` via *Configure SSO*, reads the token from a hidden prompt, verifies scope, SSO authorization, and package access with GitHub, and only then saves it to the user-level `~/.npmrc`.
-- New `add-component-library-to-project` skill for the one-time project setup: the `@itixo:registry` scope mapping in the project `.npmrc`, `npm install @itixo/component-library@latest tailwindcss@4.1.10`, the stylesheet import, and the required `ComponentLibraryProvider` with its `config` options.
+- New `add-component-library-to-project` skill for the one-time project setup: the `@itixo:registry` scope mapping in the project `.npmrc`, `npm install @itixo/component-library@latest tailwindcss@4.1.10`, the stylesheet import, the required `ComponentLibraryProvider` with its `config` options, and an optional, recommended step that asks whether to add `DashboardLayout` as the app shell.
 - The `itixo-component-library` skill now assumes a set-up project and points to the two new skills; `references/install-and-setup.md` was removed.
 
 ## 2026-09-09
