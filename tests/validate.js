@@ -45,12 +45,12 @@ const TIERS = {
 };
 const CLAUDE_MODEL = { cheap: "haiku", mid: "sonnet", security: "opus", orchestrator: "inherit" };
 const CODEX_MODEL = {
-  cheap: "gpt-5.6-luna",
-  mid: "gpt-5.6-terra",
-  security: "gpt-5.6-sol",
+  cheap: "gpt-6-luna",
+  mid: "gpt-6-sol",
+  security: "gpt-6-astra",
   orchestrator: "user-selected",
 };
-const COPILOT_MODEL = { cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }; // orchestrator inherits (no model field)
+const COPILOT_MODEL = { cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5.5" }; // orchestrator inherits (no model field)
 const ORCHESTRATION_PLUGINS = ["claude/itixo", "codex/itixo", "copilot/itixo"];
 
 // --- 1. Claude marketplace registrations have valid Claude manifests ---

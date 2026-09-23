@@ -275,7 +275,7 @@ test("renders provider model, TOML schema, and tool metadata from each tier", ()
   const securityReviewer = readBaseAgents(ROOT).find(({ name }) => name === "itixo-security-reviewer");
   assert.equal(readFrontmatter(renderClaude("itixo-security-reviewer", securityReviewer.agent)).model, "opus");
   assert.equal(readFrontmatter(renderClaude("itixo-security-reviewer", securityReviewer.agent)).effort, "max");
-  assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model = "gpt-5\.6-sol"$/m);
+  assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model = "gpt-6-astra"$/m);
   assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model_reasoning_effort = "max"$/m);
 });
 
@@ -296,7 +296,7 @@ test("renderCopilot produces correct frontmatter for each tier", () => {
       assert.match(copilot, new RegExp(`^model: ${JSON.stringify(PROVIDERS.copilot.models[agent.tier])}$`, "m"));
     }
     if (agent.tier === "security") {
-      assert.match(copilot, /^model: "claude-opus-5"$/m);
+      assert.match(copilot, /^model: "claude-opus-5\.5"$/m);
       assert.doesNotMatch(copilot, /^effort:/m);
       assert.doesNotMatch(copilot, /^model_reasoning_effort:/m);
     }
