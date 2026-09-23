@@ -38,6 +38,9 @@ const GPT_6_EFFORTS = Object.freeze({
   "gpt-6-astra": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
   "gpt-6-sol": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
   "gpt-6-luna": new Set(["low", "medium", "high", "xhigh", "max"]),
+  "gpt-5.6-sol": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
+  "gpt-5.6-terra": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
+  "gpt-5.6-luna": new Set(["low", "medium", "high", "xhigh", "max"]),
 });
 const REPEATABLE_ARGUMENTS = new Set(["--agent-model", "--agent-effort"]);
 const AGENT_IDS = [
@@ -232,18 +235,14 @@ function readTemplate(agentId, cheapModel, cheapEffort, agentModel, agentEffort)
     content = setTomlField(content, "model", selectedCheapModel);
     content = setTomlField(content, "model_reasoning_effort", selectedCheapEffort);
   }
-  if (agentId === "itixo-planner" && agentEffort !== undefined && agentModel === undefined) {
-    fail("Planner reasoning effort requires an explicit planner model override.");
-  }
   if (agentModel !== undefined) content = setTomlField(content, "model", AGENT_MODEL_ALIASES[agentModel]);
   if (agentEffort !== undefined) {
-    const selectedModel = agentModel === undefined
-      ? (CHEAP_AGENT_IDS.has(agentId) ? selectedCheapModel : null)
-      : AGENT_MODEL_ALIASES[agentModel];
-    if (selectedModel && GPT_6_EFFORTS[selectedModel] && !GPT_6_EFFORTS[selectedModel].has(agentEffort)) {
-      fail(`Unsupported reasoning effort '${agentEffort}' for model '${selectedModel}' on '${agentId}'.`);
-    }
     content = setTomlField(content, "model_reasoning_effort", agentEffort === "none" ? null : agentEffort);
+  }
+  const model = content.match(/^model = "([^"]+)"$/m)?.[1];
+  const effort = content.match(/^model_reasoning_effort = "([^"]+)"$/m)?.[1];
+  if (model && effort && GPT_6_EFFORTS[model] && !GPT_6_EFFORTS[model].has(effort)) {
+    fail(`Unsupported reasoning effort '${effort}' for model '${model}' on '${agentId}'.`);
   }
   return content;
 }
