@@ -1,3 +1,9 @@
+## 2026-09-23
+
+### itixo 0.7.4
+
+- Codex agents now default to GPT-6 Sol, GPT-6 Luna, and GPT-6 Astra by role, while installer overrides retain GPT-5.6 choices and add GPT-6 model aliases.
+
 ## 2026-09-14
 
 ### itixo-component-library 0.1.4

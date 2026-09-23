@@ -2,7 +2,7 @@
 # Generated from base/agents/itixo-security-reviewer.md by scripts/generate-agents.js.
 name = "itixo-security-reviewer"
 description = "Reviews code changes for evidence-backed security risks."
-model = "gpt-5.6-sol"
+model = "gpt-6-astra"
 model_reasoning_effort = "max"
 
 developer_instructions = """

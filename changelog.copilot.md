@@ -1,3 +1,9 @@
+## 2026-09-23
+
+### itixo 0.7.2
+
+- The security-review agent now defaults to Claude Opus 5.5.
+
 ## 2026-09-14
 
 ### itixo-component-library 0.1.4

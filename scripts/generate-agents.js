@@ -19,13 +19,13 @@ const PROVIDER_CONFIG = {
   codex: {
     directory: path.join(ROOT, "plugins", "codex", "itixo", "templates", "agents"),
     obsoleteDirectory: path.join(ROOT, "plugins", "codex", "itixo", "agents"),
-    models: Object.freeze({ cheap: "gpt-5.6-luna", mid: "gpt-5.6-terra", security: "gpt-5.6-sol" }),
+    models: Object.freeze({ cheap: "gpt-6-luna", mid: "gpt-6-sol", security: "gpt-6-astra" }),
     efforts: Object.freeze({ cheap: "high", mid: "medium", security: "max" }),
   },
   copilot: {
     directory: path.join(ROOT, "plugins", "copilot", "itixo", "agents"),
     // orchestrator tier omits model field (inherits); cheap and mid use full Copilot CLI model IDs
-    models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }),
+    models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5.5" }),
     fileExtension: ".agent.md",
   },
 };

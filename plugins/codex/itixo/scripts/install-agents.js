@@ -11,14 +11,34 @@ const MANAGED_MARKER = "# Itixo-managed custom agent. Do not edit.\n";
 const NOFOLLOW_FLAG = typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
 const CHEAP_AGENT_IDS = new Set(["itixo-investigator", "itixo-docs-updater"]);
 const SECURITY_REVIEWER_AGENT_ID = "itixo-security-reviewer";
-const CHEAP_MODELS = new Set(["luna", "terra"]);
+const CHEAP_MODEL_ALIASES = Object.freeze({
+  luna: "gpt-5.6-luna",
+  terra: "gpt-5.6-terra",
+  "gpt6-luna": "gpt-6-luna",
+  "gpt-6-luna": "gpt-6-luna",
+});
+const CHEAP_MODELS = new Set(Object.keys(CHEAP_MODEL_ALIASES));
 const CHEAP_EFFORTS = new Set(["high", "low"]);
 const AGENT_MODEL_ALIASES = Object.freeze({
   sol: "gpt-5.6-sol",
   terra: "gpt-5.6-terra",
   luna: "gpt-5.6-luna",
+  astra: "gpt-6-astra",
+  "gpt6-sol": "gpt-6-sol",
+  "gpt6-luna": "gpt-6-luna",
+  "gpt-6-astra": "gpt-6-astra",
+  "gpt-6-sol": "gpt-6-sol",
+  "gpt-6-luna": "gpt-6-luna",
+  "gpt-5.6-sol": "gpt-5.6-sol",
+  "gpt-5.6-terra": "gpt-5.6-terra",
+  "gpt-5.6-luna": "gpt-5.6-luna",
 });
-const AGENT_EFFORTS = new Set(["none", "low", "medium", "high", "xhigh", "max"]);
+const AGENT_EFFORTS = new Set(["none", "low", "medium", "high", "xhigh", "max", "ultra"]);
+const GPT_6_EFFORTS = Object.freeze({
+  "gpt-6-astra": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
+  "gpt-6-sol": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
+  "gpt-6-luna": new Set(["low", "medium", "high", "xhigh", "max"]),
+});
 const REPEATABLE_ARGUMENTS = new Set(["--agent-model", "--agent-effort"]);
 const AGENT_IDS = [
   "itixo-builder",
@@ -38,8 +58,8 @@ function fail(message) {
 function usage() {
   return [
     "Usage:",
-    "  node install-agents.js --scope personal [--cheap-model luna|terra] [--cheap-effort high|low] [--agent-model <id>=<sol|terra|luna>]... [--agent-effort <id>=<none|low|medium|high|xhigh|max>]...",
-    "  node install-agents.js --scope project --project-root <path> [--cheap-model luna|terra] [--cheap-effort high|low] [--agent-model <id>=<sol|terra|luna>]... [--agent-effort <id>=<none|low|medium|high|xhigh|max>]...",
+    "  node install-agents.js --scope personal [--cheap-model luna|terra|gpt6-luna|gpt-6-luna] [--cheap-effort high|low] [--agent-model <id>=<sol|terra|luna|astra|gpt6-sol|gpt6-luna|gpt-6-astra|gpt-6-sol|gpt-6-luna|gpt-5.6-sol|gpt-5.6-terra|gpt-5.6-luna>]... [--agent-effort <id>=<none|low|medium|high|xhigh|max|ultra>]...",
+    "  node install-agents.js --scope project --project-root <path> [--cheap-model luna|terra|gpt6-luna|gpt-6-luna] [--cheap-effort high|low] [--agent-model <id>=<sol|terra|luna|astra|gpt6-sol|gpt6-luna|gpt-6-astra|gpt-6-sol|gpt-6-luna|gpt-5.6-sol|gpt-5.6-terra|gpt-5.6-luna>]... [--agent-effort <id>=<none|low|medium|high|xhigh|max|ultra>]...",
   ].join("\n");
 }
 
@@ -112,13 +132,13 @@ function parseArguments(argv) {
     fail("Argument '--project-root' is valid only when scope is 'project'.");
   }
   if (values["--cheap-model"] && !CHEAP_MODELS.has(values["--cheap-model"])) {
-    fail("Invalid cheap model. Use 'luna' or 'terra'.");
+    fail("Invalid cheap model. Use 'luna', 'terra', 'gpt6-luna', or 'gpt-6-luna'.");
   }
   if (values["--cheap-effort"] && !CHEAP_EFFORTS.has(values["--cheap-effort"])) {
     fail("Invalid cheap effort. Use 'high' or 'low'.");
   }
 
-  const cheapModel = values["--cheap-model"] || "luna";
+  const cheapModel = CHEAP_MODEL_ALIASES[values["--cheap-model"] || "gpt-6-luna"];
   const agentModels = parseAgentAssignments(
     "--agent-model",
     repeatableValues["--agent-model"],
@@ -136,7 +156,7 @@ function parseArguments(argv) {
     scope: values["--scope"],
     projectRoot: values["--project-root"],
     cheapModel,
-    cheapEffort: values["--cheap-effort"] || (cheapModel === "luna" ? "high" : "low"),
+    cheapEffort: values["--cheap-effort"] || (cheapModel === "gpt-5.6-terra" ? "low" : "high"),
     agentModels,
     agentEfforts,
   };
@@ -197,8 +217,8 @@ function setTomlField(content, field, value) {
 }
 
 function readTemplate(agentId, cheapModel, cheapEffort, agentModel, agentEffort) {
-  const selectedCheapModel = cheapModel || "luna";
-  const selectedCheapEffort = cheapEffort || (selectedCheapModel === "luna" ? "high" : "low");
+  const selectedCheapModel = cheapModel || "gpt-6-luna";
+  const selectedCheapEffort = cheapEffort || (selectedCheapModel === "gpt-5.6-terra" ? "low" : "high");
   const templatePath = path.join(TEMPLATE_DIRECTORY, `${agentId}.toml`);
   let content;
   try {
@@ -209,11 +229,20 @@ function readTemplate(agentId, cheapModel, cheapEffort, agentModel, agentEffort)
   validateTemplate(agentId, templatePath, content);
 
   if (CHEAP_AGENT_IDS.has(agentId)) {
-    content = setTomlField(content, "model", `gpt-5.6-${selectedCheapModel}`);
+    content = setTomlField(content, "model", selectedCheapModel);
     content = setTomlField(content, "model_reasoning_effort", selectedCheapEffort);
+  }
+  if (agentId === "itixo-planner" && agentEffort !== undefined && agentModel === undefined) {
+    fail("Planner reasoning effort requires an explicit planner model override.");
   }
   if (agentModel !== undefined) content = setTomlField(content, "model", AGENT_MODEL_ALIASES[agentModel]);
   if (agentEffort !== undefined) {
+    const selectedModel = agentModel === undefined
+      ? (CHEAP_AGENT_IDS.has(agentId) ? selectedCheapModel : null)
+      : AGENT_MODEL_ALIASES[agentModel];
+    if (selectedModel && GPT_6_EFFORTS[selectedModel] && !GPT_6_EFFORTS[selectedModel].has(agentEffort)) {
+      fail(`Unsupported reasoning effort '${agentEffort}' for model '${selectedModel}' on '${agentId}'.`);
+    }
     content = setTomlField(content, "model_reasoning_effort", agentEffort === "none" ? null : agentEffort);
   }
   return content;
@@ -241,8 +270,8 @@ function validateTemplate(agentId, templatePath, content) {
   }
 
   const expectedModel = CHEAP_AGENT_IDS.has(agentId)
-    ? "gpt-5.6-luna"
-    : agentId === SECURITY_REVIEWER_AGENT_ID ? "gpt-5.6-sol" : "gpt-5.6-terra";
+    ? "gpt-6-luna"
+    : agentId === SECURITY_REVIEWER_AGENT_ID ? "gpt-6-astra" : "gpt-6-sol";
   const expectedEffort = CHEAP_AGENT_IDS.has(agentId)
     ? "high"
     : agentId === SECURITY_REVIEWER_AGENT_ID ? "max" : "medium";
@@ -465,8 +494,8 @@ function rollbackChanges(changes, destinationState) {
 function install(options, dependencies = {}) {
   const renameSync = dependencies.renameSync || fs.renameSync;
   if (typeof renameSync !== "function") fail("renameSync dependency must be a function.");
-  const cheapModel = options.cheapModel || "luna";
-  const cheapEffort = options.cheapEffort || (cheapModel === "luna" ? "high" : "low");
+  const cheapModel = CHEAP_MODEL_ALIASES[options.cheapModel] || options.cheapModel || "gpt-6-luna";
+  const cheapEffort = options.cheapEffort || (cheapModel === "gpt-5.6-terra" ? "low" : "high");
   const agentModels = options.agentModels || {};
   const agentEfforts = options.agentEfforts || {};
   const destination = resolveDestination(options);
