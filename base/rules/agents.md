@@ -18,9 +18,9 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 | Tier | Purpose | Claude | Codex | Copilot |
 |------|---------|--------|-------|---------|
 | orchestrator | thinking, decomposition, integration | user-selected (inherit) | user-selected | user-selected |
-| mid | implementation, tests, review | sonnet | gpt-5.6-terra | claude-sonnet-5 |
-| cheap | lookups, docs, mechanical reads | haiku | gpt-5.6-luna + high (Terra + low fallback) | claude-haiku-4.5 |
-| security | security review | opus + max | gpt-5.6-sol + max | claude-opus-5 |
+| mid | implementation, tests, review | sonnet | gpt-6-sol + medium | claude-sonnet-5 |
+| cheap | lookups, docs, mechanical reads | haiku | gpt-6-luna + high (gpt-5.6-terra + low fallback) | claude-haiku-4.5 |
+| security | security review | opus + max | gpt-6-astra + max | claude-opus-5.5 |
 
 ## Agent → tier mapping
 
@@ -38,15 +38,15 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 ## Provider dispatch
 
 - Claude invokes the native plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model and effort. Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
-- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the installed TOML owns instructions, model, and effort. Explicit user-requested per-agent overrides are installed with `itixo:install-agents` and then owned by the matching TOML. Do not pass an additional invocation override. Explicit planner Sol may exceed the caller model.
+- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the installed TOML owns instructions, model, and effort. Default tiers are gpt-6-sol (mid), gpt-6-luna (cheap), and gpt-6-astra (security); `itixo-planner` inherits. Explicit user-requested per-agent overrides are installed with `itixo:install-agents` and then owned by the matching TOML. The installer preserves `sol`, `terra`, and `luna` as GPT-5.6 aliases, adds `astra`, `gpt6-sol`, and `gpt6-luna`, and accepts full GPT-6 and GPT-5.6 IDs. Do not pass an additional invocation override. Explicit planner GPT-6 Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
-- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is Luna + high; Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
+- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is GPT-6 Luna + high; GPT-5.6 Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
 - Copilot CLI invokes the native Copilot plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model. Copilot has no effort field; never pass an effort override to a Copilot agent.
 
 ## Security-review routing and lifecycle
 
 - Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`.
-- Claude security-review default is Opus + max. Codex security-review default is gpt-5.6-sol + max. Copilot security-review default is `claude-opus-5` with no effort field. Do not infer or broaden overrides.
+- Claude security-review default is Opus + max. Codex security-review default is gpt-6-astra + max. Copilot security-review default is `claude-opus-5.5` with no effort field. Do not infer or broaden overrides.
 - `itixo-security-reviewer` is read-only. On a pull request, publish each finding inline where possible; otherwise use a general PR comment. For unresolved Critical or High findings, submit `REQUEST_CHANGES` when provider supports it; otherwise submit `COMMENT` and identify review as self-review. Post a neutral clean-review comment when no findings remain.
 - Automatic remediation is owned by orchestrator and allowed only for a localized fix that preserves behavior outside vulnerability and needs no dependency or version update, migration, public API change, auth-policy decision, secret rotation, or architecture change. Orchestrator publishes finding, delegates fix to `itixo-builder`, has `itixo-tester` validate it, then replies and resolves finding. Keep every non-simple finding unresolved for user decision.
 
@@ -71,7 +71,7 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 ## GitHub issue delegation (mandatory)
 
 - Delegate all GitHub issue assessment, structuring, and creation work to exactly one `itixo-github-issues` agent. Do not split checks and creation between agents.
-- Before delegating, load the matching `agents/itixo-github-issues.md` role instructions. For Claude, honor a matching explicit per-invocation model and/or effort override; otherwise use the `mid`-tier Sonnet default. For Codex, invoke the installed TOML, which owns either its explicit installed override or the `mid`-tier Terra + medium default.
+- Before delegating, load the matching `agents/itixo-github-issues.md` role instructions. For Claude, honor a matching explicit per-invocation model and/or effort override; otherwise use the `mid`-tier Sonnet default. For Codex, invoke the installed TOML, which owns either its explicit installed override or the `mid`-tier GPT-6 Sol + medium default.
 - Prompt that agent with requested outcome, target repository and owner context, constraints, expected output, and known IssueType or project conventions. Require it to determine whether native GitHub IssueTypes are available; the fallback below applies only when they are unavailable in a personal repository.
 - The `itixo-github-issues` agent owns duplicate, native-IssueType availability, fallback-label, linked-sub-issue/depth, and repository-convention checks, then reports or creates the issue result.
 - With native IssueTypes, it classifies the root as `Feature` when appropriate, direct children as `Task` by default, and a direct child as `Feature` only when that large child is split into executable children. It allows at most two parent-child edges: `Feature -> Feature -> Task`.

@@ -9,15 +9,15 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 | Tier | Model | Agents |
 |------|-------|--------|
 | orchestrator | user-selected | itixo-planner |
-| mid | gpt-5.6-terra | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | gpt-5.6-luna + high (default); gpt-5.6-terra + low (fallback) | itixo-investigator, itixo-docs-updater |
-| security | gpt-5.6-sol + max | itixo-security-reviewer |
+| mid | gpt-6-sol + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | gpt-6-luna + high (default); gpt-5.6-terra + low (fallback) | itixo-investigator, itixo-docs-updater |
+| security | gpt-6-astra + max | itixo-security-reviewer |
 
 ## Rules
 
-- Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the TOML owns instructions, model, and effort. Explicit user-requested per-agent overrides must be installed with `itixo:install-agents` and are then owned by the matching TOML; do not pass an additional invocation override. Explicit planner Sol may exceed the caller model.
+- Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the TOML owns instructions, model, and effort. Defaults are gpt-6-sol for mid-tier agents, gpt-6-luna for cheap-tier agents, and gpt-6-astra for security review; `itixo-planner` inherits. Explicit user-requested per-agent overrides must be installed with `itixo:install-agents` and are then owned by the matching TOML; do not pass an additional invocation override. The installer preserves `sol`, `terra`, and `luna` as GPT-5.6 aliases, adds `astra`, `gpt6-sol`, and `gpt6-luna`, and accepts full GPT-6 and GPT-5.6 IDs. Explicit planner GPT-6 Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
-- If a required custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is Luna + high; Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
+- If a required custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is GPT-6 Luna + high; GPT-5.6 Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
 - Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is gpt-5.6-sol + max; never infer or broaden an override.
 - `itixo-investigator` locates first using its installed configured model, which defaults to the cheap tier absent a matching explicit user override; `itixo-builder` gets exact file:line targets using its installed configured model, which defaults to the mid tier under the same constraint.
 - Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested override supported by Codex.
