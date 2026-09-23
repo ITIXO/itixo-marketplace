@@ -317,6 +317,22 @@ test("installs explicit planner Sol and max overrides together", () => {
   });
 });
 
+test("keeps planner model inheritance for an effort-only override", () => {
+  withTemporaryDirectory((temporary) => {
+    const plugin = makePlugin(temporary);
+    const project = path.join(temporary, "project");
+    fs.mkdirSync(project);
+
+    const result = run(plugin, [
+      "--scope", "project", "--project-root", project,
+      "--agent-effort", "itixo-planner=ultra",
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assertAgentSettings(project, "itixo-planner", { model: null, effort: "ultra" });
+  });
+});
+
 test("per-agent fields independently override compatible cheap-role flags", () => {
   withTemporaryDirectory((temporary) => {
     const plugin = makePlugin(temporary);
@@ -404,10 +420,6 @@ test("rejects invalid arguments with deterministic nonzero errors", () => {
       {
         args: ["--scope", "project", "--project-root", project, "--agent-model", "itixo-planner=opus"],
         error: "Invalid agent model 'opus'",
-      },
-      {
-        args: ["--scope", "project", "--project-root", project, "--agent-effort", "itixo-planner=ultra"],
-        error: "Invalid agent effort 'ultra'",
       },
       {
         args: ["--scope", "project", "--project-root", project, "--agent-model", "itixo-planner"],
