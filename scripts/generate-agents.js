@@ -35,6 +35,11 @@ function resolveAlias(providerId, alias) {
   return definition;
 }
 
+function resolveTierAlias(providerId, alias) {
+  if (MODEL_ALIASES[alias]?.pinned) throw new Error(`model catalog: pinned alias '${alias}' cannot be a tier model.`);
+  return resolveAlias(providerId, alias);
+}
+
 function catalogProvider(id) {
   const provider = MODEL_CATALOG.providers?.[id];
   if (!provider || typeof provider !== "object" || !provider.models || !provider.efforts
@@ -53,7 +58,7 @@ function catalogProvider(id) {
   }
   const models = Object.fromEntries(Object.entries(provider.models).map(([tier, alias]) => [
     tier,
-    tier === "orchestrator" && alias === "inherit" ? alias : resolveAlias(id, alias).default,
+    tier === "orchestrator" && alias === "inherit" ? alias : resolveTierAlias(id, alias).default,
   ]));
   if (id === "codex") {
     if (!provider.effortsByModel || typeof provider.effortsByModel !== "object"
