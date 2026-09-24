@@ -45,15 +45,21 @@ const TIERS = {
 };
 const modelCatalog = readJson("plugins/codex/itixo/scripts/model-catalog.json");
 const catalogProviders = modelCatalog?.providers || {};
-const CLAUDE_MODEL = catalogProviders.claude?.models || {};
+const catalogAliases = modelCatalog?.aliases || {};
+function resolveCatalogModel(provider, tier) {
+  const alias = catalogProviders[provider]?.models?.[tier];
+  return alias === "inherit" ? alias : catalogAliases[alias]?.providers?.[provider]?.default;
+}
+const CLAUDE_MODEL = Object.fromEntries(
+  Object.keys(catalogProviders.claude?.models || {}).map((tier) => [tier, resolveCatalogModel("claude", tier)]),
+);
 const CODEX_MODEL = {
-  ...Object.fromEntries(
-    Object.entries(catalogProviders.codex?.models || {})
-      .map(([tier, alias]) => [tier, catalogProviders.codex?.aliases?.[alias]?.default]),
-  ),
+  ...Object.fromEntries(Object.keys(catalogProviders.codex?.models || {}).map((tier) => [tier, resolveCatalogModel("codex", tier)])),
   orchestrator: "user-selected",
 };
-const COPILOT_MODEL = catalogProviders.copilot?.models || {}; // orchestrator inherits (no model field)
+const COPILOT_MODEL = Object.fromEntries(
+  Object.keys(catalogProviders.copilot?.models || {}).map((tier) => [tier, resolveCatalogModel("copilot", tier)]),
+); // orchestrator inherits (no model field)
 const ORCHESTRATION_PLUGINS = ["claude/itixo", "codex/itixo", "copilot/itixo"];
 
 // --- 0. Model catalog has complete provider defaults and usable Codex capabilities ---
@@ -82,7 +88,10 @@ for (const [provider, tiers] of [
 }
 
 const codexCatalog = catalogProviders.codex || {};
-for (const field of ["aliases", "pinnedAliases", "cheapEffortOverrides", "effortsByModel"]) {
+if (!modelCatalog?.aliases || typeof modelCatalog.aliases !== "object" || Array.isArray(modelCatalog.aliases)) {
+  fail("model catalog: 'aliases' must be an object");
+}
+for (const field of ["cheapEffortOverrides", "effortsByModel"]) {
   if (!codexCatalog[field] || typeof codexCatalog[field] !== "object" || Array.isArray(codexCatalog[field])) {
     fail(`model catalog: 'codex.${field}' must be an object`);
   }
@@ -90,29 +99,36 @@ for (const field of ["aliases", "pinnedAliases", "cheapEffortOverrides", "effort
 if (!Array.isArray(codexCatalog.cheapEfforts) || codexCatalog.cheapEfforts.length === 0) {
   fail("model catalog: 'codex.cheapEfforts' must be a non-empty array");
 }
-for (const [alias, definition] of Object.entries(codexCatalog.aliases || {})) {
+for (const [alias, definition] of Object.entries(catalogAliases)) {
   if (!alias || !definition || typeof definition !== "object" || Array.isArray(definition)
-    || typeof definition.default !== "string" || !Array.isArray(definition.versions)
-    || !definition.versions.includes(definition.default)
-    || definition.versions.length === 0
-    || definition.versions.some((model) => !Object.hasOwn(codexCatalog.effortsByModel || {}, model))) {
-    fail(`model catalog: alias '${alias}' must have a default declared in its supported model versions`);
+    || !definition.providers || typeof definition.providers !== "object" || Array.isArray(definition.providers)
+    || (definition.pinned !== undefined && typeof definition.pinned !== "boolean")) {
+    fail(`model catalog: alias '${alias}' must have provider definitions`);
+    continue;
+  }
+  for (const [provider, providerDefinition] of Object.entries(definition.providers)) {
+    if (!Object.hasOwn(catalogProviders, provider) || !providerDefinition || typeof providerDefinition !== "object"
+      || Array.isArray(providerDefinition) || typeof providerDefinition.default !== "string"
+      || !Array.isArray(providerDefinition.versions) || providerDefinition.versions.length === 0
+      || !providerDefinition.versions.includes(providerDefinition.default)) {
+      fail(`model catalog: alias '${alias}' has invalid '${provider}' definition`);
+    }
+    if (provider === "codex" && providerDefinition.versions.some((model) => !Object.hasOwn(codexCatalog.effortsByModel || {}, model))) {
+      fail(`model catalog: Codex alias '${alias}' must use models with declared capabilities`);
+    }
   }
 }
-for (const [alias, model] of Object.entries(codexCatalog.pinnedAliases || {})) {
-  if (!alias || typeof model !== "string" || !Object.hasOwn(codexCatalog.effortsByModel || {}, model)) {
-    fail(`model catalog: pinned alias '${alias}' must target a model with declared capabilities`);
-  }
-}
-for (const tier of ["cheap", "mid", "security"]) {
-  const alias = codexCatalog.models?.[tier];
-  if (!Object.hasOwn(codexCatalog.aliases || {}, alias)) {
-    fail(`model catalog: '${tier}' must reference a declared Codex alias`);
+for (const [provider, tiers] of [["claude", ["orchestrator", "cheap", "mid", "security"]], ["codex", ["cheap", "mid", "security"]], ["copilot", ["cheap", "mid", "security"]]]) {
+  for (const tier of tiers) {
+    const alias = catalogProviders[provider]?.models?.[tier];
+    if (alias !== "inherit" && !catalogAliases[alias]?.providers?.[provider]) {
+      fail(`model catalog: '${provider}.${tier}' must reference an alias available for that provider`);
+    }
   }
 }
 for (const [model, effort] of Object.entries(codexCatalog.efforts || {})) {
   const tierAlias = codexCatalog.models?.[model];
-  const tierModel = codexCatalog.aliases?.[tierAlias]?.default;
+  const tierModel = catalogAliases[tierAlias]?.providers?.codex?.default;
   if (!codexCatalog.effortsByModel?.[tierModel]?.includes(effort)) {
     fail(`model catalog: default '${model}' effort must be supported by '${tierAlias}'`);
   }
@@ -491,9 +507,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.8.4"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.8.0"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.7.4"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.8.5"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.8.1"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.7.5"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

@@ -164,8 +164,8 @@ test("catalog-only model additions and defaults flow through generation and pack
       const codex = catalog.providers.codex;
       codex.models.cheap = "nova";
       codex.efforts.cheap = "medium";
-      codex.aliases.nova = { default: "gpt-7-nova", versions: ["gpt-7-nova"] };
-      codex.aliases.sol.default = "gpt-5.6-sol";
+      catalog.aliases.nova = { providers: { codex: { default: "gpt-7-nova", versions: ["gpt-7-nova"] } } };
+      catalog.aliases.sol.providers.codex.default = "gpt-5.6-sol";
       codex.effortsByModel["gpt-7-nova"] = ["low", "medium", "high"];
     });
 
@@ -215,7 +215,7 @@ test("rejects malformed and invalid packaged catalogs before writing agents", ()
         name: "alias without capabilities",
         write(plugin) {
           writeCatalog(plugin, (catalog) => {
-            catalog.providers.codex.aliases.broken = { default: "gpt-7-unknown", versions: ["gpt-7-unknown"] };
+            catalog.aliases.broken = { providers: { codex: { default: "gpt-7-unknown", versions: ["gpt-7-unknown"] } } };
           });
         },
         error: /invalid Codex alias|unknown/i,
@@ -242,10 +242,19 @@ test("rejects malformed and invalid packaged catalogs before writing agents", ()
         name: "alias default is not an available version",
         write(plugin) {
           writeCatalog(plugin, (catalog) => {
-            catalog.providers.codex.aliases.sol.default = "gpt-5.6-terra";
+            catalog.aliases.sol.providers.codex.default = "gpt-5.6-terra";
           });
         },
         error: /default|version|sol/i,
+      },
+      {
+        name: "unsupported alias provider",
+        write(plugin) {
+          writeCatalog(plugin, (catalog) => {
+            catalog.aliases.sol.providers.unknown = { default: "gpt-6-sol", versions: ["gpt-6-sol"] };
+          });
+        },
+        error: /invalid alias|unknown/i,
       },
     ];
     for (const scenario of cases) {
@@ -571,6 +580,18 @@ test("rejects invalid arguments with deterministic nonzero errors", () => {
       assert.equal(result.stdout, "", args.join(" "));
       assert.match(result.stderr, new RegExp(`^Error: ${error.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
     }
+  });
+});
+
+test("filters aliases unavailable to Codex from installer help", () => {
+  withTemporaryDirectory((temporary) => {
+    const plugin = makePlugin(temporary);
+    const result = run(plugin, ["--help"]);
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /gpt6-sol/);
+    assert.doesNotMatch(result.stdout, /opus/);
+    assert.doesNotMatch(result.stdout, /sonnet/);
   });
 });
 
