@@ -4,6 +4,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const MODEL_CATALOG = require("./model-catalog.json");
 
 const PLUGIN_ROOT = path.resolve(__dirname, "..");
 const TEMPLATE_DIRECTORY = path.join(PLUGIN_ROOT, "templates", "agents");
@@ -11,37 +12,18 @@ const MANAGED_MARKER = "# Itixo-managed custom agent. Do not edit.\n";
 const NOFOLLOW_FLAG = typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
 const CHEAP_AGENT_IDS = new Set(["itixo-investigator", "itixo-docs-updater"]);
 const SECURITY_REVIEWER_AGENT_ID = "itixo-security-reviewer";
-const CHEAP_MODEL_ALIASES = Object.freeze({
-  luna: "gpt-5.6-luna",
-  terra: "gpt-5.6-terra",
-  "gpt6-luna": "gpt-6-luna",
-  "gpt-6-luna": "gpt-6-luna",
-});
+const CODEX_CATALOG = validateCatalog(MODEL_CATALOG);
+const CHEAP_MODEL_ALIASES = CODEX_CATALOG.cheapModels;
 const CHEAP_MODELS = new Set(Object.keys(CHEAP_MODEL_ALIASES));
-const CHEAP_EFFORTS = new Set(["high", "low"]);
+const CHEAP_EFFORTS = new Set(CODEX_CATALOG.cheapEfforts);
 const AGENT_MODEL_ALIASES = Object.freeze({
-  sol: "gpt-5.6-sol",
-  terra: "gpt-5.6-terra",
-  luna: "gpt-5.6-luna",
-  astra: "gpt-6-astra",
-  "gpt6-sol": "gpt-6-sol",
-  "gpt6-luna": "gpt-6-luna",
-  "gpt-6-astra": "gpt-6-astra",
-  "gpt-6-sol": "gpt-6-sol",
-  "gpt-6-luna": "gpt-6-luna",
-  "gpt-5.6-sol": "gpt-5.6-sol",
-  "gpt-5.6-terra": "gpt-5.6-terra",
-  "gpt-5.6-luna": "gpt-5.6-luna",
+  ...CODEX_CATALOG.aliases,
+  ...Object.fromEntries(Object.keys(CODEX_CATALOG.effortsByModel).map((model) => [model, model])),
 });
-const AGENT_EFFORTS = new Set(["none", "low", "medium", "high", "xhigh", "max", "ultra"]);
-const GPT_6_EFFORTS = Object.freeze({
-  "gpt-6-astra": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
-  "gpt-6-sol": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
-  "gpt-6-luna": new Set(["low", "medium", "high", "xhigh", "max"]),
-  "gpt-5.6-sol": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
-  "gpt-5.6-terra": new Set(["low", "medium", "high", "xhigh", "max", "ultra"]),
-  "gpt-5.6-luna": new Set(["low", "medium", "high", "xhigh", "max"]),
-});
+const AGENT_EFFORTS = new Set(["none", ...new Set(Object.values(CODEX_CATALOG.effortsByModel).flat())]);
+const GPT_6_EFFORTS = Object.freeze(Object.fromEntries(
+  Object.entries(CODEX_CATALOG.effortsByModel).map(([model, efforts]) => [model, new Set(efforts)]),
+));
 const REPEATABLE_ARGUMENTS = new Set(["--agent-model", "--agent-effort"]);
 const AGENT_IDS = [
   "itixo-builder",
@@ -54,15 +36,54 @@ const AGENT_IDS = [
   "itixo-tester",
 ];
 
+function validateCatalog(catalog) {
+  const codex = catalog?.providers?.codex;
+  if (!codex || typeof codex !== "object") fail("Model catalog has no Codex provider.");
+  for (const key of ["models", "efforts", "aliases", "cheapModels", "cheapEfforts", "cheapEffortOverrides", "effortsByModel"]) {
+    if (!codex[key] || typeof codex[key] !== "object") fail(`Model catalog has invalid Codex '${key}'.`);
+  }
+  for (const tier of ["cheap", "mid", "security"]) {
+    if (typeof codex.models[tier] !== "string" || typeof codex.efforts[tier] !== "string") {
+      fail(`Model catalog has invalid Codex '${tier}' default.`);
+    }
+  }
+  const models = Object.keys(codex.effortsByModel);
+  if (models.length === 0 || models.some((model) => !Array.isArray(codex.effortsByModel[model]) || codex.effortsByModel[model].length === 0)) {
+    fail("Model catalog has invalid Codex model efforts.");
+  }
+  for (const model of [...Object.values(codex.models), ...Object.values(codex.aliases), ...Object.values(codex.cheapModels), ...Object.keys(codex.cheapEffortOverrides)]) {
+    if (!models.includes(model)) fail(`Model catalog references unknown Codex model '${model}'.`);
+  }
+  if (!Array.isArray(codex.cheapEfforts) || codex.cheapEfforts.length === 0) fail("Model catalog has invalid cheap efforts.");
+  if (Object.entries(codex.models).some(([tier, model]) => !codex.effortsByModel[model].includes(codex.efforts[tier]))
+    || Object.entries(codex.cheapEffortOverrides).some(([model, effort]) => !codex.effortsByModel[model].includes(effort))) {
+    fail("Model catalog has invalid cheap default effort.");
+  }
+  return codex;
+}
+
+function defaultCheapEffort(model) {
+  return CODEX_CATALOG.cheapEffortOverrides[model] || CODEX_CATALOG.efforts.cheap;
+}
+
+function defaultTemplateSettings(agentId) {
+  if (CHEAP_AGENT_IDS.has(agentId)) return { model: CODEX_CATALOG.models.cheap, effort: CODEX_CATALOG.efforts.cheap };
+  if (agentId === SECURITY_REVIEWER_AGENT_ID) return { model: CODEX_CATALOG.models.security, effort: CODEX_CATALOG.efforts.security };
+  return { model: CODEX_CATALOG.models.mid, effort: CODEX_CATALOG.efforts.mid };
+}
+
 function fail(message) {
   throw new Error(message);
 }
 
 function usage() {
+  const cheapModels = Object.keys(CHEAP_MODEL_ALIASES).join("|");
+  const agentModels = Object.keys(AGENT_MODEL_ALIASES).join("|");
+  const agentEfforts = [...AGENT_EFFORTS].join("|");
   return [
     "Usage:",
-    "  node install-agents.js --scope personal [--cheap-model luna|terra|gpt6-luna|gpt-6-luna] [--cheap-effort high|low] [--agent-model <id>=<sol|terra|luna|astra|gpt6-sol|gpt6-luna|gpt-6-astra|gpt-6-sol|gpt-6-luna|gpt-5.6-sol|gpt-5.6-terra|gpt-5.6-luna>]... [--agent-effort <id>=<none|low|medium|high|xhigh|max|ultra>]...",
-    "  node install-agents.js --scope project --project-root <path> [--cheap-model luna|terra|gpt6-luna|gpt-6-luna] [--cheap-effort high|low] [--agent-model <id>=<sol|terra|luna|astra|gpt6-sol|gpt6-luna|gpt-6-astra|gpt-6-sol|gpt-6-luna|gpt-5.6-sol|gpt-5.6-terra|gpt-5.6-luna>]... [--agent-effort <id>=<none|low|medium|high|xhigh|max|ultra>]...",
+    `  node install-agents.js --scope personal [--cheap-model ${cheapModels}] [--cheap-effort ${[...CHEAP_EFFORTS].join("|")}] [--agent-model <id>=<${agentModels}>]... [--agent-effort <id>=<${agentEfforts}>]...`,
+    `  node install-agents.js --scope project --project-root <path> [--cheap-model ${cheapModels}] [--cheap-effort ${[...CHEAP_EFFORTS].join("|")}] [--agent-model <id>=<${agentModels}>]... [--agent-effort <id>=<${agentEfforts}>]...`,
   ].join("\n");
 }
 
@@ -135,13 +156,13 @@ function parseArguments(argv) {
     fail("Argument '--project-root' is valid only when scope is 'project'.");
   }
   if (values["--cheap-model"] && !CHEAP_MODELS.has(values["--cheap-model"])) {
-    fail("Invalid cheap model. Use 'luna', 'terra', 'gpt6-luna', or 'gpt-6-luna'.");
+    fail(`Invalid cheap model. Use ${[...CHEAP_MODELS].map((model) => `'${model}'`).join(", ")}.`);
   }
   if (values["--cheap-effort"] && !CHEAP_EFFORTS.has(values["--cheap-effort"])) {
-    fail("Invalid cheap effort. Use 'high' or 'low'.");
+    fail(`Invalid cheap effort. Use ${[...CHEAP_EFFORTS].map((effort) => `'${effort}'`).join(", ")}.`);
   }
 
-  const cheapModel = CHEAP_MODEL_ALIASES[values["--cheap-model"] || "gpt-6-luna"];
+  const cheapModel = CHEAP_MODEL_ALIASES[values["--cheap-model"] || CODEX_CATALOG.models.cheap] || CODEX_CATALOG.models.cheap;
   const agentModels = parseAgentAssignments(
     "--agent-model",
     repeatableValues["--agent-model"],
@@ -159,7 +180,7 @@ function parseArguments(argv) {
     scope: values["--scope"],
     projectRoot: values["--project-root"],
     cheapModel,
-    cheapEffort: values["--cheap-effort"] || (cheapModel === "gpt-5.6-terra" ? "low" : "high"),
+    cheapEffort: values["--cheap-effort"] || defaultCheapEffort(cheapModel),
     agentModels,
     agentEfforts,
   };
@@ -220,8 +241,8 @@ function setTomlField(content, field, value) {
 }
 
 function readTemplate(agentId, cheapModel, cheapEffort, agentModel, agentEffort) {
-  const selectedCheapModel = cheapModel || "gpt-6-luna";
-  const selectedCheapEffort = cheapEffort || (selectedCheapModel === "gpt-5.6-terra" ? "low" : "high");
+  const selectedCheapModel = cheapModel || CODEX_CATALOG.models.cheap;
+  const selectedCheapEffort = cheapEffort || defaultCheapEffort(selectedCheapModel);
   const templatePath = path.join(TEMPLATE_DIRECTORY, `${agentId}.toml`);
   let content;
   try {
@@ -268,12 +289,7 @@ function validateTemplate(agentId, templatePath, content) {
     return;
   }
 
-  const expectedModel = CHEAP_AGENT_IDS.has(agentId)
-    ? "gpt-6-luna"
-    : agentId === SECURITY_REVIEWER_AGENT_ID ? "gpt-6-astra" : "gpt-6-sol";
-  const expectedEffort = CHEAP_AGENT_IDS.has(agentId)
-    ? "high"
-    : agentId === SECURITY_REVIEWER_AGENT_ID ? "max" : "medium";
+  const { model: expectedModel, effort: expectedEffort } = defaultTemplateSettings(agentId);
   if (modelLines.length !== 1 || modelLines[0] !== `model = "${expectedModel}"`) {
     fail(`Template '${templatePath}' has unexpected model.`);
   }
@@ -493,8 +509,8 @@ function rollbackChanges(changes, destinationState) {
 function install(options, dependencies = {}) {
   const renameSync = dependencies.renameSync || fs.renameSync;
   if (typeof renameSync !== "function") fail("renameSync dependency must be a function.");
-  const cheapModel = CHEAP_MODEL_ALIASES[options.cheapModel] || options.cheapModel || "gpt-6-luna";
-  const cheapEffort = options.cheapEffort || (cheapModel === "gpt-5.6-terra" ? "low" : "high");
+  const cheapModel = CHEAP_MODEL_ALIASES[options.cheapModel] || options.cheapModel || CODEX_CATALOG.models.cheap;
+  const cheapEffort = options.cheapEffort || defaultCheapEffort(cheapModel);
   const agentModels = options.agentModels || {};
   const agentEfforts = options.agentEfforts || {};
   const destination = resolveDestination(options);
