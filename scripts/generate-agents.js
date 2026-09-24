@@ -17,6 +17,22 @@ function catalogProvider(id) {
     || Object.values(provider.efforts).some((effort) => typeof effort !== "string")) {
     throw new Error(`model catalog: invalid '${id}' provider.`);
   }
+  for (const tier of ["cheap", "mid", "security"]) {
+    if (!provider.models[tier]) throw new Error(`model catalog: '${id}' has no '${tier}' model.`);
+  }
+  if (id === "claude") {
+    if (provider.models.orchestrator !== "inherit" || !provider.efforts.security) {
+      throw new Error("model catalog: invalid Claude orchestrator or security effort.");
+    }
+  } else if (id === "codex") {
+    if (!provider.effortsByModel || typeof provider.effortsByModel !== "object"
+      || ["cheap", "mid", "security"].some((tier) => !Array.isArray(provider.effortsByModel[provider.models[tier]])
+        || !provider.effortsByModel[provider.models[tier]].includes(provider.efforts[tier]))) {
+      throw new Error("model catalog: invalid Codex model effort.");
+    }
+  } else if (Object.keys(provider.efforts).length !== 0) {
+    throw new Error("model catalog: Copilot must not declare efforts.");
+  }
   return provider;
 }
 
