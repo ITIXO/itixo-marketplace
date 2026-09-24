@@ -46,9 +46,9 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 
 The eight canonical IDs above are shared by all three platforms. `itixo-planner` inherits the main task's model and effort. The `0.2.0` release renamed the former generic IDs; no agent-ID aliases are provided.
 
-Codex assigns the `sol`, `luna`, and `astra` aliases to the mid, cheap, and security tiers. Each alias has a catalog of concrete versions, with GPT-6 defaults and GPT-5.6 choices retained where supported. The installer lets users choose the tier alias and then the concrete version, so changing `mid` from `sol` to `terra` is independent from changing `sol` from `gpt-5.6-sol` to `gpt-6-sol`. Legacy selectors such as `gpt6-sol` and `gpt6-luna`, plus full model IDs, remain accepted.
+The shared catalog defines root aliases such as `sol`, `luna`, `terra`, and `opus`, then records each provider's concrete `default` and `versions` entries. A provider entry is the availability signal, so an alias can work for Claude and Copilot without implying Codex support. Codex assigns its provider aliases to mid, cheap, and security tiers; the installer filters out pinned compatibility aliases, then lets users choose the tier alias and its provider-specific version independently. Legacy selectors such as `gpt6-sol` and `gpt6-luna`, plus full model IDs, remain accepted.
 
-Claude keeps generated defaults unless the user explicitly requests a provider-supported model or effort override. The `opus` alias remains the security default; Claude Code v2.1.280+ resolves it to Opus 5.5 for Anthropic, API, AWS Bedrock, and Google Vertex, while Foundry resolves an older Opus version. See the [official Claude model configuration docs](https://code.claude.com/docs/en/model-config) for provider-specific aliases and restrictions. Pin older Claude choices through the provider's documented model configuration or environment settings.
+Claude keeps generated defaults unless the user explicitly requests a provider-supported model or effort override. The shared catalog's `opus` alias has a Claude provider entry; Claude Code v2.1.280+ resolves it to Opus 5.5 for Anthropic, API, AWS Bedrock, and Google Vertex, while Foundry resolves an older Opus version. See the [official Claude model configuration docs](https://code.claude.com/docs/en/model-config) for provider-specific aliases and restrictions. Pin older Claude choices through the provider's documented model configuration or environment settings.
 
 ### Security reviews
 
@@ -104,7 +104,7 @@ Tier choices can be passed with repeatable `--tier-model cheap|mid|security=alia
 
 The installer creates or replaces only TOML files with its exact Itixo-managed marker, refuses unmanaged conflicts, and skips unchanged managed files on reinstall. Its sorted summary adds `agent-models=` and `agent-efforts=` only when those overrides were supplied. Start a new task or restart Codex after installation so custom agents are discovered. Provider or organization restrictions may constrain available overrides.
 
-To verify or promote supported provider models from the source checkout, invoke `/itixo:update-models`. It checks official model IDs and reasoning efforts, updates the shared catalog, and can independently change a Codex tier alias or an alias's default/version list before regenerating agent templates and running repository validation. Current supported model changes can use `itixo:install-agents`; rerun it for the selected scope and repeat custom overrides because managed files are replaced.
+To verify or promote supported provider models from the source checkout, invoke `/itixo:update-models`. It checks official model IDs and reasoning efforts, updates provider-specific entries in the shared catalog, and can independently change a provider's tier alias or that alias's default/version list before regenerating agent templates and running repository validation. Current supported model changes can use `itixo:install-agents`; rerun it for the selected scope and repeat custom overrides because managed files are replaced.
 
 ## Usage (Copilot CLI)
 

@@ -13,6 +13,8 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 | cheap | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
 | security | claude-opus-5.5 | itixo-security-reviewer |
 
+The shared model catalog stores aliases globally but records concrete IDs per provider. Use an alias only when its Copilot provider entry exists; never infer Copilot support from another provider's entry.
+
 ## Rules
 
 - Copilot CLI invokes the native Copilot plugin agent using its canonical `itixo-*` ID and the definition's prescribed tier.

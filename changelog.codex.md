@@ -1,5 +1,9 @@
 ## 2026-09-24
 
+### itixo 0.8.1
+
+- Shared model aliases now use provider-specific availability and concrete version choices, so Codex installation can select only aliases supported by Codex while retaining compatibility selectors.
+
 ### itixo 0.8.0
 
 - **Breaking:** Codex installation now selects a tier alias and then a concrete model version from the shared catalog. Existing managed installs must be rerun with the desired tier and version choices.

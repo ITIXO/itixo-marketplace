@@ -13,6 +13,8 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 | cheap | haiku | itixo-investigator, itixo-docs-updater |
 | security | opus + max | itixo-security-reviewer |
 
+The shared model catalog stores aliases globally but records concrete IDs per provider. Use an alias only when its Claude provider entry exists; never infer Claude support from another provider's entry.
+
 ## Rules
 
 - Claude invokes the native plugin agent using its canonical `itixo-*` ID and the definition's prescribed default tier.

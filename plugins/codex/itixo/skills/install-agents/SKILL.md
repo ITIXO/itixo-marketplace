@@ -5,11 +5,11 @@ description: Install Itixo-managed Codex custom-agent TOML files into a personal
 
 # Install Itixo custom agents
 
-Read the current `${PLUGIN_ROOT}/scripts/model-catalog.json` before installation. Do not use a stale list of models. Ask user before installation and do not assume any choice:
+Read the current `${PLUGIN_ROOT}/scripts/model-catalog.json` before installation. Do not use a stale list of models. Root `aliases` are shared names; use only aliases with a `providers.codex` entry, and read concrete choices from that provider entry. Ask user before installation and do not assume any choice:
 
 1. Scope: personal (`~/.codex/agents/`) or project (`<project-root>/.codex/agents/`).
-2. For each tier used by the installed agents, choose a catalog alias, preselecting the current `providers.codex.models.<tier>` value. The current catalog preselects `luna` for cheap, `sol` for mid, and `astra` for security; treat those as examples derived from the file, not a static list.
-3. For each distinct selected alias, choose its concrete version from that alias's current `versions` list, preselecting its `default`. If the same alias serves multiple tiers, ask for its version once and reuse it. Show the resolved alias → version and effort for cheap, mid, and security.
+2. For each tier used by the installed agents, choose a non-pinned root alias whose `providers.codex` entry exists, preselecting the current `providers.codex.models.<tier>` value. The current catalog preselects `luna` for cheap, `sol` for mid, and `astra` for security; treat those as examples derived from the file, not a static list. Honor an explicit tier choice without asking again.
+3. For each distinct selected alias, choose its concrete version from `aliases.<name>.providers.codex.versions`, preselecting that provider entry's `default`. If the same alias serves multiple tiers, ask for its version once and reuse it. Show the resolved alias → version and effort for cheap, mid, and security. Honor an explicit version choice without asking again. Pinned aliases such as `gpt6-sol` and `gpt6-luna` remain compatibility selectors where the CLI accepts them, but are excluded from interactive tier choices.
 4. Choose each tier's effort from the current `providers.codex.efforts.<tier>` values, keeping cheap effort as a separate choice. The current catalog preselects `high` for cheap, `medium` for mid, and `max` for security; preserve the existing cheap-effort override behavior.
 5. Optional per-agent model and effort overrides for any of `itixo-planner`, `itixo-builder`, `itixo-github-issues`, `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer`, `itixo-investigator`, and `itixo-docs-updater`. Ask for model and effort separately. Do not invent values for agents the user did not name. If an override selects an alias not used by a tier, include that alias's current version choices as needed.
 

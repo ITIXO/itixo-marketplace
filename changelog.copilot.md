@@ -1,5 +1,9 @@
 ## 2026-09-24
 
+### itixo 0.7.5
+
+- Shared model aliases now record Copilot-specific availability and concrete versions, so model updates can add or change supported provider choices without implying cross-provider support.
+
 ### itixo 0.7.4
 
 - The `update-models` skill now documents independently changing Codex tier aliases and alias versions, and the Codex installer flow reads current catalog choices.

@@ -22,7 +22,7 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 | cheap | lookups, docs, mechanical reads | haiku | `luna` → gpt-6-luna + high (`terra` → gpt-5.6-terra + low fallback) | claude-haiku-4.5 |
 | security | security review | opus + max | `astra` → gpt-6-astra + max | claude-opus-5.5 |
 
-Supported provider model IDs, tier aliases, and reasoning efforts are maintained in `plugins/codex/itixo/scripts/model-catalog.json`. Use `/itixo:update-models` from the source checkout to verify or promote requested models, regenerate outputs, and validate the change. Keep installed plugin caches and installed agent files read-only; preserve legacy selectors and user-selected overrides.
+Supported provider model IDs, tier aliases, and reasoning efforts are maintained in `plugins/codex/itixo/scripts/model-catalog.json`. Its root `aliases` are shared names; each alias contains provider-specific `default` and `versions` entries, and a provider entry means that alias is available there. `providers.<provider>.models` assigns those aliases to tiers. Use `/itixo:update-models` from the source checkout to verify or promote requested models, regenerate outputs, and validate the change. Keep installed plugin caches and installed agent files read-only; preserve legacy selectors and user-selected overrides.
 
 ## Agent → tier mapping
 
