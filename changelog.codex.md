@@ -1,5 +1,9 @@
 ## 2026-09-24
 
+### itixo 0.8.0
+
+- **Breaking:** Codex installation now selects a tier alias and then a concrete model version from the shared catalog. Existing managed installs must be rerun with the desired tier and version choices.
+
 ### itixo 0.7.5
 
 - Added the user-invoked `update-models` skill for verifying official provider model IDs and reasoning efforts, updating the shared catalog from a source checkout, regenerating Codex templates, and running repository validation.

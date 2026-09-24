@@ -5,29 +5,24 @@ description: Install Itixo-managed Codex custom-agent TOML files into a personal
 
 # Install Itixo custom agents
 
-Ask user before installation. Do not assume any choice:
+Read the current `plugins/codex/itixo/scripts/model-catalog.json` before installation. Do not use a stale list of models. Ask user before installation and do not assume any choice:
 
 1. Scope: personal (`~/.codex/agents/`) or project (`<project-root>/.codex/agents/`).
-2. Cheap model: GPT-6 Luna (recommended default), GPT-5.6 Terra fallback, or legacy GPT-5.6 Luna. `gpt6-luna` and `gpt-6-luna` select GPT-6 Luna; `terra` and `luna` retain their GPT-5.6 aliases.
-3. Cheap effort: high (recommended with GPT-6 Luna) or low (recommended with GPT-5.6 Terra). Keep this as a separate choice so the user can override the recommendation.
-4. Optional per-agent overrides for any of `itixo-planner`, `itixo-builder`, `itixo-github-issues`, `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer`, `itixo-investigator`, and `itixo-docs-updater`. Ask for model and effort separately. Do not invent values for agents the user did not name.
+2. For each tier used by the installed agents, choose a catalog alias: cheap (default `luna`), mid (default `sol`), and security (default `astra`).
+3. For each distinct selected alias, choose its concrete version from that alias's current `versions` list, preselecting its `default`. If the same alias serves multiple tiers, ask for its version once and reuse it. Show the resolved alias → version and effort for cheap, mid, and security.
+4. Choose cheap effort separately: `high` (recommended with `luna`/GPT-6 Luna) or `low` (recommended with `terra`/GPT-5.6 Terra). Mid defaults to `medium`, security to `max`; preserve the existing cheap-effort override behavior.
+5. Optional per-agent model and effort overrides for any of `itixo-planner`, `itixo-builder`, `itixo-github-issues`, `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer`, `itixo-investigator`, and `itixo-docs-updater`. Ask for model and effort separately. Do not invent values for agents the user did not name. If an override selects an alias not used by a tier, include that alias's current version choices as needed.
 
-The model and effort flags are independent. All four cheap-model/effort combinations are supported. Without an override, cheap roles use `gpt-6-luna` with `high`, mid roles use `gpt-6-sol` with `medium`, `itixo-security-reviewer` uses `gpt-6-astra` with `max`, and the planner inherits.
+Tier aliases and concrete versions are independent choices. A tier alias selects the family; its version selects the concrete model ID. Per-agent model and effort overrides have highest precedence independently. `none` clears an effort field and lets the provider default apply. Full concrete IDs pin an agent directly. Legacy `--cheap-model` remains accepted for compatibility with aliases, full IDs, and pinned selectors, but cannot be combined with an explicit `--tier-model cheap=...`.
 
-Repeat `--agent-model id=sol|terra|luna|astra|gpt6-sol|gpt6-luna|gpt-6-astra|gpt-6-sol|gpt-6-luna|gpt-5.6-sol|gpt-5.6-terra|gpt-5.6-luna` and `--agent-effort id=none|low|medium|high|xhigh|max|ultra` for each requested agent. Full GPT-6 and GPT-5.6 IDs are accepted. A per-agent model or effort wins over the corresponding cheap-tier flag. `ultra` is unsupported by GPT-6 Luna; `none` clears the effort field and lets the model inherit its provider default. An explicit planner GPT-6 Sol override may exceed the caller model, subject to provider or organization restrictions.
-
-After user answers, run exactly one command from plugin root:
+After user answers, run exactly one command from plugin root. Use repeatable `--tier-model tier=alias` and `--model-version alias=concrete-id` flags, plus `--cheap-effort` and any explicit per-agent overrides:
 
 ```sh
-node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope personal --cheap-model gpt-6-luna --cheap-effort high
-node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope personal --cheap-model terra --cheap-effort low
-node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope personal --cheap-model gpt6-luna --cheap-effort low
-node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope personal --cheap-model terra --cheap-effort high
-node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope project --project-root "/absolute/or/resolved/project-root" --cheap-model gpt-6-luna --cheap-effort high
-node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope project --project-root "/absolute/or/resolved/project-root" --cheap-model terra --cheap-effort low
-node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope project --project-root "/absolute/or/resolved/project-root" --agent-model itixo-planner=gpt6-sol --agent-effort itixo-planner=max --agent-model itixo-reviewer=gpt-5.6-luna --agent-effort itixo-reviewer=xhigh
+node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope personal --tier-model cheap=luna --tier-model mid=sol --tier-model security=astra --model-version luna=gpt-6-luna --model-version sol=gpt-6-sol --model-version astra=gpt-6-astra --cheap-effort high
+node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope project --project-root "/absolute/or/resolved/project-root" --tier-model cheap=terra --tier-model mid=sol --tier-model security=astra --model-version terra=gpt-5.6-terra --model-version sol=gpt-5.6-sol --model-version astra=gpt-6-astra --cheap-effort low
+node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope project --project-root "/absolute/or/resolved/project-root" --tier-model cheap=luna --tier-model mid=sol --tier-model security=astra --model-version luna=gpt-6-luna --model-version sol=gpt-6-sol --model-version astra=gpt-6-astra --agent-model itixo-planner=gpt6-sol --agent-effort itixo-planner=max --agent-model itixo-reviewer=gpt-5.6-luna --agent-effort itixo-reviewer=xhigh
 ```
 
-Report installed and skipped paths from command output. When overrides are supplied, the summary includes exact `agent-models=` and/or `agent-efforts=` fields with agent IDs sorted lexically; each field is omitted when its override type was not supplied. Never manually copy TOML files or overwrite unmanaged files. Installer only overwrites files carrying its exact Itixo-managed marker.
+Report installed and skipped paths plus the resolved tier alias/version summary from command output. When per-agent overrides are supplied, the summary includes exact `agent-models=` and/or `agent-efforts=` fields with agent IDs sorted lexically; each field is omitted when its override type was not supplied. Never manually copy TOML files or overwrite unmanaged files. Installer only overwrites files carrying its exact Itixo-managed marker.
 
 Codex discovers custom agents when a new task starts. Ask user to restart Codex or begin a new task after successful installation.

@@ -18,11 +18,11 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 | Tier | Purpose | Claude | Codex | Copilot |
 |------|---------|--------|-------|---------|
 | orchestrator | thinking, decomposition, integration | user-selected (inherit) | user-selected | user-selected |
-| mid | implementation, tests, review | sonnet | gpt-6-sol + medium | claude-sonnet-5 |
-| cheap | lookups, docs, mechanical reads | haiku | gpt-6-luna + high (gpt-5.6-terra + low fallback) | claude-haiku-4.5 |
-| security | security review | opus + max | gpt-6-astra + max | claude-opus-5.5 |
+| mid | implementation, tests, review | sonnet | `sol` → gpt-6-sol + medium | claude-sonnet-5 |
+| cheap | lookups, docs, mechanical reads | haiku | `luna` → gpt-6-luna + high (`terra` → gpt-5.6-terra + low fallback) | claude-haiku-4.5 |
+| security | security review | opus + max | `astra` → gpt-6-astra + max | claude-opus-5.5 |
 
-Supported provider model IDs, aliases, and reasoning efforts are maintained in `plugins/codex/itixo/scripts/model-catalog.json`. Use `/itixo:update-models` from the source checkout to verify or promote requested models, regenerate outputs, and validate the change. Keep installed plugin caches and installed agent files read-only; preserve legacy aliases and user-selected overrides.
+Supported provider model IDs, tier aliases, and reasoning efforts are maintained in `plugins/codex/itixo/scripts/model-catalog.json`. Use `/itixo:update-models` from the source checkout to verify or promote requested models, regenerate outputs, and validate the change. Keep installed plugin caches and installed agent files read-only; preserve legacy selectors and user-selected overrides.
 
 ## Agent → tier mapping
 
@@ -40,9 +40,9 @@ Supported provider model IDs, aliases, and reasoning efforts are maintained in `
 ## Provider dispatch
 
 - Claude invokes the native plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model and effort. Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
-- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the installed TOML owns instructions, model, and effort. Default tiers are gpt-6-sol (mid), gpt-6-luna (cheap), and gpt-6-astra (security); `itixo-planner` inherits. Explicit user-requested per-agent overrides are installed with `itixo:install-agents` and then owned by the matching TOML. The installer preserves `sol`, `terra`, and `luna` as GPT-5.6 aliases, adds `astra`, `gpt6-sol`, and `gpt6-luna`, and accepts full GPT-6 and GPT-5.6 IDs. Do not pass an additional invocation override. Explicit planner GPT-6 Sol may exceed the caller model.
+- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the installed TOML owns instructions, model, and effort. Default tier aliases are `luna` (cheap), `sol` (mid), and `astra` (security); each resolves through its selected catalog version to a concrete model ID. `itixo-planner` inherits. Explicit user-requested per-agent overrides are installed with `itixo:install-agents` and then owned by the matching TOML. Keep legacy selectors such as `terra`, `gpt6-sol`, and `gpt6-luna`, and accept full GPT-6 and GPT-5.6 IDs. Do not pass an additional invocation override. Explicit planner GPT-6 Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
-- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, cheap-model, and cheap-effort choices. The recommended cheap setting is GPT-6 Luna + high; GPT-5.6 Terra + low is the fallback. Never substitute a generic agent or perform the role inline.
+- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, tier-alias, model-version, and effort choices. The recommended settings are `luna` → GPT-6 Luna + high, `sol` → GPT-6 Sol + medium, and `astra` → GPT-6 Astra + max; `terra` → GPT-5.6 Terra + low remains the fallback. Never substitute a generic agent or perform the role inline.
 - Copilot CLI invokes the native Copilot plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model. Copilot has no effort field; never pass an effort override to a Copilot agent.
 
 ## Security-review routing and lifecycle
