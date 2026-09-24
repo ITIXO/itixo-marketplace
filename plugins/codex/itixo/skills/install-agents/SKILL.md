@@ -5,15 +5,17 @@ description: Install Itixo-managed Codex custom-agent TOML files into a personal
 
 # Install Itixo custom agents
 
-Read the current `plugins/codex/itixo/scripts/model-catalog.json` before installation. Do not use a stale list of models. Ask user before installation and do not assume any choice:
+Read the current `${PLUGIN_ROOT}/scripts/model-catalog.json` before installation. Do not use a stale list of models. Ask user before installation and do not assume any choice:
 
 1. Scope: personal (`~/.codex/agents/`) or project (`<project-root>/.codex/agents/`).
-2. For each tier used by the installed agents, choose a catalog alias: cheap (default `luna`), mid (default `sol`), and security (default `astra`).
+2. For each tier used by the installed agents, choose a catalog alias, preselecting the current `providers.codex.models.<tier>` value. The current catalog preselects `luna` for cheap, `sol` for mid, and `astra` for security; treat those as examples derived from the file, not a static list.
 3. For each distinct selected alias, choose its concrete version from that alias's current `versions` list, preselecting its `default`. If the same alias serves multiple tiers, ask for its version once and reuse it. Show the resolved alias → version and effort for cheap, mid, and security.
-4. Choose cheap effort separately: `high` (recommended with `luna`/GPT-6 Luna) or `low` (recommended with `terra`/GPT-5.6 Terra). Mid defaults to `medium`, security to `max`; preserve the existing cheap-effort override behavior.
+4. Choose each tier's effort from the current `providers.codex.efforts.<tier>` values, keeping cheap effort as a separate choice. The current catalog preselects `high` for cheap, `medium` for mid, and `max` for security; preserve the existing cheap-effort override behavior.
 5. Optional per-agent model and effort overrides for any of `itixo-planner`, `itixo-builder`, `itixo-github-issues`, `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer`, `itixo-investigator`, and `itixo-docs-updater`. Ask for model and effort separately. Do not invent values for agents the user did not name. If an override selects an alias not used by a tier, include that alias's current version choices as needed.
 
 Tier aliases and concrete versions are independent choices. A tier alias selects the family; its version selects the concrete model ID. Per-agent model and effort overrides have highest precedence independently. `none` clears an effort field and lets the provider default apply. Full concrete IDs pin an agent directly. Legacy `--cheap-model` remains accepted for compatibility with aliases, full IDs, and pinned selectors, but cannot be combined with an explicit `--tier-model cheap=...`.
+
+If the user already supplied an explicit scope, tier alias, version, effort, or per-agent choice, honor it and do not ask for it again.
 
 After user answers, run exactly one command from plugin root. Use repeatable `--tier-model tier=alias` and `--model-version alias=concrete-id` flags, plus `--cheap-effort` and any explicit per-agent overrides:
 
