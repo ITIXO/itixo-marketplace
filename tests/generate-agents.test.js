@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
 const ROOT = path.join(__dirname, "..");
@@ -99,6 +100,28 @@ function withTemporaryDirectory(callback) {
   }
 }
 
+function makeGeneratorRepository(directory) {
+  const repository = path.join(directory, "catalog-repository");
+  for (const relativePath of ["base", "scripts", "plugins"]) {
+    fs.cpSync(path.join(ROOT, relativePath), path.join(repository, relativePath), { recursive: true });
+  }
+  return repository;
+}
+
+function generatedOutputSnapshot(repository) {
+  const files = [
+    ["plugins", "claude", "itixo", "agents"],
+    ["plugins", "codex", "itixo", "templates", "agents"],
+    ["plugins", "copilot", "itixo", "agents"],
+  ].flatMap((segments) => {
+    const directory = path.join(repository, ...segments);
+    return fs.readdirSync(directory)
+      .filter((name) => name.endsWith(".md") || name.endsWith(".toml"))
+      .map((name) => path.join(directory, name));
+  });
+  return new Map(files.map((file) => [file, fs.readFileSync(file, "utf8")]));
+}
+
 function readFrontmatter(text) {
   const match = text.match(/^---\n([\s\S]*?)\n---\n/);
   assert.ok(match, "Claude agent must have YAML frontmatter");
@@ -192,6 +215,42 @@ test("renders every canonical role into Claude agents, Codex TOML templates, and
     assert.ok(fs.existsSync(outputPath), `${provider}/${name} output is missing`);
     assert.equal(fs.readFileSync(outputPath, "utf8"), content, `${provider}/${name} output is stale`);
   }
+});
+
+test("rejects invalid catalog tiers before modifying generated outputs", () => {
+  withTemporaryDirectory((temporary) => {
+    const cases = [
+      {
+        name: "missing Copilot security model",
+        update(catalog) {
+          delete catalog.providers.copilot.models.security;
+        },
+      },
+      {
+        name: "unsupported Codex cheap effort",
+        update(catalog) {
+          catalog.providers.codex.efforts.cheap = "ultra";
+        },
+      },
+    ];
+    for (const scenario of cases) {
+      const repository = makeGeneratorRepository(path.join(temporary, scenario.name));
+      const catalogPath = path.join(repository, "plugins", "codex", "itixo", "scripts", "model-catalog.json");
+      const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+      scenario.update(catalog);
+      fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+      const before = generatedOutputSnapshot(repository);
+
+      const result = spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js")], {
+        cwd: repository,
+        encoding: "utf8",
+      });
+
+      assert.equal(result.status, 1, scenario.name);
+      assert.match(result.stderr, /model catalog/i, scenario.name);
+      assert.deepEqual(generatedOutputSnapshot(repository), before, scenario.name);
+    }
+  });
 });
 
 test("canonical roles keep structured, capability-scoped contracts", () => {
