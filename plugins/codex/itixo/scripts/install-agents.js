@@ -155,7 +155,7 @@ function parseModelVersions(assignments) {
     const [, alias, model] = match;
     const definition = MODEL_ALIASES[alias];
     if (!definition) fail(`Unknown model alias '${alias}' for '--model-version'.`);
-    if (!definition.versions.includes(model)) fail(`Model '${model}' is not available for alias '${alias}'.`);
+    if (!definition.versions.includes(model)) fail(`Invalid model version '${model}' for alias '${alias}'.`);
     if (Object.hasOwn(parsed, alias)) fail(`Duplicate model version override for '${alias}'.`);
     parsed[alias] = model;
   }
