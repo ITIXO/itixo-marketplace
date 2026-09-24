@@ -25,11 +25,22 @@ function catalogProvider(id) {
       throw new Error("model catalog: invalid Claude orchestrator or security effort.");
     }
   } else if (id === "codex") {
+    const aliases = provider.aliases;
+    if (!aliases || typeof aliases !== "object" || !provider.pinnedAliases || typeof provider.pinnedAliases !== "object"
+      || Object.values(aliases).some((alias) => !alias || typeof alias !== "object"
+        || typeof alias.default !== "string" || !Array.isArray(alias.versions)
+        || alias.versions.length === 0 || !alias.versions.includes(alias.default))
+      || ["cheap", "mid", "security"].some((tier) => !aliases[provider.models[tier]])) {
+      throw new Error("model catalog: invalid Codex aliases.");
+    }
+    const models = Object.fromEntries(Object.entries(provider.models).map(([tier, alias]) => [tier, aliases[alias].default]));
     if (!provider.effortsByModel || typeof provider.effortsByModel !== "object"
-      || ["cheap", "mid", "security"].some((tier) => !Array.isArray(provider.effortsByModel[provider.models[tier]])
-        || !provider.effortsByModel[provider.models[tier]].includes(provider.efforts[tier]))) {
+      || [...Object.values(aliases).flatMap((alias) => alias.versions), ...Object.values(provider.pinnedAliases)]
+        .some((model) => !Array.isArray(provider.effortsByModel[model]))
+      || ["cheap", "mid", "security"].some((tier) => !provider.effortsByModel[models[tier]].includes(provider.efforts[tier]))) {
       throw new Error("model catalog: invalid Codex model effort.");
     }
+    return { ...provider, models };
   } else if (Object.keys(provider.efforts).length !== 0) {
     throw new Error("model catalog: Copilot must not declare efforts.");
   }

@@ -12,19 +12,19 @@ const MANAGED_MARKER = "# Itixo-managed custom agent. Do not edit.\n";
 const NOFOLLOW_FLAG = typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
 const CHEAP_AGENT_IDS = new Set(["itixo-investigator", "itixo-docs-updater"]);
 const SECURITY_REVIEWER_AGENT_ID = "itixo-security-reviewer";
+const TIER_NAMES = ["cheap", "mid", "security"];
 const CODEX_CATALOG = validateCatalog(MODEL_CATALOG);
-const CHEAP_MODEL_ALIASES = CODEX_CATALOG.cheapModels;
-const CHEAP_MODELS = new Set(Object.keys(CHEAP_MODEL_ALIASES));
+const MODEL_ALIASES = CODEX_CATALOG.aliases;
+const PINNED_ALIASES = CODEX_CATALOG.pinnedAliases;
+const CONCRETE_MODELS = new Set(Object.keys(CODEX_CATALOG.effortsByModel));
+const TIER_MODEL_ALIASES = new Set(Object.keys(MODEL_ALIASES));
+const MODEL_SELECTORS = new Set([...TIER_MODEL_ALIASES, ...Object.keys(PINNED_ALIASES), ...CONCRETE_MODELS]);
 const CHEAP_EFFORTS = new Set(CODEX_CATALOG.cheapEfforts);
-const AGENT_MODEL_ALIASES = Object.freeze({
-  ...CODEX_CATALOG.aliases,
-  ...Object.fromEntries(Object.keys(CODEX_CATALOG.effortsByModel).map((model) => [model, model])),
-});
 const AGENT_EFFORTS = new Set(["none", ...new Set(Object.values(CODEX_CATALOG.effortsByModel).flat())]);
 const GPT_6_EFFORTS = Object.freeze(Object.fromEntries(
   Object.entries(CODEX_CATALOG.effortsByModel).map(([model, efforts]) => [model, new Set(efforts)]),
 ));
-const REPEATABLE_ARGUMENTS = new Set(["--agent-model", "--agent-effort"]);
+const REPEATABLE_ARGUMENTS = new Set(["--agent-model", "--agent-effort", "--tier-model", "--model-version"]);
 const AGENT_IDS = [
   "itixo-builder",
   "itixo-docs-updater",
@@ -39,11 +39,11 @@ const AGENT_IDS = [
 function validateCatalog(catalog) {
   const codex = catalog?.providers?.codex;
   if (!codex || typeof codex !== "object") fail("Model catalog has no Codex provider.");
-  for (const key of ["models", "efforts", "aliases", "cheapModels", "cheapEfforts", "cheapEffortOverrides", "effortsByModel"]) {
+  for (const key of ["models", "efforts", "aliases", "pinnedAliases", "cheapEfforts", "cheapEffortOverrides", "effortsByModel"]) {
     if (!codex[key] || typeof codex[key] !== "object") fail(`Model catalog has invalid Codex '${key}'.`);
   }
-  for (const tier of ["cheap", "mid", "security"]) {
-    if (typeof codex.models[tier] !== "string" || typeof codex.efforts[tier] !== "string") {
+  for (const tier of TIER_NAMES) {
+    if (typeof codex.models[tier] !== "string" || typeof codex.efforts[tier] !== "string" || !Object.hasOwn(codex.aliases, codex.models[tier])) {
       fail(`Model catalog has invalid Codex '${tier}' default.`);
     }
   }
@@ -51,15 +51,38 @@ function validateCatalog(catalog) {
   if (models.length === 0 || models.some((model) => !Array.isArray(codex.effortsByModel[model]) || codex.effortsByModel[model].length === 0)) {
     fail("Model catalog has invalid Codex model efforts.");
   }
-  for (const model of [...Object.values(codex.models), ...Object.values(codex.aliases), ...Object.values(codex.cheapModels), ...Object.keys(codex.cheapEffortOverrides)]) {
+  for (const [alias, definition] of Object.entries(codex.aliases)) {
+    if (!definition || typeof definition !== "object" || typeof definition.default !== "string"
+      || !Array.isArray(definition.versions) || definition.versions.length === 0
+      || !definition.versions.includes(definition.default)) {
+      fail(`Model catalog has invalid Codex alias '${alias}'.`);
+    }
+  }
+  for (const model of [
+    ...Object.values(codex.aliases).flatMap((definition) => definition.versions),
+    ...Object.values(codex.pinnedAliases),
+    ...Object.keys(codex.cheapEffortOverrides),
+  ]) {
     if (!models.includes(model)) fail(`Model catalog references unknown Codex model '${model}'.`);
   }
   if (!Array.isArray(codex.cheapEfforts) || codex.cheapEfforts.length === 0) fail("Model catalog has invalid cheap efforts.");
-  if (Object.entries(codex.models).some(([tier, model]) => !codex.effortsByModel[model].includes(codex.efforts[tier]))
+  if (Object.entries(codex.models).some(([tier, alias]) => !codex.effortsByModel[codex.aliases[alias].default].includes(codex.efforts[tier]))
     || Object.entries(codex.cheapEffortOverrides).some(([model, effort]) => !codex.effortsByModel[model].includes(effort))) {
     fail("Model catalog has invalid cheap default effort.");
   }
   return codex;
+}
+
+function resolveModel(selector, modelVersions = {}) {
+  if (CONCRETE_MODELS.has(selector)) return selector;
+  if (Object.hasOwn(PINNED_ALIASES, selector)) return PINNED_ALIASES[selector];
+  const alias = MODEL_ALIASES[selector];
+  if (!alias) fail(`Unknown Codex model selector '${selector}'.`);
+  return modelVersions[selector] || alias.default;
+}
+
+function resolveTierModels(tierModels, modelVersions) {
+  return Object.fromEntries(TIER_NAMES.map((tier) => [tier, resolveModel(tierModels[tier], modelVersions)]));
 }
 
 function defaultCheapEffort(model) {
@@ -67,9 +90,10 @@ function defaultCheapEffort(model) {
 }
 
 function defaultTemplateSettings(agentId) {
-  if (CHEAP_AGENT_IDS.has(agentId)) return { model: CODEX_CATALOG.models.cheap, effort: CODEX_CATALOG.efforts.cheap };
-  if (agentId === SECURITY_REVIEWER_AGENT_ID) return { model: CODEX_CATALOG.models.security, effort: CODEX_CATALOG.efforts.security };
-  return { model: CODEX_CATALOG.models.mid, effort: CODEX_CATALOG.efforts.mid };
+  const models = resolveTierModels(CODEX_CATALOG.models, {});
+  if (CHEAP_AGENT_IDS.has(agentId)) return { model: models.cheap, effort: CODEX_CATALOG.efforts.cheap };
+  if (agentId === SECURITY_REVIEWER_AGENT_ID) return { model: models.security, effort: CODEX_CATALOG.efforts.security };
+  return { model: models.mid, effort: CODEX_CATALOG.efforts.mid };
 }
 
 function fail(message) {
@@ -77,13 +101,14 @@ function fail(message) {
 }
 
 function usage() {
-  const cheapModels = Object.keys(CHEAP_MODEL_ALIASES).join("|");
-  const agentModels = Object.keys(AGENT_MODEL_ALIASES).join("|");
+  const cheapModels = [...MODEL_SELECTORS].join("|");
+  const aliases = [...TIER_MODEL_ALIASES].join("|");
+  const agentModels = [...MODEL_SELECTORS].join("|");
   const agentEfforts = [...AGENT_EFFORTS].join("|");
   return [
     "Usage:",
-    `  node install-agents.js --scope personal [--cheap-model ${cheapModels}] [--cheap-effort ${[...CHEAP_EFFORTS].join("|")}] [--agent-model <id>=<${agentModels}>]... [--agent-effort <id>=<${agentEfforts}>]...`,
-    `  node install-agents.js --scope project --project-root <path> [--cheap-model ${cheapModels}] [--cheap-effort ${[...CHEAP_EFFORTS].join("|")}] [--agent-model <id>=<${agentModels}>]... [--agent-effort <id>=<${agentEfforts}>]...`,
+    `  node install-agents.js --scope personal [--tier-model <cheap|mid|security>=<${aliases}>]... [--model-version <${aliases}>=<model>]... [--cheap-model ${cheapModels}] [--cheap-effort ${[...CHEAP_EFFORTS].join("|")}] [--agent-model <id>=<${agentModels}>]... [--agent-effort <id>=<${agentEfforts}>]...`,
+    `  node install-agents.js --scope project --project-root <path> [--tier-model <cheap|mid|security>=<${aliases}>]... [--model-version <${aliases}>=<model>]... [--cheap-model ${cheapModels}] [--cheap-effort ${[...CHEAP_EFFORTS].join("|")}] [--agent-model <id>=<${agentModels}>]... [--agent-effort <id>=<${agentEfforts}>]...`,
   ].join("\n");
 }
 
@@ -109,11 +134,41 @@ function parseAgentAssignments(argument, assignments, allowedValues, fieldLabel)
   return parsed;
 }
 
+function parseTierAssignments(assignments) {
+  const parsed = {};
+  for (const assignment of assignments) {
+    const match = assignment.match(/^(cheap|mid|security)=([^=]+)$/);
+    if (!match) fail(`Malformed tier model override '${assignment}'. Expected '<cheap|mid|security>=<alias>'.`);
+    const [, tier, alias] = match;
+    if (!TIER_MODEL_ALIASES.has(alias)) fail(`Invalid tier model alias '${alias}' for '${tier}'.`);
+    if (Object.hasOwn(parsed, tier)) fail(`Duplicate tier model override for '${tier}'.`);
+    parsed[tier] = alias;
+  }
+  return parsed;
+}
+
+function parseModelVersions(assignments) {
+  const parsed = {};
+  for (const assignment of assignments) {
+    const match = assignment.match(/^([^=]+)=([^=]+)$/);
+    if (!match) fail(`Malformed model version override '${assignment}'. Expected '<alias>=<model>'.`);
+    const [, alias, model] = match;
+    const definition = MODEL_ALIASES[alias];
+    if (!definition) fail(`Unknown model alias '${alias}' for '--model-version'.`);
+    if (!definition.versions.includes(model)) fail(`Model '${model}' is not available for alias '${alias}'.`);
+    if (Object.hasOwn(parsed, alias)) fail(`Duplicate model version override for '${alias}'.`);
+    parsed[alias] = model;
+  }
+  return parsed;
+}
+
 function parseArguments(argv) {
   const values = {};
   const repeatableValues = {
     "--agent-model": [],
     "--agent-effort": [],
+    "--tier-model": [],
+    "--model-version": [],
   };
   const allowedArguments = new Set([
     "--scope",
@@ -155,18 +210,25 @@ function parseArguments(argv) {
   if (values["--scope"] === "personal" && values["--project-root"]) {
     fail("Argument '--project-root' is valid only when scope is 'project'.");
   }
-  if (values["--cheap-model"] && !CHEAP_MODELS.has(values["--cheap-model"])) {
-    fail(`Invalid cheap model. Use ${[...CHEAP_MODELS].map((model) => `'${model}'`).join(", ")}.`);
+  if (values["--cheap-model"] && !MODEL_SELECTORS.has(values["--cheap-model"])) {
+    fail(`Invalid cheap model. Use ${[...MODEL_SELECTORS].map((model) => `'${model}'`).join(", ")}.`);
   }
   if (values["--cheap-effort"] && !CHEAP_EFFORTS.has(values["--cheap-effort"])) {
     fail(`Invalid cheap effort. Use ${[...CHEAP_EFFORTS].map((effort) => `'${effort}'`).join(", ")}.`);
   }
 
-  const cheapModel = CHEAP_MODEL_ALIASES[values["--cheap-model"] || CODEX_CATALOG.models.cheap] || CODEX_CATALOG.models.cheap;
+  const tierOverrides = parseTierAssignments(repeatableValues["--tier-model"]);
+  if (values["--cheap-model"] && tierOverrides.cheap) {
+    fail("Arguments '--cheap-model' and '--tier-model cheap=...' cannot be used together.");
+  }
+  const modelVersions = parseModelVersions(repeatableValues["--model-version"]);
+  const tierModels = { ...CODEX_CATALOG.models, ...tierOverrides };
+  if (values["--cheap-model"]) tierModels.cheap = values["--cheap-model"];
+  const resolvedTierModels = resolveTierModels(tierModels, modelVersions);
   const agentModels = parseAgentAssignments(
     "--agent-model",
     repeatableValues["--agent-model"],
-    new Set(Object.keys(AGENT_MODEL_ALIASES)),
+    MODEL_SELECTORS,
     "model",
   );
   const agentEfforts = parseAgentAssignments(
@@ -179,8 +241,12 @@ function parseArguments(argv) {
   return {
     scope: values["--scope"],
     projectRoot: values["--project-root"],
-    cheapModel,
-    cheapEffort: values["--cheap-effort"] || defaultCheapEffort(cheapModel),
+    cheapModel: resolvedTierModels.cheap,
+    cheapModelSelector: values["--cheap-model"],
+    cheapEffort: values["--cheap-effort"] || defaultCheapEffort(resolvedTierModels.cheap),
+    tierModels,
+    resolvedTierModels,
+    modelVersions,
     agentModels,
     agentEfforts,
   };
@@ -240,9 +306,13 @@ function setTomlField(content, field, value) {
   return content.replace(anchorPattern, (anchor) => `${anchor}\n${field} = "${value}"`);
 }
 
-function readTemplate(agentId, cheapModel, cheapEffort, agentModel, agentEffort) {
-  const selectedCheapModel = cheapModel || CODEX_CATALOG.models.cheap;
-  const selectedCheapEffort = cheapEffort || defaultCheapEffort(selectedCheapModel);
+function agentTier(agentId) {
+  if (CHEAP_AGENT_IDS.has(agentId)) return "cheap";
+  if (agentId === SECURITY_REVIEWER_AGENT_ID) return "security";
+  return agentId === "itixo-planner" ? null : "mid";
+}
+
+function readTemplate(agentId, tierSettings, agentModel, agentEffort) {
   const templatePath = path.join(TEMPLATE_DIRECTORY, `${agentId}.toml`);
   let content;
   try {
@@ -252,11 +322,12 @@ function readTemplate(agentId, cheapModel, cheapEffort, agentModel, agentEffort)
   }
   validateTemplate(agentId, templatePath, content);
 
-  if (CHEAP_AGENT_IDS.has(agentId)) {
-    content = setTomlField(content, "model", selectedCheapModel);
-    content = setTomlField(content, "model_reasoning_effort", selectedCheapEffort);
+  const tier = agentTier(agentId);
+  if (tier) {
+    content = setTomlField(content, "model", tierSettings.models[tier]);
+    content = setTomlField(content, "model_reasoning_effort", tierSettings.efforts[tier]);
   }
-  if (agentModel !== undefined) content = setTomlField(content, "model", AGENT_MODEL_ALIASES[agentModel]);
+  if (agentModel !== undefined) content = setTomlField(content, "model", agentModel);
   if (agentEffort !== undefined) {
     content = setTomlField(content, "model_reasoning_effort", agentEffort === "none" ? null : agentEffort);
   }
@@ -509,14 +580,25 @@ function rollbackChanges(changes, destinationState) {
 function install(options, dependencies = {}) {
   const renameSync = dependencies.renameSync || fs.renameSync;
   if (typeof renameSync !== "function") fail("renameSync dependency must be a function.");
-  const cheapModel = CHEAP_MODEL_ALIASES[options.cheapModel] || options.cheapModel || CODEX_CATALOG.models.cheap;
+  const tierModels = options.tierModels || {
+    ...CODEX_CATALOG.models,
+    ...(options.cheapModel ? { cheap: options.cheapModel } : {}),
+  };
+  const resolvedTierModels = options.resolvedTierModels || resolveTierModels(tierModels, options.modelVersions || {});
+  const cheapModel = resolvedTierModels.cheap;
   const cheapEffort = options.cheapEffort || defaultCheapEffort(cheapModel);
+  const tierEfforts = { ...CODEX_CATALOG.efforts, cheap: cheapEffort };
   const agentModels = options.agentModels || {};
   const agentEfforts = options.agentEfforts || {};
   const destination = resolveDestination(options);
   const templates = AGENT_IDS.map((agentId) => [
     agentId,
-    readTemplate(agentId, cheapModel, cheapEffort, agentModels[agentId], agentEfforts[agentId]),
+    readTemplate(
+      agentId,
+      { models: resolvedTierModels, efforts: tierEfforts },
+      agentModels[agentId] === undefined ? undefined : resolveModel(agentModels[agentId], options.modelVersions || {}),
+      agentEfforts[agentId],
+    ),
   ]);
   const targets = preflight(destination, templates);
 
@@ -554,6 +636,7 @@ function install(options, dependencies = {}) {
     `summary installed=${installed}`,
     `skipped=${skipped}`,
     `scope=${options.scope}`,
+    `tiers=${TIER_NAMES.map((tier) => `${tier}:${tierModels[tier]}:${resolvedTierModels[tier]}`).join(",")}`,
     `cheap-model=${cheapModel}`,
     `cheap-effort=${cheapEffort}`,
   ];

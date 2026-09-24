@@ -13,9 +13,9 @@
     },
     "codex": {
       "models": {
-        "cheap": "gpt-6-luna",
-        "mid": "gpt-6-sol",
-        "security": "gpt-6-astra"
+        "cheap": "luna",
+        "mid": "sol",
+        "security": "astra"
       },
       "efforts": {
         "cheap": "high",
@@ -23,18 +23,26 @@
         "security": "max"
       },
       "aliases": {
-        "sol": "gpt-5.6-sol",
-        "terra": "gpt-5.6-terra",
-        "luna": "gpt-5.6-luna",
-        "astra": "gpt-6-astra",
+        "sol": {
+          "default": "gpt-6-sol",
+          "versions": ["gpt-5.6-sol", "gpt-6-sol"]
+        },
+        "terra": {
+          "default": "gpt-5.6-terra",
+          "versions": ["gpt-5.6-terra"]
+        },
+        "luna": {
+          "default": "gpt-6-luna",
+          "versions": ["gpt-5.6-luna", "gpt-6-luna"]
+        },
+        "astra": {
+          "default": "gpt-6-astra",
+          "versions": ["gpt-6-astra"]
+        }
+      },
+      "pinnedAliases": {
         "gpt6-sol": "gpt-6-sol",
         "gpt6-luna": "gpt-6-luna"
-      },
-      "cheapModels": {
-        "luna": "gpt-5.6-luna",
-        "terra": "gpt-5.6-terra",
-        "gpt6-luna": "gpt-6-luna",
-        "gpt-6-luna": "gpt-6-luna"
       },
       "cheapEfforts": ["high", "low"],
       "cheapEffortOverrides": {
