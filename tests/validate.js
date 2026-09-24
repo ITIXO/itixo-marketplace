@@ -46,7 +46,13 @@ const TIERS = {
 const modelCatalog = readJson("plugins/codex/itixo/scripts/model-catalog.json");
 const catalogProviders = modelCatalog?.providers || {};
 const CLAUDE_MODEL = catalogProviders.claude?.models || {};
-const CODEX_MODEL = { ...(catalogProviders.codex?.models || {}), orchestrator: "user-selected" };
+const CODEX_MODEL = {
+  ...Object.fromEntries(
+    Object.entries(catalogProviders.codex?.models || {})
+      .map(([tier, alias]) => [tier, catalogProviders.codex?.aliases?.[alias]?.default]),
+  ),
+  orchestrator: "user-selected",
+};
 const COPILOT_MODEL = catalogProviders.copilot?.models || {}; // orchestrator inherits (no model field)
 const ORCHESTRATION_PLUGINS = ["claude/itixo", "codex/itixo", "copilot/itixo"];
 
@@ -76,7 +82,7 @@ for (const [provider, tiers] of [
 }
 
 const codexCatalog = catalogProviders.codex || {};
-for (const field of ["aliases", "cheapModels", "cheapEffortOverrides", "effortsByModel"]) {
+for (const field of ["aliases", "pinnedAliases", "cheapEffortOverrides", "effortsByModel"]) {
   if (!codexCatalog[field] || typeof codexCatalog[field] !== "object" || Array.isArray(codexCatalog[field])) {
     fail(`model catalog: 'codex.${field}' must be an object`);
   }
@@ -84,20 +90,31 @@ for (const field of ["aliases", "cheapModels", "cheapEffortOverrides", "effortsB
 if (!Array.isArray(codexCatalog.cheapEfforts) || codexCatalog.cheapEfforts.length === 0) {
   fail("model catalog: 'codex.cheapEfforts' must be a non-empty array");
 }
-for (const [alias, model] of Object.entries(codexCatalog.aliases || {})) {
-  if (!alias || typeof model !== "string" || !Object.hasOwn(codexCatalog.effortsByModel || {}, model)) {
-    fail(`model catalog: alias '${alias}' must target a model with declared capabilities`);
+for (const [alias, definition] of Object.entries(codexCatalog.aliases || {})) {
+  if (!alias || !definition || typeof definition !== "object" || Array.isArray(definition)
+    || typeof definition.default !== "string" || !Array.isArray(definition.versions)
+    || !definition.versions.includes(definition.default)
+    || definition.versions.length === 0
+    || definition.versions.some((model) => !Object.hasOwn(codexCatalog.effortsByModel || {}, model))) {
+    fail(`model catalog: alias '${alias}' must have a default declared in its supported model versions`);
   }
 }
-for (const [alias, model] of Object.entries(codexCatalog.cheapModels || {})) {
+for (const [alias, model] of Object.entries(codexCatalog.pinnedAliases || {})) {
   if (!alias || typeof model !== "string" || !Object.hasOwn(codexCatalog.effortsByModel || {}, model)) {
-    fail(`model catalog: cheap model '${alias}' must target a model with declared capabilities`);
+    fail(`model catalog: pinned alias '${alias}' must target a model with declared capabilities`);
+  }
+}
+for (const tier of ["cheap", "mid", "security"]) {
+  const alias = codexCatalog.models?.[tier];
+  if (!Object.hasOwn(codexCatalog.aliases || {}, alias)) {
+    fail(`model catalog: '${tier}' must reference a declared Codex alias`);
   }
 }
 for (const [model, effort] of Object.entries(codexCatalog.efforts || {})) {
-  const tierModel = codexCatalog.models?.[model];
+  const tierAlias = codexCatalog.models?.[model];
+  const tierModel = codexCatalog.aliases?.[tierAlias]?.default;
   if (!codexCatalog.effortsByModel?.[tierModel]?.includes(effort)) {
-    fail(`model catalog: default '${model}' effort must be supported by '${tierModel}'`);
+    fail(`model catalog: default '${model}' effort must be supported by '${tierAlias}'`);
   }
 }
 if (failures === 0) ok("model catalog defaults and Codex capabilities valid");
