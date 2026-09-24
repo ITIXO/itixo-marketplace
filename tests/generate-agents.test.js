@@ -244,6 +244,12 @@ test("rejects invalid catalog tiers before modifying generated outputs", () => {
           catalog.providers.codex.models.security = "opus";
         },
       },
+      {
+        name: "Codex tier uses pinned alias",
+        update(catalog) {
+          catalog.providers.codex.models.mid = "gpt6-sol";
+        },
+      },
     ];
     for (const scenario of cases) {
       const repository = makeGeneratorRepository(path.join(temporary, scenario.name));

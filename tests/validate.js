@@ -124,6 +124,9 @@ for (const [provider, tiers] of [["claude", ["orchestrator", "cheap", "mid", "se
     if (alias !== "inherit" && !catalogAliases[alias]?.providers?.[provider]) {
       fail(`model catalog: '${provider}.${tier}' must reference an alias available for that provider`);
     }
+    if (alias !== "inherit" && catalogAliases[alias]?.pinned) {
+      fail(`model catalog: '${provider}.${tier}' must not reference a pinned alias`);
+    }
   }
 }
 for (const [model, effort] of Object.entries(codexCatalog.efforts || {})) {
