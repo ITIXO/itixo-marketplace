@@ -104,6 +104,8 @@ Any of the eight agents can instead receive an install-time override with repeat
 
 The installer creates or replaces only TOML files with its exact Itixo-managed marker, refuses unmanaged conflicts, and skips unchanged managed files on reinstall. Its sorted summary adds `agent-models=` and `agent-efforts=` only when those overrides were supplied. Start a new task or restart Codex after installation so custom agents are discovered. Provider or organization restrictions may constrain available overrides.
 
+To verify or promote supported provider models from the source checkout, invoke `/itixo:update-models`. It checks official model IDs and reasoning efforts, updates the shared catalog, regenerates agent templates, and runs repository validation. Current supported model changes can use `itixo:install-agents`; rerun it for the selected scope and repeat custom overrides because managed files are replaced.
+
 ## Usage (Copilot CLI)
 
 Add this marketplace:

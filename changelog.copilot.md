@@ -1,3 +1,9 @@
+## 2026-09-24
+
+### itixo 0.7.3
+
+- Added the user-invoked `update-models` skill for verifying official provider model IDs and reasoning efforts, updating the shared catalog from a source checkout, regenerating agent outputs, and running repository validation.
+
 ## 2026-09-23
 
 ### itixo 0.7.2

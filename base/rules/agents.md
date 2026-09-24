@@ -22,6 +22,8 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 | cheap | lookups, docs, mechanical reads | haiku | gpt-6-luna + high (gpt-5.6-terra + low fallback) | claude-haiku-4.5 |
 | security | security review | opus + max | gpt-6-astra + max | claude-opus-5.5 |
 
+Supported provider model IDs, aliases, and reasoning efforts are maintained in `plugins/codex/itixo/scripts/model-catalog.json`. Use `/itixo:update-models` from the source checkout to verify or promote requested models, regenerate outputs, and validate the change. Keep installed plugin caches and installed agent files read-only; preserve legacy aliases and user-selected overrides.
+
 ## Agent → tier mapping
 
 | Agent | Tier | Role |
