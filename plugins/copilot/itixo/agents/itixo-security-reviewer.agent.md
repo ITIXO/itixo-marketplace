@@ -1,7 +1,7 @@
 ---
 description: "Reviews code changes for evidence-backed security risks."
 tools: ["read", "search", "execute", "github/*"]
-model: "claude-opus-5"
+model: "claude-opus-5.5"
 ---
 
 ## Role

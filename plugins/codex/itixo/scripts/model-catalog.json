@@ -1,0 +1,103 @@
+{
+  "aliases": {
+    "sol": {
+      "providers": {
+        "codex": { "default": "gpt-6-sol", "versions": ["gpt-5.6-sol", "gpt-6-sol"] },
+        "copilot": { "default": "gpt-6-sol", "versions": ["gpt-5.6-sol", "gpt-6-sol"] }
+      }
+    },
+    "terra": {
+      "providers": {
+        "codex": { "default": "gpt-5.6-terra", "versions": ["gpt-5.6-terra"] },
+        "copilot": { "default": "gpt-5.6-terra", "versions": ["gpt-5.6-terra"] }
+      }
+    },
+    "luna": {
+      "providers": {
+        "codex": { "default": "gpt-6-luna", "versions": ["gpt-5.6-luna", "gpt-6-luna"] },
+        "copilot": { "default": "gpt-6-luna", "versions": ["gpt-5.6-luna", "gpt-6-luna"] }
+      }
+    },
+    "astra": {
+      "providers": {
+        "codex": { "default": "gpt-6-astra", "versions": ["gpt-6-astra"] },
+        "copilot": { "default": "gpt-6-astra", "versions": ["gpt-6-astra"] }
+      }
+    },
+    "haiku": {
+      "providers": {
+        "claude": { "default": "haiku", "versions": ["haiku"] },
+        "copilot": { "default": "claude-haiku-4.5", "versions": ["claude-haiku-4.5"] }
+      }
+    },
+    "sonnet": {
+      "providers": {
+        "claude": { "default": "sonnet", "versions": ["sonnet"] },
+        "copilot": { "default": "claude-sonnet-5", "versions": ["claude-sonnet-5"] }
+      }
+    },
+    "opus": {
+      "providers": {
+        "claude": { "default": "opus", "versions": ["opus"] },
+        "copilot": { "default": "claude-opus-5.5", "versions": ["claude-opus-5.5"] }
+      }
+    },
+    "gpt6-sol": {
+      "pinned": true,
+      "providers": {
+        "codex": { "default": "gpt-6-sol", "versions": ["gpt-6-sol"] }
+      }
+    },
+    "gpt6-luna": {
+      "pinned": true,
+      "providers": {
+        "codex": { "default": "gpt-6-luna", "versions": ["gpt-6-luna"] }
+      }
+    }
+  },
+  "providers": {
+    "claude": {
+      "models": {
+        "orchestrator": "inherit",
+        "cheap": "haiku",
+        "mid": "sonnet",
+        "security": "opus"
+      },
+      "efforts": {
+        "security": "max"
+      }
+    },
+    "codex": {
+      "models": {
+        "cheap": "luna",
+        "mid": "sol",
+        "security": "astra"
+      },
+      "efforts": {
+        "cheap": "high",
+        "mid": "medium",
+        "security": "max"
+      },
+      "cheapEfforts": ["high", "low"],
+      "cheapEffortOverrides": {
+        "gpt-5.6-terra": "low"
+      },
+      "effortsByModel": {
+        "gpt-6-astra": ["low", "medium", "high", "xhigh", "max", "ultra"],
+        "gpt-6-sol": ["low", "medium", "high", "xhigh", "max", "ultra"],
+        "gpt-6-luna": ["low", "medium", "high", "xhigh", "max"],
+        "gpt-5.6-sol": ["low", "medium", "high", "xhigh", "max", "ultra"],
+        "gpt-5.6-terra": ["low", "medium", "high", "xhigh", "max", "ultra"],
+        "gpt-5.6-luna": ["low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    "copilot": {
+      "models": {
+        "cheap": "haiku",
+        "mid": "sonnet",
+        "security": "opus"
+      },
+      "efforts": {}
+    }
+  }
+}

@@ -5,29 +5,83 @@ const fs = require("fs");
 const path = require("path");
 
 const { PROVIDERS: PROVIDER_IDS } = require("./providers.js");
+const MODEL_CATALOG = require("../plugins/codex/itixo/scripts/model-catalog.json");
 
 const ROOT = path.resolve(__dirname, "..");
 const BASE_DIR = path.join(ROOT, "base", "agents");
-// Provider-specific model/effort tier data, keyed by the identity list
-// shared via scripts/providers.js.
+const MODEL_ALIASES = catalogAliases(MODEL_CATALOG.aliases);
+
+function catalogAliases(aliases) {
+  if (!aliases || typeof aliases !== "object") throw new Error("model catalog: invalid aliases.");
+  for (const [name, alias] of Object.entries(aliases)) {
+    if (!alias || typeof alias !== "object" || !alias.providers || typeof alias.providers !== "object"
+      || Object.keys(alias.providers).length === 0 || (alias.pinned !== undefined && typeof alias.pinned !== "boolean")) {
+      throw new Error(`model catalog: invalid alias '${name}'.`);
+    }
+    for (const [providerId, definition] of Object.entries(alias.providers)) {
+      if (!PROVIDER_IDS.includes(providerId) || !definition || typeof definition !== "object"
+        || typeof definition.default !== "string" || !Array.isArray(definition.versions)
+        || definition.versions.length === 0 || !definition.versions.includes(definition.default)) {
+        throw new Error(`model catalog: invalid alias '${name}' for '${providerId}'.`);
+      }
+    }
+  }
+  return aliases;
+}
+
+function resolveAlias(providerId, alias) {
+  const definition = MODEL_ALIASES[alias]?.providers?.[providerId];
+  if (!definition) throw new Error(`model catalog: alias '${alias}' is unavailable for '${providerId}'.`);
+  return definition;
+}
+
+function resolveTierAlias(providerId, alias) {
+  if (MODEL_ALIASES[alias]?.pinned) throw new Error(`model catalog: pinned alias '${alias}' cannot be a tier model.`);
+  return resolveAlias(providerId, alias);
+}
+
+function catalogProvider(id) {
+  const provider = MODEL_CATALOG.providers?.[id];
+  if (!provider || typeof provider !== "object" || !provider.models || !provider.efforts
+    || typeof provider.models !== "object" || typeof provider.efforts !== "object"
+    || Object.values(provider.models).some((model) => typeof model !== "string")
+    || Object.values(provider.efforts).some((effort) => typeof effort !== "string")) {
+    throw new Error(`model catalog: invalid '${id}' provider.`);
+  }
+  for (const tier of ["cheap", "mid", "security"]) {
+    if (!provider.models[tier]) throw new Error(`model catalog: '${id}' has no '${tier}' model.`);
+  }
+  if (id === "claude") {
+    if (provider.models.orchestrator !== "inherit" || !provider.efforts.security) {
+      throw new Error("model catalog: invalid Claude orchestrator or security effort.");
+    }
+  }
+  const models = Object.fromEntries(Object.entries(provider.models).map(([tier, alias]) => [
+    tier,
+    tier === "orchestrator" && alias === "inherit" ? alias : resolveTierAlias(id, alias).default,
+  ]));
+  if (id === "codex") {
+    if (!provider.effortsByModel || typeof provider.effortsByModel !== "object"
+      || Object.values(MODEL_ALIASES).flatMap((alias) => alias.providers.codex?.versions || [])
+        .some((model) => !Array.isArray(provider.effortsByModel[model]))
+      || ["cheap", "mid", "security"].some((tier) => !provider.effortsByModel[models[tier]].includes(provider.efforts[tier]))) {
+      throw new Error("model catalog: invalid Codex model effort.");
+    }
+    return { ...provider, models };
+  } else if (id === "copilot" && Object.keys(provider.efforts).length !== 0) {
+    throw new Error("model catalog: Copilot must not declare efforts.");
+  }
+  return { ...provider, models };
+}
+
 const PROVIDER_CONFIG = {
-  claude: {
-    directory: path.join(ROOT, "plugins", "claude", "itixo", "agents"),
-    models: Object.freeze({ cheap: "haiku", mid: "sonnet", security: "opus", orchestrator: "inherit" }),
-    efforts: Object.freeze({ security: "max" }),
-  },
+  claude: { ...catalogProvider("claude"), directory: path.join(ROOT, "plugins", "claude", "itixo", "agents") },
   codex: {
+    ...catalogProvider("codex"),
     directory: path.join(ROOT, "plugins", "codex", "itixo", "templates", "agents"),
     obsoleteDirectory: path.join(ROOT, "plugins", "codex", "itixo", "agents"),
-    models: Object.freeze({ cheap: "gpt-5.6-luna", mid: "gpt-5.6-terra", security: "gpt-5.6-sol" }),
-    efforts: Object.freeze({ cheap: "high", mid: "medium", security: "max" }),
   },
-  copilot: {
-    directory: path.join(ROOT, "plugins", "copilot", "itixo", "agents"),
-    // orchestrator tier omits model field (inherits); cheap and mid use full Copilot CLI model IDs
-    models: Object.freeze({ cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }),
-    fileExtension: ".agent.md",
-  },
+  copilot: { ...catalogProvider("copilot"), directory: path.join(ROOT, "plugins", "copilot", "itixo", "agents"), fileExtension: ".agent.md" },
 };
 const PROVIDERS = Object.freeze(
   Object.fromEntries(PROVIDER_IDS.map((id) => [id, PROVIDER_CONFIG[id]]))

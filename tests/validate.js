@@ -43,15 +43,100 @@ const TIERS = {
   "itixo-security-reviewer": "security",
   "itixo-docs-updater": "cheap",
 };
-const CLAUDE_MODEL = { cheap: "haiku", mid: "sonnet", security: "opus", orchestrator: "inherit" };
+const modelCatalog = readJson("plugins/codex/itixo/scripts/model-catalog.json");
+const catalogProviders = modelCatalog?.providers || {};
+const catalogAliases = modelCatalog?.aliases || {};
+function resolveCatalogModel(provider, tier) {
+  const alias = catalogProviders[provider]?.models?.[tier];
+  return alias === "inherit" ? alias : catalogAliases[alias]?.providers?.[provider]?.default;
+}
+const CLAUDE_MODEL = Object.fromEntries(
+  Object.keys(catalogProviders.claude?.models || {}).map((tier) => [tier, resolveCatalogModel("claude", tier)]),
+);
 const CODEX_MODEL = {
-  cheap: "gpt-5.6-luna",
-  mid: "gpt-5.6-terra",
-  security: "gpt-5.6-sol",
+  ...Object.fromEntries(Object.keys(catalogProviders.codex?.models || {}).map((tier) => [tier, resolveCatalogModel("codex", tier)])),
   orchestrator: "user-selected",
 };
-const COPILOT_MODEL = { cheap: "claude-haiku-4.5", mid: "claude-sonnet-5", security: "claude-opus-5" }; // orchestrator inherits (no model field)
+const COPILOT_MODEL = Object.fromEntries(
+  Object.keys(catalogProviders.copilot?.models || {}).map((tier) => [tier, resolveCatalogModel("copilot", tier)]),
+); // orchestrator inherits (no model field)
 const ORCHESTRATION_PLUGINS = ["claude/itixo", "codex/itixo", "copilot/itixo"];
+
+// --- 0. Model catalog has complete provider defaults and usable Codex capabilities ---
+for (const [provider, tiers] of [
+  ["claude", ["orchestrator", "cheap", "mid", "security"]],
+  ["codex", ["cheap", "mid", "security"]],
+  ["copilot", ["cheap", "mid", "security"]],
+]) {
+  const entry = catalogProviders[provider];
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    fail(`model catalog: '${provider}' provider missing`);
+    continue;
+  }
+  if (!entry.models || typeof entry.models !== "object" || Array.isArray(entry.models)) {
+    fail(`model catalog: '${provider}.models' must be an object`);
+    continue;
+  }
+  if (!entry.efforts || typeof entry.efforts !== "object" || Array.isArray(entry.efforts)) {
+    fail(`model catalog: '${provider}.efforts' must be an object`);
+  }
+  for (const tier of tiers) {
+    if (typeof entry.models[tier] !== "string" || entry.models[tier].length === 0) {
+      fail(`model catalog: '${provider}.models.${tier}' must be a non-empty string`);
+    }
+  }
+}
+
+const codexCatalog = catalogProviders.codex || {};
+if (!modelCatalog?.aliases || typeof modelCatalog.aliases !== "object" || Array.isArray(modelCatalog.aliases)) {
+  fail("model catalog: 'aliases' must be an object");
+}
+for (const field of ["cheapEffortOverrides", "effortsByModel"]) {
+  if (!codexCatalog[field] || typeof codexCatalog[field] !== "object" || Array.isArray(codexCatalog[field])) {
+    fail(`model catalog: 'codex.${field}' must be an object`);
+  }
+}
+if (!Array.isArray(codexCatalog.cheapEfforts) || codexCatalog.cheapEfforts.length === 0) {
+  fail("model catalog: 'codex.cheapEfforts' must be a non-empty array");
+}
+for (const [alias, definition] of Object.entries(catalogAliases)) {
+  if (!alias || !definition || typeof definition !== "object" || Array.isArray(definition)
+    || !definition.providers || typeof definition.providers !== "object" || Array.isArray(definition.providers)
+    || (definition.pinned !== undefined && typeof definition.pinned !== "boolean")) {
+    fail(`model catalog: alias '${alias}' must have provider definitions`);
+    continue;
+  }
+  for (const [provider, providerDefinition] of Object.entries(definition.providers)) {
+    if (!Object.hasOwn(catalogProviders, provider) || !providerDefinition || typeof providerDefinition !== "object"
+      || Array.isArray(providerDefinition) || typeof providerDefinition.default !== "string"
+      || !Array.isArray(providerDefinition.versions) || providerDefinition.versions.length === 0
+      || !providerDefinition.versions.includes(providerDefinition.default)) {
+      fail(`model catalog: alias '${alias}' has invalid '${provider}' definition`);
+    }
+    if (provider === "codex" && providerDefinition.versions.some((model) => !Object.hasOwn(codexCatalog.effortsByModel || {}, model))) {
+      fail(`model catalog: Codex alias '${alias}' must use models with declared capabilities`);
+    }
+  }
+}
+for (const [provider, tiers] of [["claude", ["orchestrator", "cheap", "mid", "security"]], ["codex", ["cheap", "mid", "security"]], ["copilot", ["cheap", "mid", "security"]]]) {
+  for (const tier of tiers) {
+    const alias = catalogProviders[provider]?.models?.[tier];
+    if (alias !== "inherit" && !catalogAliases[alias]?.providers?.[provider]) {
+      fail(`model catalog: '${provider}.${tier}' must reference an alias available for that provider`);
+    }
+    if (alias !== "inherit" && catalogAliases[alias]?.pinned) {
+      fail(`model catalog: '${provider}.${tier}' must not reference a pinned alias`);
+    }
+  }
+}
+for (const [model, effort] of Object.entries(codexCatalog.efforts || {})) {
+  const tierAlias = codexCatalog.models?.[model];
+  const tierModel = catalogAliases[tierAlias]?.providers?.codex?.default;
+  if (!codexCatalog.effortsByModel?.[tierModel]?.includes(effort)) {
+    fail(`model catalog: default '${model}' effort must be supported by '${tierAlias}'`);
+  }
+}
+if (failures === 0) ok("model catalog defaults and Codex capabilities valid");
 
 // --- 1. Claude marketplace registrations have valid Claude manifests ---
 const marketplace = readJson(".claude-plugin/marketplace.json");
@@ -184,6 +269,26 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
   }
 }
 if (failures === 0) ok("dirigent skills exist and reference canonical agent IDs");
+
+// --- 3c. every provider packages the shared model-update workflow ---
+for (const plugin of ORCHESTRATION_PLUGINS) {
+  const rel = `plugins/${plugin}/skills/update-models/SKILL.md`;
+  const p = path.join(ROOT, rel);
+  if (!fs.existsSync(p)) {
+    fail(`${rel} missing`);
+    continue;
+  }
+  const text = readFile(rel);
+  if (!/^---\nname: update-models\n/m.test(text)) fail(`${rel}: invalid update-models frontmatter`);
+  if (!text.includes("plugins/codex/itixo/scripts/model-catalog.json")) {
+    fail(`${rel}: must reference the shared model catalog`);
+  }
+  if (!text.includes("node scripts/generate-agents.js")) {
+    fail(`${rel}: must regenerate provider agent files`);
+  }
+  if (!text.includes("source checkout")) fail(`${rel}: must keep updates in the source checkout`);
+}
+if (failures === 0) ok("model-update skills packaged for all providers");
 
 // --- 4. claude/itixo: frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
@@ -405,9 +510,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.8.2"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.7.3"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.7.1"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.8.5"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.8.1"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.7.5"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

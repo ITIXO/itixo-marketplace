@@ -2,7 +2,7 @@
 # Generated from base/agents/itixo-reviewer.md by scripts/generate-agents.js.
 name = "itixo-reviewer"
 description = "Reviews diffs, branches, or files."
-model = "gpt-5.6-terra"
+model = "gpt-6-sol"
 model_reasoning_effort = "medium"
 
 developer_instructions = """

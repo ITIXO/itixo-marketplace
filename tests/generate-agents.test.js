@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
 const ROOT = path.join(__dirname, "..");
@@ -97,6 +98,28 @@ function withTemporaryDirectory(callback) {
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+}
+
+function makeGeneratorRepository(directory) {
+  const repository = path.join(directory, "catalog-repository");
+  for (const relativePath of ["base", "scripts", "plugins"]) {
+    fs.cpSync(path.join(ROOT, relativePath), path.join(repository, relativePath), { recursive: true });
+  }
+  return repository;
+}
+
+function generatedOutputSnapshot(repository) {
+  const files = [
+    ["plugins", "claude", "itixo", "agents"],
+    ["plugins", "codex", "itixo", "templates", "agents"],
+    ["plugins", "copilot", "itixo", "agents"],
+  ].flatMap((segments) => {
+    const directory = path.join(repository, ...segments);
+    return fs.readdirSync(directory)
+      .filter((name) => name.endsWith(".md") || name.endsWith(".toml"))
+      .map((name) => path.join(directory, name));
+  });
+  return new Map(files.map((file) => [file, fs.readFileSync(file, "utf8")]));
 }
 
 function readFrontmatter(text) {
@@ -194,6 +217,89 @@ test("renders every canonical role into Claude agents, Codex TOML templates, and
   }
 });
 
+test("rejects invalid catalog tiers before modifying generated outputs", () => {
+  withTemporaryDirectory((temporary) => {
+    const cases = [
+      {
+        name: "missing Copilot security model",
+        update(catalog) {
+          delete catalog.providers.copilot.models.security;
+        },
+      },
+      {
+        name: "unsupported Codex cheap effort",
+        update(catalog) {
+          catalog.providers.codex.efforts.cheap = "ultra";
+        },
+      },
+      {
+        name: "Claude tier uses Codex-only alias",
+        update(catalog) {
+          catalog.providers.claude.models.mid = "sol";
+        },
+      },
+      {
+        name: "Codex tier uses Claude-only alias",
+        update(catalog) {
+          catalog.providers.codex.models.security = "opus";
+        },
+      },
+      {
+        name: "Codex tier uses pinned alias",
+        update(catalog) {
+          catalog.providers.codex.models.mid = "gpt6-sol";
+        },
+      },
+    ];
+    for (const scenario of cases) {
+      const repository = makeGeneratorRepository(path.join(temporary, scenario.name));
+      const catalogPath = path.join(repository, "plugins", "codex", "itixo", "scripts", "model-catalog.json");
+      const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+      scenario.update(catalog);
+      fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+      const before = generatedOutputSnapshot(repository);
+
+      const result = spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js")], {
+        cwd: repository,
+        encoding: "utf8",
+      });
+
+      assert.equal(result.status, 1, scenario.name);
+      assert.match(result.stderr, /model catalog/i, scenario.name);
+      assert.deepEqual(generatedOutputSnapshot(repository), before, scenario.name);
+    }
+  });
+});
+
+test("resolves shared aliases to each provider's concrete model ID", () => {
+  withTemporaryDirectory((temporary) => {
+    const repository = makeGeneratorRepository(temporary);
+    const catalogPath = path.join(repository, "plugins", "codex", "itixo", "scripts", "model-catalog.json");
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+    catalog.providers.copilot.models.mid = "sol";
+    fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+
+    const result = spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js")], {
+      cwd: repository,
+      encoding: "utf8",
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(
+      fs.readFileSync(path.join(repository, "plugins", "copilot", "itixo", "agents", "itixo-builder.agent.md"), "utf8"),
+      /^model: "gpt-6-sol"$/m,
+    );
+    assert.match(
+      fs.readFileSync(path.join(repository, "plugins", "claude", "itixo", "agents", "itixo-security-reviewer.md"), "utf8"),
+      /^model: opus$/m,
+    );
+    assert.match(
+      fs.readFileSync(path.join(repository, "plugins", "copilot", "itixo", "agents", "itixo-security-reviewer.agent.md"), "utf8"),
+      /^model: "claude-opus-5\.5"$/m,
+    );
+  });
+});
+
 test("canonical roles keep structured, capability-scoped contracts", () => {
   const agents = readBaseAgents(ROOT);
   assert.deepEqual(agents.map(({ name }) => name), ROLE_NAMES);
@@ -275,7 +381,7 @@ test("renders provider model, TOML schema, and tool metadata from each tier", ()
   const securityReviewer = readBaseAgents(ROOT).find(({ name }) => name === "itixo-security-reviewer");
   assert.equal(readFrontmatter(renderClaude("itixo-security-reviewer", securityReviewer.agent)).model, "opus");
   assert.equal(readFrontmatter(renderClaude("itixo-security-reviewer", securityReviewer.agent)).effort, "max");
-  assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model = "gpt-5\.6-sol"$/m);
+  assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model = "gpt-6-astra"$/m);
   assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model_reasoning_effort = "max"$/m);
 });
 
@@ -296,7 +402,7 @@ test("renderCopilot produces correct frontmatter for each tier", () => {
       assert.match(copilot, new RegExp(`^model: ${JSON.stringify(PROVIDERS.copilot.models[agent.tier])}$`, "m"));
     }
     if (agent.tier === "security") {
-      assert.match(copilot, /^model: "claude-opus-5"$/m);
+      assert.match(copilot, /^model: "claude-opus-5\.5"$/m);
       assert.doesNotMatch(copilot, /^effort:/m);
       assert.doesNotMatch(copilot, /^model_reasoning_effort:/m);
     }

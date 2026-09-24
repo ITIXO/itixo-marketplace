@@ -1,3 +1,23 @@
+## 2026-09-24
+
+### itixo 0.7.5
+
+- Shared model aliases now record Copilot-specific availability and concrete versions, so model updates can add or change supported provider choices without implying cross-provider support.
+
+### itixo 0.7.4
+
+- The `update-models` skill now documents independently changing Codex tier aliases and alias versions, and the Codex installer flow reads current catalog choices.
+
+### itixo 0.7.3
+
+- Added the user-invoked `update-models` skill for verifying official provider model IDs and reasoning efforts, updating the shared catalog from a source checkout, regenerating agent outputs, and running repository validation.
+
+## 2026-09-23
+
+### itixo 0.7.2
+
+- The security-review agent now defaults to Claude Opus 5.5.
+
 ## 2026-09-14
 
 ### itixo-component-library 0.1.4

@@ -11,12 +11,14 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 | orchestrator | inherit (user-selected) | itixo-planner |
 | mid | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
 | cheap | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
-| security | claude-opus-5 | itixo-security-reviewer |
+| security | claude-opus-5.5 | itixo-security-reviewer |
+
+The shared model catalog stores aliases globally but records concrete IDs per provider. Use an alias only when its Copilot provider entry exists; never infer Copilot support from another provider's entry.
 
 ## Rules
 
 - Copilot CLI invokes the native Copilot plugin agent using its canonical `itixo-*` ID and the definition's prescribed tier.
-- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is `claude-opus-5` with no effort field; do not infer or broaden an override.
+- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is `claude-opus-5.5` with no effort field; do not infer or broaden an override.
 - itixo-investigator (haiku) locates first; itixo-builder (sonnet) gets exact file:line targets.
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.

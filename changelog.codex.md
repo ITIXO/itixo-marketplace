@@ -1,3 +1,23 @@
+## 2026-09-24
+
+### itixo 0.8.1
+
+- Shared model aliases now use provider-specific availability and concrete version choices, so Codex installation can select only aliases supported by Codex while retaining compatibility selectors.
+
+### itixo 0.8.0
+
+- **Breaking:** Codex installation now selects a tier alias and then a concrete model version from the shared catalog. Existing managed installs must be rerun with the desired tier and version choices.
+
+### itixo 0.7.5
+
+- Added the user-invoked `update-models` skill for verifying official provider model IDs and reasoning efforts, updating the shared catalog from a source checkout, regenerating Codex templates, and running repository validation.
+
+## 2026-09-23
+
+### itixo 0.7.4
+
+- Codex agents now default to GPT-6 Sol, GPT-6 Luna, and GPT-6 Astra by role, while installer overrides retain GPT-5.6 choices and add GPT-6 model aliases.
+
 ## 2026-09-14
 
 ### itixo-component-library 0.1.4
