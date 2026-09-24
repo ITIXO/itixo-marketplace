@@ -9,6 +9,32 @@ const MODEL_CATALOG = require("../plugins/codex/itixo/scripts/model-catalog.json
 
 const ROOT = path.resolve(__dirname, "..");
 const BASE_DIR = path.join(ROOT, "base", "agents");
+const MODEL_ALIASES = catalogAliases(MODEL_CATALOG.aliases);
+
+function catalogAliases(aliases) {
+  if (!aliases || typeof aliases !== "object") throw new Error("model catalog: invalid aliases.");
+  for (const [name, alias] of Object.entries(aliases)) {
+    if (!alias || typeof alias !== "object" || !alias.providers || typeof alias.providers !== "object"
+      || Object.keys(alias.providers).length === 0 || (alias.pinned !== undefined && typeof alias.pinned !== "boolean")) {
+      throw new Error(`model catalog: invalid alias '${name}'.`);
+    }
+    for (const [providerId, definition] of Object.entries(alias.providers)) {
+      if (!PROVIDER_IDS.includes(providerId) || !definition || typeof definition !== "object"
+        || typeof definition.default !== "string" || !Array.isArray(definition.versions)
+        || definition.versions.length === 0 || !definition.versions.includes(definition.default)) {
+        throw new Error(`model catalog: invalid alias '${name}' for '${providerId}'.`);
+      }
+    }
+  }
+  return aliases;
+}
+
+function resolveAlias(providerId, alias) {
+  const definition = MODEL_ALIASES[alias]?.providers?.[providerId];
+  if (!definition) throw new Error(`model catalog: alias '${alias}' is unavailable for '${providerId}'.`);
+  return definition;
+}
+
 function catalogProvider(id) {
   const provider = MODEL_CATALOG.providers?.[id];
   if (!provider || typeof provider !== "object" || !provider.models || !provider.efforts
@@ -24,27 +50,23 @@ function catalogProvider(id) {
     if (provider.models.orchestrator !== "inherit" || !provider.efforts.security) {
       throw new Error("model catalog: invalid Claude orchestrator or security effort.");
     }
-  } else if (id === "codex") {
-    const aliases = provider.aliases;
-    if (!aliases || typeof aliases !== "object" || !provider.pinnedAliases || typeof provider.pinnedAliases !== "object"
-      || Object.values(aliases).some((alias) => !alias || typeof alias !== "object"
-        || typeof alias.default !== "string" || !Array.isArray(alias.versions)
-        || alias.versions.length === 0 || !alias.versions.includes(alias.default))
-      || ["cheap", "mid", "security"].some((tier) => !aliases[provider.models[tier]])) {
-      throw new Error("model catalog: invalid Codex aliases.");
-    }
-    const models = Object.fromEntries(Object.entries(provider.models).map(([tier, alias]) => [tier, aliases[alias].default]));
+  }
+  const models = Object.fromEntries(Object.entries(provider.models).map(([tier, alias]) => [
+    tier,
+    tier === "orchestrator" && alias === "inherit" ? alias : resolveAlias(id, alias).default,
+  ]));
+  if (id === "codex") {
     if (!provider.effortsByModel || typeof provider.effortsByModel !== "object"
-      || [...Object.values(aliases).flatMap((alias) => alias.versions), ...Object.values(provider.pinnedAliases)]
+      || Object.values(MODEL_ALIASES).flatMap((alias) => alias.providers.codex?.versions || [])
         .some((model) => !Array.isArray(provider.effortsByModel[model]))
       || ["cheap", "mid", "security"].some((tier) => !provider.effortsByModel[models[tier]].includes(provider.efforts[tier]))) {
       throw new Error("model catalog: invalid Codex model effort.");
     }
     return { ...provider, models };
-  } else if (Object.keys(provider.efforts).length !== 0) {
+  } else if (id === "copilot" && Object.keys(provider.efforts).length !== 0) {
     throw new Error("model catalog: Copilot must not declare efforts.");
   }
-  return provider;
+  return { ...provider, models };
 }
 
 const PROVIDER_CONFIG = {

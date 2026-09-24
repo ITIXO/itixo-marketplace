@@ -39,11 +39,32 @@ const AGENT_IDS = [
 function validateCatalog(catalog) {
   const codex = catalog?.providers?.codex;
   if (!codex || typeof codex !== "object") fail("Model catalog has no Codex provider.");
-  for (const key of ["models", "efforts", "aliases", "pinnedAliases", "cheapEfforts", "cheapEffortOverrides", "effortsByModel"]) {
+  for (const key of ["models", "efforts", "cheapEfforts", "cheapEffortOverrides", "effortsByModel"]) {
     if (!codex[key] || typeof codex[key] !== "object") fail(`Model catalog has invalid Codex '${key}'.`);
   }
+  const aliases = catalog.aliases;
+  if (!aliases || typeof aliases !== "object") fail("Model catalog has invalid aliases.");
+  const codexAliases = {};
+  const pinnedAliases = {};
+  for (const [alias, definition] of Object.entries(aliases)) {
+    if (!definition || typeof definition !== "object" || !definition.providers || typeof definition.providers !== "object"
+      || (definition.pinned !== undefined && typeof definition.pinned !== "boolean")) {
+      fail(`Model catalog has invalid alias '${alias}'.`);
+    }
+    for (const [providerId, providerDefinition] of Object.entries(definition.providers)) {
+      if (!["claude", "codex", "copilot"].includes(providerId) || !providerDefinition || typeof providerDefinition !== "object"
+        || typeof providerDefinition.default !== "string" || !Array.isArray(providerDefinition.versions)
+        || providerDefinition.versions.length === 0 || !providerDefinition.versions.includes(providerDefinition.default)) {
+        fail(`Model catalog has invalid alias '${alias}' for '${providerId}'.`);
+      }
+    }
+    const providerDefinition = definition.providers.codex;
+    if (!providerDefinition) continue;
+    if (definition.pinned) pinnedAliases[alias] = providerDefinition.default;
+    else codexAliases[alias] = providerDefinition;
+  }
   for (const tier of TIER_NAMES) {
-    if (typeof codex.models[tier] !== "string" || typeof codex.efforts[tier] !== "string" || !Object.hasOwn(codex.aliases, codex.models[tier])) {
+    if (typeof codex.models[tier] !== "string" || typeof codex.efforts[tier] !== "string" || !Object.hasOwn(codexAliases, codex.models[tier])) {
       fail(`Model catalog has invalid Codex '${tier}' default.`);
     }
   }
@@ -51,26 +72,19 @@ function validateCatalog(catalog) {
   if (models.length === 0 || models.some((model) => !Array.isArray(codex.effortsByModel[model]) || codex.effortsByModel[model].length === 0)) {
     fail("Model catalog has invalid Codex model efforts.");
   }
-  for (const [alias, definition] of Object.entries(codex.aliases)) {
-    if (!definition || typeof definition !== "object" || typeof definition.default !== "string"
-      || !Array.isArray(definition.versions) || definition.versions.length === 0
-      || !definition.versions.includes(definition.default)) {
-      fail(`Model catalog has invalid Codex alias '${alias}'.`);
-    }
-  }
   for (const model of [
-    ...Object.values(codex.aliases).flatMap((definition) => definition.versions),
-    ...Object.values(codex.pinnedAliases),
+    ...Object.values(codexAliases).flatMap((definition) => definition.versions),
+    ...Object.values(pinnedAliases),
     ...Object.keys(codex.cheapEffortOverrides),
   ]) {
     if (!models.includes(model)) fail(`Model catalog references unknown Codex model '${model}'.`);
   }
   if (!Array.isArray(codex.cheapEfforts) || codex.cheapEfforts.length === 0) fail("Model catalog has invalid cheap efforts.");
-  if (Object.entries(codex.models).some(([tier, alias]) => !codex.effortsByModel[codex.aliases[alias].default].includes(codex.efforts[tier]))
+  if (Object.entries(codex.models).some(([tier, alias]) => !codex.effortsByModel[codexAliases[alias].default].includes(codex.efforts[tier]))
     || Object.entries(codex.cheapEffortOverrides).some(([model, effort]) => !codex.effortsByModel[model].includes(effort))) {
     fail("Model catalog has invalid cheap default effort.");
   }
-  return codex;
+  return { ...codex, aliases: codexAliases, pinnedAliases };
 }
 
 function resolveModel(selector, modelVersions = {}) {
