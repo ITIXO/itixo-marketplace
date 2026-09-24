@@ -165,6 +165,7 @@ test("catalog-only model additions and defaults flow through generation and pack
       codex.models.cheap = "nova";
       codex.efforts.cheap = "medium";
       codex.aliases.nova = { default: "gpt-7-nova", versions: ["gpt-7-nova"] };
+      codex.aliases.sol.default = "gpt-5.6-sol";
       codex.effortsByModel["gpt-7-nova"] = ["low", "medium", "high"];
     });
 
@@ -176,6 +177,10 @@ test("catalog-only model additions and defaults flow through generation and pack
     assert.match(
       fs.readFileSync(path.join(plugin, "templates", "agents", "itixo-investigator.toml"), "utf8"),
       /^model = "gpt-7-nova"$/m,
+    );
+    assert.match(
+      fs.readFileSync(path.join(plugin, "templates", "agents", "itixo-builder.toml"), "utf8"),
+      /^model = "gpt-5\.6-sol"$/m,
     );
 
     const project = path.join(temporary, "project");
@@ -189,6 +194,7 @@ test("catalog-only model additions and defaults flow through generation and pack
     for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
       assertAgentSettings(project, agentId, { model: "gpt-7-nova", effort: "medium" });
     }
+    assertAgentSettings(project, "itixo-builder", { model: "gpt-5.6-sol", effort: "medium" });
     assertAgentSettings(project, "itixo-planner", { model: "gpt-7-nova", effort: null });
   });
 });
