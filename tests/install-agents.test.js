@@ -47,6 +47,7 @@ function makePlugin(directory) {
   fs.mkdirSync(path.join(plugin, "scripts"), { recursive: true });
   fs.mkdirSync(path.join(plugin, "templates", "agents"), { recursive: true });
   fs.copyFileSync(path.join(SOURCE_PLUGIN, "scripts", "install-agents.js"), path.join(plugin, "scripts", "install-agents.js"));
+  fs.copyFileSync(path.join(SOURCE_PLUGIN, "scripts", "model-catalog.json"), path.join(plugin, "scripts", "model-catalog.json"));
   for (const agentId of AGENT_IDS) {
     fs.copyFileSync(
       path.join(SOURCE_PLUGIN, "templates", "agents", `${agentId}.toml`),
@@ -61,6 +62,21 @@ function run(plugin, args, environment = {}) {
     encoding: "utf8",
     env: { ...process.env, ...environment },
   });
+}
+
+function writeCatalog(plugin, update) {
+  const catalogPath = path.join(plugin, "scripts", "model-catalog.json");
+  const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+  update(catalog);
+  fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+}
+
+function makeCatalogRepository(directory) {
+  const repository = path.join(directory, "catalog-repository");
+  for (const relativePath of ["base", "scripts", "plugins"]) {
+    fs.cpSync(path.join(ROOT, relativePath), path.join(repository, relativePath), { recursive: true });
+  }
+  return repository;
 }
 
 function destination(root) {
@@ -137,6 +153,89 @@ test("installs exactly eight default custom agents into an isolated personal hom
     }
     assert.doesNotMatch(readAgent(home, "itixo-planner"), /^model(?:_reasoning_effort)? =/m);
     assertAgentSettings(home, "itixo-security-reviewer", { model: "gpt-6-astra", effort: "max" });
+  });
+});
+
+test("catalog-only model additions and defaults flow through generation and packaged installation", () => {
+  withTemporaryDirectory((temporary) => {
+    const repository = makeCatalogRepository(temporary);
+    const plugin = path.join(repository, "plugins", "codex", "itixo");
+    writeCatalog(plugin, (catalog) => {
+      const codex = catalog.providers.codex;
+      codex.models.cheap = "gpt-7-nova";
+      codex.efforts.cheap = "medium";
+      codex.aliases.nova = "gpt-7-nova";
+      codex.cheapModels.nova = "gpt-7-nova";
+      codex.cheapModels["gpt-7-nova"] = "gpt-7-nova";
+      codex.effortsByModel["gpt-7-nova"] = ["low", "medium", "high"];
+    });
+
+    const generated = spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js")], {
+      encoding: "utf8",
+      cwd: repository,
+    });
+    assert.equal(generated.status, 0, generated.stderr);
+    assert.match(
+      fs.readFileSync(path.join(plugin, "templates", "agents", "itixo-investigator.toml"), "utf8"),
+      /^model = "gpt-7-nova"$/m,
+    );
+
+    const project = path.join(temporary, "project");
+    fs.mkdirSync(project);
+    const result = run(plugin, [
+      "--scope", "project", "--project-root", project,
+      "--agent-model", "itixo-planner=nova",
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
+      assertAgentSettings(project, agentId, { model: "gpt-7-nova", effort: "medium" });
+    }
+    assertAgentSettings(project, "itixo-planner", { model: "gpt-7-nova", effort: null });
+  });
+});
+
+test("rejects malformed and invalid packaged catalogs before writing agents", () => {
+  withTemporaryDirectory((temporary) => {
+    const project = path.join(temporary, "project");
+    fs.mkdirSync(project);
+    const cases = [
+      {
+        name: "malformed JSON",
+        write(plugin) {
+          fs.writeFileSync(path.join(plugin, "scripts", "model-catalog.json"), "{");
+        },
+        error: /SyntaxError|Expected property/,
+      },
+      {
+        name: "alias without capabilities",
+        write(plugin) {
+          writeCatalog(plugin, (catalog) => {
+            catalog.providers.codex.aliases.broken = "gpt-7-unknown";
+          });
+        },
+        error: /Model catalog references unknown Codex model 'gpt-7-unknown'/,
+      },
+      {
+        name: "empty model capabilities",
+        write(plugin) {
+          writeCatalog(plugin, (catalog) => {
+            catalog.providers.codex.effortsByModel["gpt-6-luna"] = [];
+          });
+        },
+        error: /Model catalog has invalid Codex model efforts/,
+      },
+    ];
+    for (const scenario of cases) {
+      const plugin = makePlugin(path.join(temporary, scenario.name));
+      scenario.write(plugin);
+
+      const result = run(plugin, ["--scope", "project", "--project-root", project]);
+
+      assert.equal(result.status, 1, scenario.name);
+      assert.match(result.stderr, scenario.error, scenario.name);
+      assert.deepEqual(installedFiles(project), [], scenario.name);
+    }
   });
 });
 
