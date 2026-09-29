@@ -1,3 +1,9 @@
+## 2026-09-29
+
+### itixo 0.8.2
+
+- The model updater now presents current model and agent-level tables, then applies confirmed Codex model changes through `itixo:install-agents` after validation.
+
 ## 2026-09-24
 
 ### itixo 0.8.1

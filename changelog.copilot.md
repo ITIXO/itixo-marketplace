@@ -1,3 +1,9 @@
+## 2026-09-29
+
+### itixo 0.7.6
+
+- The model updater now presents current model and agent-level tables and collects provider choices through a questionnaire when available. gh-aw alias patterns are discovery hints; Copilot model IDs are verified separately.
+
 ## 2026-09-24
 
 ### itixo 0.7.5
