@@ -1,3 +1,10 @@
+## 2026-09-29
+
+### itixo 0.9.0
+
+- **Breaking:** Removed the Claude `update-models` skill. Claude continues using generated native agents; the source model updater remains available in Codex and Copilot.
+- Claude model options now include the catalogued `claude-sonnet-5-5` choice; the default remains unchanged.
+
 ## 2026-09-24
 
 ### itixo 0.8.5

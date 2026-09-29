@@ -48,6 +48,8 @@ The eight canonical IDs above are shared by all three platforms. `itixo-planner`
 
 The shared catalog defines root aliases such as `sol`, `luna`, `terra`, and `opus`, then records each provider's concrete `default` and `versions` entries. A provider entry is the availability signal, so an alias can work for Claude and Copilot without implying Codex support. Codex assigns its provider aliases to mid, cheap, and security tiers; the installer filters out pinned compatibility aliases, then lets users choose the tier alias and its provider-specific version independently. Legacy selectors such as `gpt6-sol` and `gpt6-luna`, plus full model IDs, remain accepted.
 
+Codex and Copilot provide `/itixo:update-models`; Claude does not package this skill. It first shows two tables populated from the checkout: each provider's level, current model, and possible options; then each agent and its level. A questionnaire collects confirmed changes and offers the current values. After confirmed Codex model choices pass validation, the skill runs `itixo:install-agents` to update installed agents in the selected scope.
+
 Claude keeps generated defaults unless the user explicitly requests a provider-supported model or effort override. The shared catalog's `opus` alias has a Claude provider entry; Claude Code v2.1.280+ resolves it to Opus 5.5 for Anthropic, API, AWS Bedrock, and Google Vertex, while Foundry resolves an older Opus version. See the [official Claude model configuration docs](https://code.claude.com/docs/en/model-config) for provider-specific aliases and restrictions. Pin older Claude choices through the provider's documented model configuration or environment settings.
 
 ### Security reviews

@@ -32,7 +32,7 @@
     },
     "sonnet": {
       "providers": {
-        "claude": { "default": "sonnet", "versions": ["sonnet"] },
+        "claude": { "default": "sonnet", "versions": ["sonnet", "claude-sonnet-5-5"] },
         "copilot": { "default": "claude-sonnet-5", "versions": ["claude-sonnet-5"] }
       }
     },
