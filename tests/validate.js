@@ -270,8 +270,11 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
 }
 if (failures === 0) ok("dirigent skills exist and reference canonical agent IDs");
 
-// --- 3c. every provider packages the shared model-update workflow ---
-for (const plugin of ORCHESTRATION_PLUGINS) {
+// --- 3c. Codex and Copilot package the shared model-update workflow ---
+if (fs.existsSync(path.join(ROOT, "plugins/claude/itixo/skills/update-models"))) {
+  fail("Claude must not package the update-models skill");
+}
+for (const plugin of ["codex/itixo", "copilot/itixo"]) {
   const rel = `plugins/${plugin}/skills/update-models/SKILL.md`;
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) {
@@ -288,7 +291,7 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
   }
   if (!text.includes("source checkout")) fail(`${rel}: must keep updates in the source checkout`);
 }
-if (failures === 0) ok("model-update skills packaged for all providers");
+if (failures === 0) ok("model-update skills packaged only for Codex and Copilot");
 
 // --- 4. claude/itixo: frontmatter model matches tier ---
 for (const agent of Object.keys(TIERS)) {
@@ -510,9 +513,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.8.5"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.8.1"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.7.5"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.9.0"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.8.2"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.7.6"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);
