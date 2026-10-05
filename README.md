@@ -31,7 +31,7 @@ scripts/
 
 Each provider publishes an `itixo` plugin — Claude, Codex, and Copilot CLI — from its provider-specific source directory. Anything useful for Itixo people working with those providers belongs there. Orchestration below is the first module; more skills/agents/rules will accumulate over time.
 
-All three plugins include `dirigent`, which loads and enforces the plugin's `rules/agents.md` for multi-step orchestration. It is off by default and activates only after an explicit request or a saved personal opt-in; a coding task alone does not activate it. Discussing or quoting Dirigent does not toggle it. Repository instructions still apply when Dirigent is off.
+All three plugins include `dirigent`, which loads the plugin's `rules/agents.md` for multi-step orchestration. It is off by default. Provider hooks inject its current state at supported session and agent starts; ordinary coding work, discussion, and quotation do not enable it. Hooks provide instructions, not platform permission controls. Repository instructions still apply when Dirigent is off.
 
 ### Dirigent activation
 
@@ -39,12 +39,12 @@ Use slash commands or plain language to change Dirigent's state:
 
 | Request | Effect |
 |---|---|
-| `/dirigent` or `/dirigent on` — “turn on Dirigent” | Enable for this chat; state lasts until changed. |
-| `/dirigent off` — “stop Dirigent” | Disable for this chat; saved default stays unchanged. |
-| `/dirigent on --global` — “turn on Dirigent globally” | Enable now and save opt-in for future sessions across projects in the current provider profile. |
-| `/dirigent off --global` — “turn off Dirigent for future sessions” | Disable now and remove the saved opt-in. |
+| `/dirigent` or `/dirigent on` — “turn on Dirigent” | Enable for this session; state lasts until changed. |
+| `/dirigent off` — “stop Dirigent” | Disable for this session; saved default stays unchanged. |
+| `/dirigent on --global` — “turn on Dirigent globally” | Enable now and save opt-in for new sessions across projects in this provider profile. |
+| `/dirigent off --global` — “turn off Dirigent for future sessions” | Disable now and remove this provider profile's saved opt-in. |
 
-Equivalent plain-language wording is understood by intent. Global preferences use the provider's personal instructions or supported settings.
+Equivalent plain-language wording is understood by intent. Global changes affect the current session and future sessions in this provider profile; they do not change other live sessions or providers. Session and saved state live in the provider's writable plugin data, falling back to its configuration directory. If the provider cannot supply hook or control metadata, or storage is unavailable, Dirigent reports that the change could not be saved. It never edits personal instruction files as a fallback.
 
 ## Orchestration concept
 
@@ -135,7 +135,7 @@ Install the plugin:
 copilot plugin install itixo@itixo
 ```
 
-When explicitly requested or enabled through a saved opt-in, the `dirigent` skill loads and enforces `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer` (claude-opus-5.5, read-only security review), `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`.
+When explicitly requested or enabled through a saved opt-in, the `dirigent` skill loads `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Copilot CLI provides session-start and user-prompt hooks; its built-in general-purpose agent has no subagent-start hook, and prompt-hook output cannot inject context. The original user request and explicit skill invocation still handle those paths. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer` (claude-opus-5.5, read-only security review), `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`.
 
 ## Adding a new plugin
 

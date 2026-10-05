@@ -2,7 +2,7 @@
 
 ### itixo 0.9.0
 
-- **Breaking:** Dirigent starts off and activates only on an explicit command or clear request. Turning it off suspends its delegation rules for the chat; global on/off can save or remove a personal default for future sessions.
+- **Breaking:** Dirigent now tracks default and session enablement in hook-backed provider state. Explicit slash or plain-language toggles affect the current session; global toggles also save/remove the provider-profile default for new sessions. Hooks inject instructions, not permission controls; unavailable hooks or storage cannot report success. Codex's existing runtime-model hook remains independent.
 
 ## 2026-09-29
 

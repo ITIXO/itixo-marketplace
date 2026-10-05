@@ -4,9 +4,9 @@ Source of truth for all provider plugins (`claude/itixo`, `codex/itixo`, `copilo
 
 ## Activation
 
-Dirigent starts off unless the user explicitly enables it in this chat or a saved personal opt-in enables it for new sessions. `/dirigent`, `/dirigent on`, or a clear request to use, start, enable, or turn on Dirigent enables it for the rest of this chat. `/dirigent off` or a clear request to stop, disable, or turn off Dirigent disables it until reenabled. Mentioning or quoting Dirigent while discussing it does not change state; `normal mode` is not a Dirigent toggle. A chat-only off does not remove a saved personal opt-in.
+Dirigent starts off unless the provider hook reports it on for this session. Hooks initialize fresh sessions from a provider-profile default; explicit session toggles override that default until the session ends, while resumed sessions and subagents retain their inherited state. `/dirigent`, `/dirigent on`, and clear requests to use, start, enable, or turn on Dirigent enable it for this session; `/dirigent off` and clear requests to stop, disable, or turn it off disable it. Global on/off also changes the current session and saves/removes the default for future sessions in this provider profile only. Discussion or quotation does not toggle it; `normal mode` is not a command.
 
-Only while Dirigent is enabled do the delegation requirements and orchestrator hard boundaries below apply. Process on/off and global-preference requests before those requirements, even when Dirigent is off. Independent repository and higher-priority instructions still apply.
+Handle toggles before delegation rules, even when Dirigent is off. Use the hook-provided control command, session ID, and state directory; do not guess paths or session IDs. If metadata or writable storage is unavailable, report that the change could not be applied or saved. Hooks inject instructions and do not enforce platform permissions. Apply the delegation requirements and orchestrator hard boundaries below only while enabled; independent repository and higher-priority instructions still apply.
 
 ## Core idea
 

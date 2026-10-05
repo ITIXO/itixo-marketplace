@@ -2,7 +2,7 @@
 
 Derived from `base/rules/agents.md` — edit there, sync here.
 
-Dirigent starts off unless explicitly enabled in this chat or by a saved personal opt-in for new sessions. `/dirigent`, `/dirigent on`, or a clear request to use, start, enable, or turn on Dirigent enables it for this chat; `/dirigent off` or a clear request to stop, disable, or turn it off suspends it until reenabled. Discussion or quotation does not toggle it; `normal mode` is not a toggle. Chat-only off leaves a saved opt-in intact. Apply the delegation rules and hard boundaries below only while enabled. Handle toggles and global-preference edits before those rules; independent repository and higher-priority instructions still apply.
+Dirigent starts off unless a hook injects enabled state. Fresh sessions inherit the provider-profile default; session toggles override it until session ends. Global on/off affects this session and future sessions in this provider profile, not other live sessions or providers. Handle clear slash-command or plain-language toggles before delegation. Use injected helper metadata; never guess state paths or session IDs. If metadata or writable storage is unavailable, report failure. Hooks inject instructions, not platform permission controls; Copilot prompt-hook output cannot inject context, and its built-in general-purpose agent lacks a subagent-start hook. Apply delegation rules below only while enabled; independent repository and higher-priority instructions still apply.
 
 Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to a subagent on a cheaper model.
 
