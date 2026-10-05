@@ -661,6 +661,29 @@ if (runtimeModelHook?.hooks?.SubagentStart?.some((entry) => entry.matcher !== "*
 }
 if (failures === 0) ok("codex/itixo runtime-model hook configured");
 
+// Dirigent state hooks must be connected in every provider package.
+for (const provider of ["claude", "codex", "copilot"]) {
+  const scriptRel = `plugins/${provider}/itixo/scripts/dirigent-runtime.js`;
+  const hooksRel = `plugins/${provider}/itixo/hooks/hooks.json`;
+  if (!fs.existsSync(path.join(ROOT, scriptRel))) {
+    fail(`${scriptRel} missing`);
+    continue;
+  }
+  const hooks = readJson(hooksRel)?.hooks || {};
+  const events = provider === "copilot"
+    ? [["sessionStart", "session-start"], ["userPromptSubmitted", "user-prompt-submit"], ["subagentStart", "subagent-start"]]
+    : [["SessionStart", "session-start"], ["UserPromptSubmit", "user-prompt-submit"], ["SubagentStart", "subagent-start"]];
+  for (const [event, action] of events) {
+    const commands = provider === "copilot"
+      ? (hooks[event] || []).flatMap((entry) => [entry.bash, entry.powershell])
+      : (hooks[event] || []).flatMap((entry) => (entry.hooks || []).map((hook) => hook.command));
+    if (!commands.some((command) => command?.includes("dirigent-runtime.js") && command.includes(`'${provider}','${action}'`))) {
+      fail(`${hooksRel}: missing ${event} Dirigent runtime command`);
+    }
+  }
+}
+if (failures === 0) ok("dirigent runtime hooks configured for all providers");
+
 // --- result ---
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
