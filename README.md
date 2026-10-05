@@ -31,7 +31,20 @@ scripts/
 
 Each provider publishes an `itixo` plugin — Claude, Codex, and Copilot CLI — from its provider-specific source directory. Anything useful for Itixo people working with those providers belongs there. Orchestration below is the first module; more skills/agents/rules will accumulate over time.
 
-All three plugins include `dirigent`, which loads and enforces the plugin's `rules/agents.md` for multi-step orchestration.
+All three plugins include `dirigent`, which loads and enforces the plugin's `rules/agents.md` for multi-step orchestration. It is off by default and activates only after an explicit request or a saved personal opt-in; a coding task alone does not activate it. Discussing or quoting Dirigent does not toggle it. Repository instructions still apply when Dirigent is off.
+
+### Dirigent activation
+
+Use slash commands or plain language to change Dirigent's state:
+
+| Request | Effect |
+|---|---|
+| `/dirigent` or `/dirigent on` — “turn on Dirigent” | Enable for this chat; state lasts until changed. |
+| `/dirigent off` — “stop Dirigent” | Disable for this chat; saved default stays unchanged. |
+| `/dirigent on --global` — “turn on Dirigent globally” | Enable now and save opt-in for future sessions across projects in the current provider profile. |
+| `/dirigent off --global` — “turn off Dirigent for future sessions” | Disable now and remove the saved opt-in. |
+
+Equivalent plain-language wording is understood by intent. Global preferences use the provider's personal instructions or supported settings.
 
 ## Orchestration concept
 
@@ -122,7 +135,7 @@ Install the plugin:
 copilot plugin install itixo@itixo
 ```
 
-Use the `dirigent` skill for multi-step orchestration. It loads and enforces `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer` (claude-opus-5.5, read-only security review), `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`.
+When explicitly requested or enabled through a saved opt-in, the `dirigent` skill loads and enforces `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer` (claude-opus-5.5, read-only security review), `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`.
 
 ## Adding a new plugin
 
