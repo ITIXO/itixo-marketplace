@@ -43,7 +43,7 @@ const TIERS = {
   "itixo-security-reviewer": "security",
   "itixo-docs-updater": "cheap",
 };
-const modelCatalog = readJson("plugins/codex/itixo/scripts/model-catalog.json");
+const modelCatalog = readJson("base/models/model-catalog.json");
 const catalogProviders = modelCatalog?.providers || {};
 const catalogAliases = modelCatalog?.aliases || {};
 function resolveCatalogModel(provider, tier) {
@@ -205,8 +205,8 @@ try {
   for (const [kind, paths] of Object.entries(staleness)) {
     for (const relativePath of paths) fail(`generated agent output ${kind}: ${relativePath}`);
   }
-  if (outputs.length !== expectedRoles.length * ORCHESTRATION_PLUGINS.length) {
-    fail(`generated agent output count ${outputs.length}, expected ${expectedRoles.length * ORCHESTRATION_PLUGINS.length}`);
+  if (outputs.length !== expectedRoles.length * ORCHESTRATION_PLUGINS.length + 1) {
+    fail(`generated agent output count ${outputs.length}, expected ${expectedRoles.length * ORCHESTRATION_PLUGINS.length + 1} (agents + Codex catalog copy)`);
   }
 } catch (error) {
   fail(`generated agent validation failed (${error.message})`);
@@ -285,7 +285,7 @@ for (const plugin of ["codex/itixo", "copilot/itixo"]) {
   }
   const text = readFile(rel);
   if (!/^---\nname: update-models\n/m.test(text)) fail(`${rel}: invalid update-models frontmatter`);
-  if (!text.includes("plugins/codex/itixo/scripts/model-catalog.json")) {
+  if (!text.includes("base/models/model-catalog.json")) {
     fail(`${rel}: must reference the shared model catalog`);
   }
   if (!text.includes("node scripts/generate-agents.js")) {

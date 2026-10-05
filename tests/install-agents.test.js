@@ -64,8 +64,8 @@ function run(plugin, args, environment = {}) {
   });
 }
 
-function writeCatalog(plugin, update) {
-  const catalogPath = path.join(plugin, "scripts", "model-catalog.json");
+function writeCatalog(plugin, update, segments = ["scripts", "model-catalog.json"]) {
+  const catalogPath = path.join(plugin, ...segments);
   const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
   update(catalog);
   fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
@@ -160,14 +160,14 @@ test("catalog-only model additions and defaults flow through generation and pack
   withTemporaryDirectory((temporary) => {
     const repository = makeCatalogRepository(temporary);
     const plugin = path.join(repository, "plugins", "codex", "itixo");
-    writeCatalog(plugin, (catalog) => {
+    writeCatalog(repository, (catalog) => {
       const codex = catalog.providers.codex;
       codex.models.cheap = "nova";
       codex.efforts.cheap = "medium";
       catalog.aliases.nova = { providers: { codex: { default: "gpt-7-nova", versions: ["gpt-7-nova"] } } };
       catalog.aliases.sol.providers.codex.default = "gpt-5.6-sol";
       codex.effortsByModel["gpt-7-nova"] = ["low", "medium", "high"];
-    });
+    }, ["base", "models", "model-catalog.json"]);
 
     const generated = spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js")], {
       encoding: "utf8",

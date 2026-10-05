@@ -5,9 +5,11 @@ const fs = require("fs");
 const path = require("path");
 
 const { PROVIDERS: PROVIDER_IDS } = require("./providers.js");
-const MODEL_CATALOG = require("../plugins/codex/itixo/scripts/model-catalog.json");
 
 const ROOT = path.resolve(__dirname, "..");
+const CATALOG_TEXT = fs.readFileSync(path.join(ROOT, "base", "models", "model-catalog.json"), "utf8");
+const MODEL_CATALOG = JSON.parse(CATALOG_TEXT);
+const CODEX_CATALOG_COPY = ["plugins", "codex", "itixo", "scripts", "model-catalog.json"];
 const BASE_DIR = path.join(ROOT, "base", "agents");
 const MODEL_ALIASES = catalogAliases(MODEL_CATALOG.aliases);
 
@@ -256,6 +258,7 @@ function expectedOutputs(agents, root = ROOT) {
     outputs.push({ provider: "codex", name, path: path.join(root, "plugins", "codex", "itixo", "templates", "agents", `${name}.toml`), content: renderCodex(name, agent) });
     outputs.push({ provider: "copilot", name, path: path.join(root, "plugins", "copilot", "itixo", "agents", `${name}.agent.md`), content: renderCopilot(name, agent) });
   }
+  outputs.push({ provider: "codex", name: "model-catalog", path: path.join(root, ...CODEX_CATALOG_COPY), content: CATALOG_TEXT });
   return outputs;
 }
 
@@ -296,6 +299,9 @@ function collectStaleness(outputs, root = ROOT) {
       actualOutputs.push({ path: candidate, content: fs.readFileSync(candidate, "utf8") });
     }
   }
+
+  const copy = path.join(root, ...CODEX_CATALOG_COPY);
+  if (fs.existsSync(copy)) actualOutputs.push({ path: copy, content: fs.readFileSync(copy, "utf8") });
 
   const staleness = compareOutputs(outputs, actualOutputs);
   for (const list of Object.values(staleness)) {
