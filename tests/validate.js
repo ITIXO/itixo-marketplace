@@ -419,10 +419,28 @@ for (const rel of [
   "plugins/codex/itixo/rules/agents.md",
   "plugins/codex/itixo/AGENTS.md",
   "plugins/copilot/itixo/rules/agents.md",
+  ...["base", "plugins/claude/itixo", "plugins/codex/itixo", "plugins/copilot/itixo"].flatMap((d) => [
+    `${d}/rules/github-issue-delegation.md`,
+    `${d}/rules/security-review.md`,
+  ]),
 ]) {
   if (!fs.existsSync(path.join(ROOT, rel))) fail(`${rel} missing`);
 }
 if (failures === 0) ok("rules files present");
+
+for (const rel of [
+  "base/rules/agents.md",
+  "plugins/claude/itixo/rules/agents.md",
+  "plugins/codex/itixo/rules/agents.md",
+  "plugins/copilot/itixo/rules/agents.md",
+]) {
+  if (!fs.existsSync(path.join(ROOT, rel))) continue;
+  const text = readFile(rel);
+  for (const sibling of ["github-issue-delegation.md", "security-review.md"]) {
+    if (!text.includes(sibling)) fail(`${rel}: must reference sibling rule file '${sibling}'`);
+  }
+}
+if (failures === 0) ok("agents.md files reference sibling rule files");
 
 // --- 7. Codex-native manifests ---
 const codexMarketplace = readJson(".agents/plugins/marketplace.json");
