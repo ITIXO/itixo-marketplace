@@ -264,11 +264,13 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
   const text = readFile(rel);
   if (!/^---\nname: dirigent\n/m.test(text)) fail(`${rel}: invalid dirigent frontmatter`);
   if (!text.includes("../../rules/agents.md")) fail(`${rel}: must load delegation rules`);
+  const rulesRel = `plugins/${plugin}/rules/agents.md`;
+  const rulesText = fs.existsSync(path.join(ROOT, rulesRel)) ? readFile(rulesRel) : "";
   for (const agent of expectedRoles) {
-    if (!text.includes(agent)) fail(`${rel}: missing canonical agent ID '${agent}'`);
+    if (!rulesText.includes(agent)) fail(`${rulesRel}: missing canonical agent ID '${agent}'`);
   }
 }
-if (failures === 0) ok("dirigent skills exist and reference canonical agent IDs");
+if (failures === 0) ok("dirigent skills exist and their rules reference canonical agent IDs");
 
 // --- 3c. Codex and Copilot package the shared model-update workflow ---
 if (fs.existsSync(path.join(ROOT, "plugins/claude/itixo/skills/update-models"))) {
@@ -417,6 +419,7 @@ for (const rel of [
   "base/rules/agents.md",
   "plugins/claude/itixo/rules/agents.md",
   "plugins/codex/itixo/rules/agents.md",
+  "plugins/codex/itixo/rules/codex-agent-install.md",
   "plugins/codex/itixo/AGENTS.md",
   "plugins/copilot/itixo/rules/agents.md",
   ...["base", "plugins/claude/itixo", "plugins/codex/itixo", "plugins/copilot/itixo"].flatMap((d) => [
@@ -439,6 +442,9 @@ for (const rel of [
   for (const sibling of ["github-issue-delegation.md", "security-review.md"]) {
     if (!text.includes(sibling)) fail(`${rel}: must reference sibling rule file '${sibling}'`);
   }
+}
+if (!readFile("plugins/codex/itixo/rules/agents.md").includes("codex-agent-install.md")) {
+  fail("plugins/codex/itixo/rules/agents.md: must reference 'codex-agent-install.md'");
 }
 if (failures === 0) ok("agents.md files reference sibling rule files");
 
@@ -531,9 +537,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.1"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.1"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.1"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.2"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.2"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.2"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

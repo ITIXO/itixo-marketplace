@@ -19,7 +19,7 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 
 - Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the TOML owns instructions, model, and effort. Default tier aliases are `luna` (cheap), `sol` (mid), and `astra` (security); each resolves through the Codex provider entry for that root alias and its selected version to a concrete model ID. `itixo-planner` inherits. Explicit user-requested per-agent overrides must be installed with `itixo:install-agents` and are then owned by the matching TOML; do not pass an additional invocation override. Keep legacy selectors such as `terra`, `gpt6-sol`, and `gpt6-luna`, and accept full GPT-6 and GPT-5.6 IDs. Explicit planner GPT-6 Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
-- If a required custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, tier-alias, model-version, and effort choices. The recommended settings are `luna` → GPT-6 Luna + high, `sol` → GPT-6 Sol + medium, and `astra` → GPT-6 Astra + max; `terra` → GPT-5.6 Terra + low remains the fallback. Never substitute a generic agent or perform the role inline.
+- If a required custom agent is unavailable, stop the affected work and read `codex-agent-install.md` next to this file before responding; never substitute a generic agent or perform the role inline.
 - Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is gpt-6-astra + max; never infer or broaden an override.
 - `itixo-investigator` locates first using its installed configured model, which defaults to the cheap tier absent a matching explicit user override; `itixo-builder` gets exact file:line targets using its installed configured model, which defaults to the mid tier under the same constraint.
 - Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested override supported by Codex.
@@ -42,6 +42,12 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 
 - Delegate all GitHub issue assessment, structuring, and creation work to exactly one `itixo-github-issues` agent; the orchestrator never assesses, structures, or creates issues directly.
 - Before delegating, read `github-issue-delegation.md` next to this file in full; its rules are binding.
+
+## Workflow
+
+- Route work by canonical custom-agent ID: itixo-investigator for location/read-only mapping; itixo-planner for decomposition; itixo-builder for exact implementation; itixo-tester for specified validation; itixo-reviewer for general code-review findings; itixo-security-reviewer for explicit user security-review requests; itixo-docs-updater for affected docs; itixo-github-issues for GitHub issue structure and creation. Invoke the installed custom TOML agent by that ID.
+- Integrate results, run proportionate verification, report evidence and unresolved blockers. Do not let orchestration replace implementation ownership or bypass repository safeguards.
+- For GitHub work, use configured GitHub connector or MCP first. Apply all additional repository instructions, including commit, review, and approval constraints.
 
 ## Orchestrator hard boundaries (strict)
 
