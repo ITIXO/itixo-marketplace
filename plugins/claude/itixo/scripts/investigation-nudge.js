@@ -8,12 +8,14 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { isInvestigation } = require("./investigation.js");
+const { isEnabled } = require("./dirigent-runtime.js");
 
 let input = "";
 process.stdin.on("data", (d) => (input += d));
 process.stdin.on("end", () => {
   try {
     const event = JSON.parse(input);
+    if (!isEnabled("claude", event.session_id || event.sessionId)) process.exit(0);
     // Hooks fired inside a subagent carry agent_id/agent_type. Subagents
     // (itixo-investigator especially) are allowed to search — never nudge them.
     if (event.agent_id || event.agent_type) process.exit(0);

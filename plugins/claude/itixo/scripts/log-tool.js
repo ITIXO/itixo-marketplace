@@ -5,12 +5,14 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { isEnabled } = require("./dirigent-runtime.js");
 
 let input = "";
 process.stdin.on("data", (d) => (input += d));
 process.stdin.on("end", () => {
   try {
     const event = JSON.parse(input);
+    if (!isEnabled("claude", event.session_id || event.sessionId)) process.exit(0);
     const sessionId = event.session_id || "unknown";
     const file = path.join(os.tmpdir(), `itixo-delegation-${sessionId}.jsonl`);
     const record = {

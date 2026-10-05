@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// Stop hook: summarize delegation behavior for the session. Its advice applies
-// only when Dirigent is enabled; hooks cannot determine chat toggle state.
+// Stop hook: summarize delegation behavior only while Dirigent is enabled.
 //
 // Records carry agentId/agentType when the call came from a subagent
 // (agent-identity fields in hook input). Orchestrator counts use only
@@ -12,6 +11,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { isInvestigation } = require("./investigation.js");
+const { isEnabled } = require("./dirigent-runtime.js");
 
 // Inline investigation count before conditional advice when itixo-investigator was never used.
 const INVESTIGATION_THRESHOLD = 3;
@@ -21,6 +21,7 @@ process.stdin.on("data", (d) => (input += d));
 process.stdin.on("end", () => {
   try {
     const event = JSON.parse(input);
+    if (!isEnabled("claude", event.session_id || event.sessionId)) process.exit(0);
     const sessionId = event.session_id || "unknown";
     const file = path.join(os.tmpdir(), `itixo-delegation-${sessionId}.jsonl`);
     if (!fs.existsSync(file)) process.exit(0);
