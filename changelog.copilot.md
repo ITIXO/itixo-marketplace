@@ -1,5 +1,9 @@
 ## 2026-10-05
 
+### itixo 0.8.2
+
+- The Dirigent skill is now a short toggle entry point. Its workflow lives in the rules Dirigent receives directly when enabled, so no extra file read is needed before task work.
+
 ### itixo 0.8.1
 
 - Enabled Dirigent receives its core delegation rules directly at session start again. GitHub-issue and security-review rules moved to separate rule files that Dirigent reads when those flows start.
