@@ -2,7 +2,7 @@
 
 ### itixo 0.9.3
 
-- The `update-models` skill reads the shared model catalog from `base/models` in the source checkout; the installer keeps using the copy packaged with the plugin.
+- The `update-models` skill reads the shared model catalog from `base/models` in the source checkout; the installer keeps using the copy packaged with the plugin. The packaged catalog now contains only Codex models.
 
 ### itixo 0.9.2
 

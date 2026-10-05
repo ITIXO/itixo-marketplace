@@ -7,11 +7,19 @@ const path = require("path");
 const { PROVIDERS: PROVIDER_IDS } = require("./providers.js");
 
 const ROOT = path.resolve(__dirname, "..");
-const CATALOG_TEXT = fs.readFileSync(path.join(ROOT, "base", "models", "model-catalog.json"), "utf8");
-const MODEL_CATALOG = JSON.parse(CATALOG_TEXT);
+const MODEL_CATALOG = JSON.parse(fs.readFileSync(path.join(ROOT, "base", "models", "model-catalog.json"), "utf8"));
+const CODEX_CATALOG_TEXT = `${JSON.stringify(codexCatalogProjection(MODEL_CATALOG), null, 2)}\n`;
 const CODEX_CATALOG_COPY = ["plugins", "codex", "itixo", "scripts", "model-catalog.json"];
 const BASE_DIR = path.join(ROOT, "base", "agents");
 const MODEL_ALIASES = catalogAliases(MODEL_CATALOG.aliases);
+
+function codexCatalogProjection(catalog) {
+  const aliases = {};
+  for (const [name, { providers, ...rest }] of Object.entries(catalog.aliases || {})) {
+    if (providers?.codex) aliases[name] = { ...rest, providers: { codex: providers.codex } };
+  }
+  return { ...catalog, aliases, providers: { codex: catalog.providers?.codex } };
+}
 
 function catalogAliases(aliases) {
   if (!aliases || typeof aliases !== "object") throw new Error("model catalog: invalid aliases.");
@@ -258,7 +266,7 @@ function expectedOutputs(agents, root = ROOT) {
     outputs.push({ provider: "codex", name, path: path.join(root, "plugins", "codex", "itixo", "templates", "agents", `${name}.toml`), content: renderCodex(name, agent) });
     outputs.push({ provider: "copilot", name, path: path.join(root, "plugins", "copilot", "itixo", "agents", `${name}.agent.md`), content: renderCopilot(name, agent) });
   }
-  outputs.push({ provider: "codex", name: "model-catalog", path: path.join(root, ...CODEX_CATALOG_COPY), content: CATALOG_TEXT });
+  outputs.push({ provider: "codex", name: "model-catalog", path: path.join(root, ...CODEX_CATALOG_COPY), content: CODEX_CATALOG_TEXT });
   return outputs;
 }
 

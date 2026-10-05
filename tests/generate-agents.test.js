@@ -276,7 +276,7 @@ test("--check reports the Codex catalog copy stale when the base catalog changes
     const repository = makeGeneratorRepository(temporary);
     const catalogPath = path.join(repository, "base", "models", "model-catalog.json");
     const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
-    catalog.aliases.extra = { providers: { copilot: { default: "extra-1", versions: ["extra-1"] } } };
+    catalog.providers.codex.effortsByModel["gpt-6-extra"] = ["low"];
     fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
 
     const result = spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js"), "--check"], {
@@ -286,6 +286,24 @@ test("--check reports the Codex catalog copy stale when the base catalog changes
 
     assert.equal(result.status, 1);
     assert.match(result.stderr, /stale:\n\s+plugins\/codex\/itixo\/scripts\/model-catalog\.json/);
+  });
+});
+
+test("a Copilot-only base catalog change leaves the Codex catalog copy unchanged", () => {
+  withTemporaryDirectory((temporary) => {
+    const repository = makeGeneratorRepository(temporary);
+    const copyPath = path.join(repository, "plugins", "codex", "itixo", "scripts", "model-catalog.json");
+    const before = fs.readFileSync(copyPath, "utf8");
+    assert.ok(!/"(claude|copilot)": \{/.test(before), "copy must contain only Codex entries");
+    const catalogPath = path.join(repository, "base", "models", "model-catalog.json");
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+    catalog.aliases.extra = { providers: { copilot: { default: "extra-1", versions: ["extra-1"] } } };
+    fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+
+    const run = (args) => spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js"), ...args], { cwd: repository, encoding: "utf8" });
+    assert.equal(run([]).status, 0);
+    assert.equal(fs.readFileSync(copyPath, "utf8"), before);
+    assert.equal(run(["--check"]).status, 0);
   });
 });
 
