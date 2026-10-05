@@ -293,6 +293,20 @@ for (const plugin of ["codex/itixo", "copilot/itixo"]) {
   }
   if (!text.includes("source checkout")) fail(`${rel}: must keep updates in the source checkout`);
 }
+
+// Copilot must not reference Codex tooling (the shared dirigent runtime is provider-neutral).
+const copilotRoot = path.join(ROOT, "plugins/copilot");
+const codexTooling = ["install-agents", "plugins/codex", ".codex/"];
+(function scanCopilot(directory) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) { scanCopilot(full); continue; }
+    const rel = path.relative(ROOT, full).replace(/\\/g, "/");
+    if (rel === "plugins/copilot/itixo/scripts/dirigent-runtime.js") continue;
+    const text = fs.readFileSync(full, "utf8");
+    for (const needle of codexTooling) if (text.includes(needle)) fail(`${rel}: Copilot must not reference Codex tooling ('${needle}')`);
+  }
+})(copilotRoot);
 if (failures === 0) ok("model-update skills packaged only for Codex and Copilot");
 
 // --- 4. claude/itixo: frontmatter model matches tier ---
@@ -538,8 +552,8 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
 }
 for (const [rel, manifest, technicalName, version] of [
   [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.2"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.2"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.2"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.3"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.3"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);
