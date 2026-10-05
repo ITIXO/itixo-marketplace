@@ -1,5 +1,9 @@
 ## 2026-10-05
 
+### itixo 0.9.1
+
+- Enabled Dirigent receives its core delegation rules directly at session start again. GitHub-issue and security-review rules moved to separate rule files that Dirigent reads when those flows start.
+
 ### itixo 0.9.0
 
 - **Breaking:** Dirigent now tracks default and session enablement in hook-backed provider state. Explicit slash or plain-language toggles affect the current session; global toggles also save/remove the provider-profile default for new sessions. Hooks inject instructions, not permission controls; unavailable hooks or storage cannot report success. Codex's existing runtime-model hook remains independent.
