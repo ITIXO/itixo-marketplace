@@ -20,6 +20,7 @@ The shared model catalog stores aliases globally but records concrete IDs per pr
 ## Rules
 
 - Copilot CLI invokes the native Copilot plugin agent using its canonical `itixo-*` ID and the definition's prescribed tier.
+- If a required `itixo-*` agent is unavailable, stop the affected work and tell the user the itixo plugin's agents must be installed and enabled; never substitute a generic agent or perform the role inline.
 - Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is `claude-opus-5.5` with no effort field; do not infer or broaden an override.
 - itixo-investigator (haiku) locates first; itixo-builder (sonnet) gets exact file:line targets.
 - Subagent prompt: goal, files, constraints, expected output format.

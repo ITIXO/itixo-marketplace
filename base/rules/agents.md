@@ -50,6 +50,7 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
 - If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, tier-alias, model-version, and effort choices. The recommended settings are `luna` → GPT-6 Luna + high, `sol` → GPT-6 Sol + medium, and `astra` → GPT-6 Astra + max; `terra` → GPT-5.6 Terra + low remains the fallback. Never substitute a generic agent or perform the role inline.
 - Copilot CLI invokes the native Copilot plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model. Copilot has no effort field; never pass an effort override to a Copilot agent.
+- If a required Claude or Copilot `itixo-*` agent is unavailable, stop the affected work and tell the user the itixo plugin's agents must be installed and enabled; never substitute a generic agent or perform the role inline.
 
 ## Security-review routing and lifecycle
 

@@ -20,6 +20,7 @@ The shared model catalog stores aliases globally but records concrete IDs per pr
 ## Rules
 
 - Claude invokes the native plugin agent using its canonical `itixo-*` ID and the definition's prescribed default tier.
+- If a required `itixo-*` agent is unavailable, stop the affected work and tell the user the itixo plugin's agents must be installed and enabled; never substitute a generic agent or perform the role inline.
 - Generated definitions own default model and effort. Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
 - Never infer an override or apply it to another invocation. Provider or organization restrictions may constrain requested models or effort.
 - Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is Opus + max; never infer or broaden an override.
