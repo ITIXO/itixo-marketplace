@@ -75,14 +75,14 @@ for (const provider of PROVIDERS) {
     assert.equal(enabled(provider, "chat-a", env), false);
     const initial = hook(provider, "session-start", env, { session_id: "chat-a", sessionId: "chat-a" });
     assert.match(context(initial), /Dirigent OFF/);
-    assert.doesNotMatch(context(initial), /Apply these Dirigent instructions/);
+    assert.doesNotMatch(context(initial), /Dirigent is enabled\. Before any task work/);
     const toggled = hook(provider, "user-prompt-submit", env, { session_id: "chat-a", sessionId: "chat-a", prompt: "/dirigent on" });
     if (provider === "copilot") assert.equal(toggled, null);
     else assert.match(context(toggled), /Dirigent ON/);
     assert.equal(enabled(provider, "chat-a", env), true);
     assert.equal(enabled(provider, "chat-b", env), false);
     const resumed = hook(provider, "session-start", env, { session_id: "chat-a", sessionId: "chat-a" });
-    assert.match(context(resumed), /Apply these Dirigent instructions/);
+    assert.match(context(resumed), /Dirigent is enabled\. Before any task work/);
     assert.equal(enabled(provider, "chat-a", env), true);
     hook(provider, "user-prompt-submit", env, { session_id: "chat-a", sessionId: "chat-a", prompt: "turn off dirigent" });
     assert.equal(enabled(provider, "chat-a", env), false);
@@ -145,7 +145,7 @@ test("subagents inherit enabled state without root instructions", () => sandbox(
     set(provider, "on", "chat", env);
     const child = hook(provider, "subagent-start", env, { session_id: "chat" });
     assert.match(context(child), /enabled in the parent chat/);
-    assert.doesNotMatch(context(child), /Apply these Dirigent instructions/);
+    assert.doesNotMatch(context(child), /Dirigent is enabled\. Before any task work/);
     assert.equal(hook(provider, "subagent-start", env, { session_id: "other-chat" }), null);
   }
 }));
@@ -201,4 +201,29 @@ test("Claude delegation hooks are silent while off and active while on", () => s
   assert.match(call("investigation-nudge.js", input).stdout, /itixo/);
   call("log-tool.js", { session_id: sessionId, tool_name: "Edit", tool_input: { file_path: "x" } });
   assert.match(call("delegation-summary.js", { session_id: sessionId }).stderr, /Delegation stats/);
+}));
+
+test("enabled context stays under Claude's hook limit and points to readable files", () => sandbox(({ env }) => {
+  for (const provider of PROVIDERS) {
+    set(provider, "on", "chat", env);
+    const text = context(hook(provider, "session-start", env, { session_id: "chat" }));
+    assert.ok(text.length < 10000, `${provider}: ${text.length} chars`);
+    for (const file of text.match(/^- (.+)$/gm).map((line) => line.slice(2))) assert.ok(fs.existsSync(file), file);
+  }
+}));
+
+test("Claude session start also covers forked sessions", () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(ROOT, "plugins", "claude", "itixo", "hooks", "hooks.json"), "utf8"));
+  assert.ok(hooks.hooks.SessionStart.some((entry) => entry.matcher.split("|").includes("fork")));
+});
+
+test("Windows manual control matches each provider's shell", () => sandbox(({ env }) => {
+  for (const [provider, powerShell] of [["claude", false], ["codex", true], ["copilot", true]]) {
+    const result = spawnSync(process.execPath, ["-e",
+      "Object.defineProperty(process, 'platform', { value: 'win32' }); require(process.argv[1]).invoke([process.argv[2], 'session-start'])",
+      script(provider), provider], { encoding: "utf8", env, input: JSON.stringify({ session_id: "chat" }) });
+    assert.equal(result.status, 0, result.stderr);
+    const control = context(JSON.parse(result.stdout)).match(/Manual control: (.+?) \(replace/)[1];
+    assert.equal(control.startsWith("& "), powerShell, `${provider}: ${control}`);
+  }
 }));

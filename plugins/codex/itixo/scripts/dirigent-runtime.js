@@ -74,23 +74,31 @@ function parseToggle(raw) {
   return { enabled, global: Boolean(natural[4]) };
 }
 
-function quoteShell(value) {
+// Claude's Bash tool uses Git Bash on Windows; Codex and Copilot use PowerShell there.
+function usesPowerShell(provider) {
+  return process.platform === "win32" && provider !== "claude";
+}
+
+function quoteShell(value, powerShell) {
   const str = String(value);
-  return process.platform === "win32" ? `'${str.replaceAll("'", "''")}'` : `'${str.replaceAll("'", "'\\''")}'`;
+  return powerShell ? `'${str.replaceAll("'", "''")}'` : `'${str.replaceAll("'", "'\\''")}'`;
 }
 
 function helper(provider, sessionId, dir) {
+  const powerShell = usesPowerShell(provider);
   const args = [process.execPath, __filename, provider, "set", "on", "--session", sessionId, "--state-dir", dir];
-  return (process.platform === "win32" ? "& " : "") + args.map(quoteShell).join(" ");
+  return (powerShell ? "& " : "") + args.map((arg) => quoteShell(arg, powerShell)).join(" ");
 }
 
 function rootContext(provider, sessionId, enabled, dir) {
   const control = `Dirigent ${enabled ? "ON" : "OFF"} for this chat. Session ID: ${sessionId}. State directory: ${dir}. Manual control: ${helper(provider, sessionId, dir)} (replace on with off; add --global for future sessions). The latest chat toggle wins. After an explicit enable, load the Dirigent skill and rules before task work. Independent repository instructions still apply.`;
   if (!enabled) return control;
+  // Reference files instead of inlining them: Claude caps hook context at 10,000 characters.
   const root = path.dirname(__dirname);
-  const skill = fs.readFileSync(path.join(root, "skills", "dirigent", "SKILL.md"), "utf8");
-  const rules = fs.readFileSync(path.join(root, "rules", "agents.md"), "utf8");
-  return `${control}\n\nApply these Dirigent instructions while enabled:\n${skill}\n\n${rules}`;
+  const skill = path.join(root, "skills", "dirigent", "SKILL.md");
+  const rules = path.join(root, "rules", "agents.md");
+  for (const file of [skill, rules]) fs.accessSync(file, fs.constants.R_OK);
+  return `${control}\n\nDirigent is enabled. Before any task work, read these files in full and apply them while enabled:\n- ${skill}\n- ${rules}`;
 }
 
 function output(provider, event, context) {
