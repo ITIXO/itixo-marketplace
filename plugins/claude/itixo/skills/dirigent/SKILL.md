@@ -1,11 +1,19 @@
 ---
 name: dirigent
-description: Enforce repository orchestration and delegation rules for non-trivial engineering work. Use when coordinating multi-step implementation, planning agent work, parallelizing independent tasks, or ensuring agents follow the repository's rules/agents.md instead of executing work ad hoc.
+description: Turn Dirigent orchestration on or off when the user explicitly requests it, including a personal default for future sessions. Use for /dirigent and clear requests to use, start, enable, stop, disable, or turn Dirigent on or off; ordinary engineering work and discussion or quotation of the skill do not activate it.
 ---
 
 # Dirigent
 
-Read `../../rules/agents.md` before acting. It is binding for this task; do not substitute personal workflow or platform defaults.
+## Toggle
+
+Start off unless this chat explicitly enabled Dirigent or a saved personal opt-in enabled it when this chat began. The most recent explicit chat toggle wins; never reapply the saved default each turn. `/dirigent`, `/dirigent on`, or a clear request to use, start, enable, or turn on Dirigent enables it for the rest of this chat. `/dirigent off` or a clear request to stop, disable, or turn it off disables it until reenabled. Plain off does not erase a saved opt-in. Discussion or quotation of the skill does not toggle it; `normal mode` is not a Dirigent command.
+
+`/dirigent on --global` or a clear request to turn on Dirigent globally, for all future sessions, or for future use enables it in this chat and saves a provider-specific personal opt-in. `/dirigent off --global` or the equivalent clear request disables it in this chat and removes only that opt-in. Interpret informal phrasing by intent, not exact spelling. Handle every toggle and preference edit directly, before any delegation rule. Other repository and higher-priority instructions still apply.
+
+For Claude Code, edit `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` (personal instructions loaded across projects). Add one block between `<!-- ITIXO DIRIGENT START -->` and `<!-- ITIXO DIRIGENT END -->` stating: `Use the dirigent skill by default in new sessions unless the user explicitly turns it off in the current session.` On global off, remove only this managed block. Preserve all other content, make repeated on/off idempotent, and read back the effective file before claiming the preference was saved or removed; report its path. In Claude Cowork, use the product's global **Settings → Instructions for Claude** when it offers a writable setting; do not treat the CLI file as Cowork storage. If no supported writable personal setting is available, update this chat only and report that future-session preference was not saved, with the exact instruction block and setting to use.
+
+When enabled, read `../../rules/agents.md` before acting. It is binding for this task; do not substitute personal workflow or platform defaults. When disabled, stop applying Dirigent delegation and hard boundaries.
 
 1. Establish outcome, scope, constraints, ownership, success criteria. If any are unclear, ask user before delegating or acting. Do not assume. Use `mattpocock-skills:grill-me` if that skill is available; otherwise ask directly. Orchestrator only — subagents have no user channel and return open questions to the orchestrator.
 2. Decompose work into self-contained steps. Keep cross-step judgment with orchestrator; delegate every precise, executable step to the role and default model tier prescribed by `rules/agents.md`, unless the user explicitly supplied a matching per-invocation model and/or effort override. Never invent or broaden an override.

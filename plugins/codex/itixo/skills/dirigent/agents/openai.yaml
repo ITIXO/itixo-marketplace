@@ -1,4 +1,4 @@
 interface:
   display_name: "Dirigent"
-  short_description: "Delegate work through repo rules"
-  default_prompt: "Use $dirigent to orchestrate this task through the repository rules."
+  short_description: "Turn delegation on or off explicitly"
+  default_prompt: "Use $dirigent to turn on Dirigent for this chat."

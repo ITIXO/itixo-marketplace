@@ -2,6 +2,8 @@
 
 Derived from `base/rules/agents.md` — edit there, sync here.
 
+Dirigent starts off unless explicitly enabled in this chat or by a saved personal opt-in for new sessions. `/dirigent`, `/dirigent on`, or a clear request to use, start, enable, or turn on Dirigent enables it for this chat; `/dirigent off` or a clear request to stop, disable, or turn it off suspends it until reenabled. Discussion or quotation does not toggle it; `normal mode` is not a toggle. Chat-only off leaves a saved opt-in intact. Apply the delegation rules and hard boundaries below only while enabled. Handle toggles and global-preference edits before those rules; independent repository and higher-priority instructions still apply.
+
 Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to a subagent on a cheaper model.
 
 ## Model tiers (Copilot CLI)

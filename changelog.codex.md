@@ -1,3 +1,9 @@
+## 2026-10-05
+
+### itixo 0.9.0
+
+- **Breaking:** Dirigent starts off and activates only on an explicit command or clear request. Turning it off suspends its delegation rules for the chat; global on/off can save or remove a personal default for future sessions.
+
 ## 2026-09-29
 
 ### itixo 0.8.2

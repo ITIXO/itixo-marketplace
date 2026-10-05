@@ -2,6 +2,12 @@
 
 Source of truth for all provider plugins (`claude/itixo`, `codex/itixo`, `copilot/itixo`). Edit here, then sync to plugins.
 
+## Activation
+
+Dirigent starts off unless the user explicitly enables it in this chat or a saved personal opt-in enables it for new sessions. `/dirigent`, `/dirigent on`, or a clear request to use, start, enable, or turn on Dirigent enables it for the rest of this chat. `/dirigent off` or a clear request to stop, disable, or turn off Dirigent disables it until reenabled. Mentioning or quoting Dirigent while discussing it does not change state; `normal mode` is not a Dirigent toggle. A chat-only off does not remove a saved personal opt-in.
+
+Only while Dirigent is enabled do the delegation requirements and orchestrator hard boundaries below apply. Process on/off and global-preference requests before those requirements, even when Dirigent is off. Independent repository and higher-priority instructions still apply.
+
 ## Core idea
 
 The **orchestrator** is the main thread. It always runs on the model the user selected when starting the session (e.g. Fable 5 in Claude Cowork, or the chosen model in Codex). Its job is **thinking**: understand the problem, decompose it, decide what to delegate, integrate results. It should not burn its (expensive) tokens on mechanical execution.
