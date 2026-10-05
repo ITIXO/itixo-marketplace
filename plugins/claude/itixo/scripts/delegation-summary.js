@@ -1,13 +1,11 @@
 #!/usr/bin/env node
-// Stop hook: summarize delegation behavior for the session.
-// Warns when the orchestrator edited files directly without delegating,
-// or ran inline investigation (Grep/Glob/investigation-shaped Bash)
-// without ever delegating to the itixo-investigator subagent.
+// Stop hook: summarize delegation behavior for the session. Its advice applies
+// only when Dirigent is enabled; hooks cannot determine chat toggle state.
 //
 // Records carry agentId/agentType when the call came from a subagent
 // (agent-identity fields in hook input). Orchestrator counts use only
 // main-thread records. On older Claude Code versions without these
-// fields, falls back to suppressing the investigation warning once an
+// fields, falls back to suppressing the investigation advice once an
 // itixo-investigator delegation exists.
 
 const fs = require("fs");
@@ -15,7 +13,7 @@ const os = require("os");
 const path = require("path");
 const { isInvestigation } = require("./investigation.js");
 
-// Inline investigations tolerated before warning when itixo-investigator was never used.
+// Inline investigation count before conditional advice when itixo-investigator was never used.
 const INVESTIGATION_THRESHOLD = 3;
 
 let input = "";
@@ -54,8 +52,9 @@ process.stdin.on("end", () => {
 
     if (directEdits.length > 0 && delegations.length === 0) {
       console.error(
-        `[itixo] Delegation check: ${directEdits.length} direct edit(s), 0 delegations this session. ` +
-          `Orchestrator should delegate precise steps to subagents (itixo-builder/itixo-tester/itixo-docs-updater). See rules/agents.md.`
+        `[itixo] Delegation stats: ${directEdits.length} direct edit(s), 0 delegations this session. ` +
+          `When Dirigent is enabled in this chat, delegate precise steps to subagents ` +
+          `(itixo-builder/itixo-tester/itixo-docs-updater); otherwise its delegation checks do not apply. See rules/agents.md.`
       );
     } else if (delegations.length > 0) {
       const bySubagent = {};
@@ -67,19 +66,20 @@ process.stdin.on("end", () => {
         .map(([k, v]) => `${k}:${v}`)
         .join(", ");
       console.error(
-        `[itixo] Delegation summary: ${delegations.length} delegation(s) (${detail}), ${directEdits.length} direct edit(s).`
+        `[itixo] Delegation stats: ${delegations.length} delegation(s) (${detail}), ${directEdits.length} direct edit(s).`
       );
     }
 
-    // With agent identity, orchestrator counts are exact — warn on threshold
+    // With agent identity, orchestrator counts are exact — advise on threshold
     // regardless of itixo-investigator use. Without it (legacy), subagent calls are
     // indistinguishable, so suppress once an itixo-investigator delegation exists.
     const legacySuppressed = !hasAgentIdentity && investigatorRuns.length > 0;
     if (investigations.length >= INVESTIGATION_THRESHOLD && !legacySuppressed) {
       console.error(
-        `[itixo] Investigation check: ${investigations.length} inline investigation call(s) ` +
+        `[itixo] Investigation stats: ${investigations.length} inline investigation call(s) ` +
           `(Grep/Glob/ls/find/grep/rg) in the main thread, ${investigatorRuns.length} itixo-investigator delegation(s). ` +
-          `Read-only codebase mapping is the itixo-investigator subagent's job. See rules/agents.md.`
+          `When Dirigent is enabled in this chat, delegate read-only codebase mapping to itixo-investigator; ` +
+          `otherwise its delegation checks do not apply. See rules/agents.md.`
       );
     }
   } catch {

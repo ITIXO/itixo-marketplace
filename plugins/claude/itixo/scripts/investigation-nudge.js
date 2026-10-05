@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// PreToolUse hook: one-time, non-blocking nudge when the orchestrator runs
+// PreToolUse hook: one-time, non-blocking, conditional guidance when the main thread runs
 // investigation-shaped calls (Grep/Glob, or Bash ls/find/grep/rg/tree/fd)
-// instead of delegating read-only mapping to the itixo-investigator subagent.
+// that Dirigent would delegate to the itixo-investigator subagent.
 // Fires once per session, only in the main thread. Never blocks the call.
 
 const fs = require("fs");
@@ -29,13 +29,13 @@ process.stdin.on("end", () => {
         hookSpecificOutput: {
           hookEventName: "PreToolUse",
           permissionDecision: "allow",
-          permissionDecisionReason: "itixo delegation nudge (non-blocking)",
+          permissionDecisionReason: "itixo optional delegation guidance (non-blocking)",
           additionalContext:
             "[itixo] Investigation-shaped call detected in the main thread. " +
-            "Rule (rules/agents.md): the orchestrator does NOT run ls/find/grep/glob " +
-            "to map the codebase — read-only mapping IS the itixo-investigator subagent's job. " +
-            "Delegate location/mapping work to itixo-investigator (cheap model) and hand " +
-            "file:line results to the next step. This reminder fires once per session.",
+            "When Dirigent is enabled in this chat, delegate codebase location/mapping " +
+            "to itixo-investigator (cheap model) and hand file:line results to the next step " +
+            "(rules/agents.md). Otherwise Dirigent delegation checks do not apply. " +
+            "This reminder fires once per session.",
         },
       }) + "\n"
     );
