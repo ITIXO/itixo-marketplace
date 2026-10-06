@@ -209,7 +209,7 @@ test("renders every canonical role into Claude agents, Codex TOML templates, and
   assert.deepEqual(agents.map(({ name }) => name), ROLE_NAMES);
 
   const outputs = expectedOutputs(agents, ROOT);
-  assert.equal(outputs.length, 24);
+  assert.equal(outputs.length, 25); // 24 agents + Codex catalog copy
 
   for (const { provider, name, path: outputPath, content } of outputs) {
     assert.ok(fs.existsSync(outputPath), `${provider}/${name} output is missing`);
@@ -253,7 +253,7 @@ test("rejects invalid catalog tiers before modifying generated outputs", () => {
     ];
     for (const scenario of cases) {
       const repository = makeGeneratorRepository(path.join(temporary, scenario.name));
-      const catalogPath = path.join(repository, "plugins", "codex", "itixo", "scripts", "model-catalog.json");
+      const catalogPath = path.join(repository, "base", "models", "model-catalog.json");
       const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
       scenario.update(catalog);
       fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
@@ -271,10 +271,46 @@ test("rejects invalid catalog tiers before modifying generated outputs", () => {
   });
 });
 
+test("--check reports the Codex catalog copy stale when the base catalog changes", () => {
+  withTemporaryDirectory((temporary) => {
+    const repository = makeGeneratorRepository(temporary);
+    const catalogPath = path.join(repository, "base", "models", "model-catalog.json");
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+    catalog.providers.codex.effortsByModel["gpt-6-extra"] = ["low"];
+    fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+
+    const result = spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js"), "--check"], {
+      cwd: repository,
+      encoding: "utf8",
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /stale:\n\s+plugins\/codex\/itixo\/scripts\/model-catalog\.json/);
+  });
+});
+
+test("a Copilot-only base catalog change leaves the Codex catalog copy unchanged", () => {
+  withTemporaryDirectory((temporary) => {
+    const repository = makeGeneratorRepository(temporary);
+    const copyPath = path.join(repository, "plugins", "codex", "itixo", "scripts", "model-catalog.json");
+    const before = fs.readFileSync(copyPath, "utf8");
+    assert.ok(!/"(claude|copilot)": \{/.test(before), "copy must contain only Codex entries");
+    const catalogPath = path.join(repository, "base", "models", "model-catalog.json");
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+    catalog.aliases.extra = { providers: { copilot: { default: "extra-1", versions: ["extra-1"] } } };
+    fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+
+    const run = (args) => spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js"), ...args], { cwd: repository, encoding: "utf8" });
+    assert.equal(run([]).status, 0);
+    assert.equal(fs.readFileSync(copyPath, "utf8"), before);
+    assert.equal(run(["--check"]).status, 0);
+  });
+});
+
 test("resolves shared aliases to each provider's concrete model ID", () => {
   withTemporaryDirectory((temporary) => {
     const repository = makeGeneratorRepository(temporary);
-    const catalogPath = path.join(repository, "plugins", "codex", "itixo", "scripts", "model-catalog.json");
+    const catalogPath = path.join(repository, "base", "models", "model-catalog.json");
     const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
     catalog.providers.copilot.models.mid = "sol";
     fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
@@ -515,6 +551,7 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
     };
     assert.deepEqual(normalizePaths(collectStaleness(outputs, root)), {
       missing: [
+        "plugins/codex/itixo/scripts/model-catalog.json",
         "plugins/codex/itixo/templates/agents/itixo-investigator.toml",
         "plugins/copilot/itixo/agents/itixo-investigator.agent.md",
       ],

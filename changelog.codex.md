@@ -1,5 +1,9 @@
 ## 2026-10-05
 
+### itixo 0.9.3
+
+- The `update-models` skill reads the shared model catalog from `base/models` in the source checkout; the installer keeps using the copy packaged with the plugin. The packaged catalog now contains only Codex models.
+
 ### itixo 0.9.2
 
 - The Dirigent skill is now a short toggle entry point. Its workflow lives in the rules Dirigent receives directly when enabled, so no extra file read is needed before task work.

@@ -43,7 +43,7 @@ const TIERS = {
   "itixo-security-reviewer": "security",
   "itixo-docs-updater": "cheap",
 };
-const modelCatalog = readJson("plugins/codex/itixo/scripts/model-catalog.json");
+const modelCatalog = readJson("base/models/model-catalog.json");
 const catalogProviders = modelCatalog?.providers || {};
 const catalogAliases = modelCatalog?.aliases || {};
 function resolveCatalogModel(provider, tier) {
@@ -205,8 +205,8 @@ try {
   for (const [kind, paths] of Object.entries(staleness)) {
     for (const relativePath of paths) fail(`generated agent output ${kind}: ${relativePath}`);
   }
-  if (outputs.length !== expectedRoles.length * ORCHESTRATION_PLUGINS.length) {
-    fail(`generated agent output count ${outputs.length}, expected ${expectedRoles.length * ORCHESTRATION_PLUGINS.length}`);
+  if (outputs.length !== expectedRoles.length * ORCHESTRATION_PLUGINS.length + 1) {
+    fail(`generated agent output count ${outputs.length}, expected ${expectedRoles.length * ORCHESTRATION_PLUGINS.length + 1} (agents + Codex catalog copy)`);
   }
 } catch (error) {
   fail(`generated agent validation failed (${error.message})`);
@@ -285,7 +285,7 @@ for (const plugin of ["codex/itixo", "copilot/itixo"]) {
   }
   const text = readFile(rel);
   if (!/^---\nname: update-models\n/m.test(text)) fail(`${rel}: invalid update-models frontmatter`);
-  if (!text.includes("plugins/codex/itixo/scripts/model-catalog.json")) {
+  if (!text.includes("base/models/model-catalog.json")) {
     fail(`${rel}: must reference the shared model catalog`);
   }
   if (!text.includes("node scripts/generate-agents.js")) {
@@ -293,6 +293,20 @@ for (const plugin of ["codex/itixo", "copilot/itixo"]) {
   }
   if (!text.includes("source checkout")) fail(`${rel}: must keep updates in the source checkout`);
 }
+
+// Copilot must not reference Codex tooling (the shared dirigent runtime is provider-neutral).
+const copilotRoot = path.join(ROOT, "plugins/copilot");
+const codexTooling = ["install-agents", "plugins/codex", ".codex/"];
+(function scanCopilot(directory) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) { scanCopilot(full); continue; }
+    const rel = path.relative(ROOT, full).replace(/\\/g, "/");
+    if (rel === "plugins/copilot/itixo/scripts/dirigent-runtime.js") continue;
+    const text = fs.readFileSync(full, "utf8");
+    for (const needle of codexTooling) if (text.includes(needle)) fail(`${rel}: Copilot must not reference Codex tooling ('${needle}')`);
+  }
+})(copilotRoot);
 if (failures === 0) ok("model-update skills packaged only for Codex and Copilot");
 
 // --- 4. claude/itixo: frontmatter model matches tier ---
@@ -538,8 +552,8 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
 }
 for (const [rel, manifest, technicalName, version] of [
   [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.2"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.2"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.2"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.3"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.3"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

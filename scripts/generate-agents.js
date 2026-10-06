@@ -5,11 +5,21 @@ const fs = require("fs");
 const path = require("path");
 
 const { PROVIDERS: PROVIDER_IDS } = require("./providers.js");
-const MODEL_CATALOG = require("../plugins/codex/itixo/scripts/model-catalog.json");
 
 const ROOT = path.resolve(__dirname, "..");
+const MODEL_CATALOG = JSON.parse(fs.readFileSync(path.join(ROOT, "base", "models", "model-catalog.json"), "utf8"));
+const CODEX_CATALOG_TEXT = `${JSON.stringify(codexCatalogProjection(MODEL_CATALOG), null, 2)}\n`;
+const CODEX_CATALOG_COPY = ["plugins", "codex", "itixo", "scripts", "model-catalog.json"];
 const BASE_DIR = path.join(ROOT, "base", "agents");
 const MODEL_ALIASES = catalogAliases(MODEL_CATALOG.aliases);
+
+function codexCatalogProjection(catalog) {
+  const aliases = {};
+  for (const [name, { providers, ...rest }] of Object.entries(catalog.aliases || {})) {
+    if (providers?.codex) aliases[name] = { ...rest, providers: { codex: providers.codex } };
+  }
+  return { ...catalog, aliases, providers: { codex: catalog.providers?.codex } };
+}
 
 function catalogAliases(aliases) {
   if (!aliases || typeof aliases !== "object") throw new Error("model catalog: invalid aliases.");
@@ -256,6 +266,7 @@ function expectedOutputs(agents, root = ROOT) {
     outputs.push({ provider: "codex", name, path: path.join(root, "plugins", "codex", "itixo", "templates", "agents", `${name}.toml`), content: renderCodex(name, agent) });
     outputs.push({ provider: "copilot", name, path: path.join(root, "plugins", "copilot", "itixo", "agents", `${name}.agent.md`), content: renderCopilot(name, agent) });
   }
+  outputs.push({ provider: "codex", name: "model-catalog", path: path.join(root, ...CODEX_CATALOG_COPY), content: CODEX_CATALOG_TEXT });
   return outputs;
 }
 
@@ -296,6 +307,9 @@ function collectStaleness(outputs, root = ROOT) {
       actualOutputs.push({ path: candidate, content: fs.readFileSync(candidate, "utf8") });
     }
   }
+
+  const copy = path.join(root, ...CODEX_CATALOG_COPY);
+  if (fs.existsSync(copy)) actualOutputs.push({ path: copy, content: fs.readFileSync(copy, "utf8") });
 
   const staleness = compareOutputs(outputs, actualOutputs);
   for (const list of Object.values(staleness)) {

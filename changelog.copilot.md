@@ -1,5 +1,9 @@
 ## 2026-10-05
 
+### itixo 0.8.3
+
+- The `update-models` skill now updates only Copilot models and no longer uses Codex tools. New models reach Copilot through plugin updates.
+
 ### itixo 0.8.2
 
 - When a required Dirigent agent is unavailable, Dirigent stops and asks you to enable the plugin's agents instead of falling back to a generic agent.
