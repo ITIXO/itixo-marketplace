@@ -75,14 +75,14 @@ for (const provider of PROVIDERS) {
     assert.equal(enabled(provider, "chat-a", env), false);
     const initial = hook(provider, "session-start", env, { session_id: "chat-a", sessionId: "chat-a" });
     assert.match(context(initial), /Dirigent OFF/);
-    assert.doesNotMatch(context(initial), /Dirigent is enabled\. Before any task work/);
+    assert.doesNotMatch(context(initial), /Dirigent is enabled\. Apply these rules/);
     const toggled = hook(provider, "user-prompt-submit", env, { session_id: "chat-a", sessionId: "chat-a", prompt: "/dirigent on" });
     if (provider === "copilot") assert.equal(toggled, null);
     else assert.match(context(toggled), /Dirigent ON/);
     assert.equal(enabled(provider, "chat-a", env), true);
     assert.equal(enabled(provider, "chat-b", env), false);
     const resumed = hook(provider, "session-start", env, { session_id: "chat-a", sessionId: "chat-a" });
-    assert.match(context(resumed), /Dirigent is enabled\. Before any task work/);
+    assert.match(context(resumed), /Dirigent is enabled\. Apply these rules/);
     assert.equal(enabled(provider, "chat-a", env), true);
     hook(provider, "user-prompt-submit", env, { session_id: "chat-a", sessionId: "chat-a", prompt: "turn off dirigent" });
     assert.equal(enabled(provider, "chat-a", env), false);
@@ -145,7 +145,7 @@ test("subagents inherit enabled state without root instructions", () => sandbox(
     set(provider, "on", "chat", env);
     const child = hook(provider, "subagent-start", env, { session_id: "chat" });
     assert.match(context(child), /enabled in the parent chat/);
-    assert.doesNotMatch(context(child), /Dirigent is enabled\. Before any task work/);
+    assert.doesNotMatch(context(child), /Dirigent is enabled\. Apply these rules/);
     assert.equal(hook(provider, "subagent-start", env, { session_id: "other-chat" }), null);
   }
 }));
@@ -208,7 +208,7 @@ test("enabled context stays under Claude's hook limit and inlines rules", () => 
     set(provider, "on", "chat", env);
     const text = context(hook(provider, "session-start", env, { session_id: "chat" }));
     assert.ok(text.length < 10000, `${provider}: ${text.length} chars`);
-    assert.ok(fs.existsSync(text.match(/read the skill in full: (.+)/)[1]));
+    assert.ok(!text.includes("SKILL.md"));
     assert.ok(text.includes(fs.readFileSync(path.join(ROOT, "plugins", provider, "itixo", "rules", "agents.md"), "utf8")));
   }
 }));

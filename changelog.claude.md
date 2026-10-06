@@ -1,5 +1,10 @@
 ## 2026-10-05
 
+### itixo 0.10.2
+
+- When a required Dirigent agent is unavailable, Dirigent stops and asks you to enable the plugin's agents instead of falling back to a generic agent.
+- The Dirigent skill is now a short toggle entry point. Its workflow lives in the rules Dirigent receives directly when enabled, so no extra file read is needed before task work.
+
 ### itixo 0.10.1
 
 - Enabled Dirigent receives its core delegation rules directly at session start again. GitHub-issue and security-review rules moved to separate rule files that Dirigent reads when those flows start.

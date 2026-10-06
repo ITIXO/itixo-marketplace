@@ -50,6 +50,7 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
 - If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, tier-alias, model-version, and effort choices. The recommended settings are `luna` → GPT-6 Luna + high, `sol` → GPT-6 Sol + medium, and `astra` → GPT-6 Astra + max; `terra` → GPT-5.6 Terra + low remains the fallback. Never substitute a generic agent or perform the role inline.
 - Copilot CLI invokes the native Copilot plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model. Copilot has no effort field; never pass an effort override to a Copilot agent.
+- If a required Claude or Copilot `itixo-*` agent is unavailable, stop the affected work and tell the user the itixo plugin's agents must be installed and enabled; never substitute a generic agent or perform the role inline.
 
 ## Security-review routing and lifecycle
 
@@ -78,6 +79,13 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 
 - Delegate all GitHub issue assessment, structuring, and creation work to exactly one `itixo-github-issues` agent; the orchestrator never assesses, structures, or creates issues directly.
 - Before delegating, read `github-issue-delegation.md` next to this file in full; its rules are binding.
+
+## Workflow
+
+- Route work by canonical `itixo-*` agent ID: itixo-investigator for location/read-only mapping; itixo-planner for decomposition; itixo-builder for exact implementation; itixo-tester for specified validation; itixo-reviewer for general code-review findings; itixo-security-reviewer for explicit user security-review requests; itixo-docs-updater for affected docs; itixo-github-issues for GitHub issue structure and creation. Invoke the provider's native agent by that ID (see Provider dispatch).
+- When documenting Codex installation choices, read root aliases and their Codex provider entries from the current catalog, then use provider-specific concrete versions; do not copy a stale model list or infer availability across providers.
+- Integrate results, run proportionate verification, report evidence and unresolved blockers. Do not let orchestration replace implementation ownership or bypass repository safeguards.
+- For GitHub work, use configured GitHub connector or MCP first. Apply all additional repository instructions, including commit, review, and approval constraints.
 
 ## Orchestrator hard boundaries (strict)
 
