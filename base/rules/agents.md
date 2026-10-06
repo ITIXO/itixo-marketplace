@@ -2,6 +2,12 @@
 
 Source of truth for all provider plugins (`claude/itixo`, `codex/itixo`, `copilot/itixo`). Edit here, then sync to plugins.
 
+## Activation
+
+Dirigent starts off unless the provider hook reports it on for this session. Hooks initialize fresh sessions from a provider-profile default; explicit session toggles override that default until the session ends, while resumed sessions and subagents retain their inherited state. `/dirigent`, `/dirigent on`, and clear requests to use, start, enable, or turn on Dirigent enable it for this session; `/dirigent off` and clear requests to stop, disable, or turn it off disable it. Global on/off also changes the current session and saves/removes the default for future sessions in this provider profile only. Discussion or quotation does not toggle it; `normal mode` is not a command.
+
+Handle toggles before delegation rules, even when Dirigent is off. Use the hook-provided control command, session ID, and state directory; do not guess paths or session IDs. If metadata or writable storage is unavailable, report that the change could not be applied or saved. Hooks inject instructions and do not enforce platform permissions. Apply the delegation requirements and orchestrator hard boundaries below only while enabled; independent repository and higher-priority instructions still apply.
+
 ## Core idea
 
 The **orchestrator** is the main thread. It always runs on the model the user selected when starting the session (e.g. Fable 5 in Claude Cowork, or the chosen model in Codex). Its job is **thinking**: understand the problem, decompose it, decide what to delegate, integrate results. It should not burn its (expensive) tokens on mechanical execution.

@@ -1,3 +1,9 @@
+## 2026-10-05
+
+### itixo 0.10.0
+
+- **Breaking:** Dirigent now tracks default and session enablement in hook-backed provider state. Explicit slash or plain-language toggles affect the current session; global toggles also save/remove the provider-profile default for new sessions. Hooks inject instructions, not permission controls; unavailable hooks or storage cannot report success. Claude's investigation nudge, tool log, and delegation summary follow the enabled state.
+
 ## 2026-09-29
 
 ### itixo 0.9.0

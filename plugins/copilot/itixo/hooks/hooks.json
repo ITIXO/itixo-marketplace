@@ -1,4 +1,29 @@
 {
   "version": 1,
-  "hooks": {}
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT.replaceAll(String.fromCharCode(92), '/'), 'scripts/dirigent-runtime.js')).invoke(['copilot','session-start'])\" || exit 0",
+        "powershell": "if (Get-Command node -ErrorAction SilentlyContinue) { node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT.replaceAll(String.fromCharCode(92), '/'), 'scripts/dirigent-runtime.js')).invoke(['copilot','session-start'])\" }",
+        "timeoutSec": 5
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "bash": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT.replaceAll(String.fromCharCode(92), '/'), 'scripts/dirigent-runtime.js')).invoke(['copilot','user-prompt-submit'])\" || exit 0",
+        "powershell": "if (Get-Command node -ErrorAction SilentlyContinue) { node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT.replaceAll(String.fromCharCode(92), '/'), 'scripts/dirigent-runtime.js')).invoke(['copilot','user-prompt-submit'])\" }",
+        "timeoutSec": 5
+      }
+    ],
+    "subagentStart": [
+      {
+        "type": "command",
+        "bash": "node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT.replaceAll(String.fromCharCode(92), '/'), 'scripts/dirigent-runtime.js')).invoke(['copilot','subagent-start'])\" || exit 0",
+        "powershell": "if (Get-Command node -ErrorAction SilentlyContinue) { node -e \"require(require('node:path').join(process.env.PLUGIN_ROOT.replaceAll(String.fromCharCode(92), '/'), 'scripts/dirigent-runtime.js')).invoke(['copilot','subagent-start'])\" }",
+        "timeoutSec": 5
+      }
+    ]
+  }
 }

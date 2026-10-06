@@ -1,3 +1,9 @@
+## 2026-10-05
+
+### itixo 0.8.0
+
+- **Breaking:** Dirigent now tracks default and session enablement in hook-backed provider state. Explicit slash or plain-language toggles affect the current session; global toggles also save/remove the provider-profile default for new sessions. Hooks inject instructions, not permission controls; unavailable hooks or storage cannot report success. Copilot prompt-hook output cannot inject context, and its built-in general-purpose agent has no subagent-start hook.
+
 ## 2026-09-29
 
 ### itixo 0.7.6

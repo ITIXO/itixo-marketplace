@@ -2,6 +2,8 @@
 
 Derived from `base/rules/agents.md` — edit there, sync here.
 
+Dirigent starts off unless a hook injects enabled state. Fresh sessions inherit the provider-profile default; session toggles override it until session ends, and subagents inherit parent state. Global on/off affects this session and future sessions in this provider profile, not other live sessions or providers. Handle clear slash-command or plain-language toggles before delegation. Use injected helper metadata; never guess state paths or session IDs. If metadata or writable storage is unavailable, report failure. Hooks inject instructions, not platform permission controls. Apply delegation rules below only while enabled; independent repository and higher-priority instructions still apply.
+
 Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to its prescribed agent role and, without a matching explicit user-requested per-invocation override, its prescribed model tier. Orchestrator never invents or broadens an override.
 
 ## Model tiers (Claude)

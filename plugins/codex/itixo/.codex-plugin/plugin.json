@@ -1,7 +1,7 @@
 {
   "name": "itixo",
   "description": "Itixo library for Codex users: custom-agent TOML templates, safe installer, prompts and rules. Includes Dirigent orchestration with shared itixo-* agent IDs. Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "author": {
     "name": "Itixo",
     "url": "https://github.com/ITIXO"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "itixo",
     "shortDescription": "Company workflow tools for Codex teams.",
-    "longDescription": "Dirigent orchestration for delegating precise work to managed custom-agent templates, plus reusable skills, hooks, prompts, and company workflow rules. Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
+    "longDescription": "Opt-in Dirigent orchestration for delegating precise work to managed custom-agent templates, plus reusable skills, hooks, prompts, and company workflow rules. Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
     "developerName": "Itixo",
     "category": "Developer Tools",
     "capabilities": [
@@ -29,9 +29,9 @@
     ],
     "websiteURL": "https://github.com/ITIXO/itixo-marketplace",
     "defaultPrompt": [
-      "Use Dirigent to plan and delegate this task.",
+      "Turn on Dirigent for this chat and use it to plan and delegate this task.",
       "Install Itixo-managed Codex agents for this project.",
-      "Apply Itixo workflow rules to this repository task."
+      "Turn on Dirigent and apply its workflow rules to this repository task."
     ],
     "composerIcon": "./assets/icon.png",
     "logo": "./assets/icon.png"
