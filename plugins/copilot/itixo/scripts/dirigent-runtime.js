@@ -93,12 +93,13 @@ function helper(provider, sessionId, dir) {
 function rootContext(provider, sessionId, enabled, dir) {
   const control = `Dirigent ${enabled ? "ON" : "OFF"} for this chat. Session ID: ${sessionId}. State directory: ${dir}. Manual control: ${helper(provider, sessionId, dir)} (replace on with off; add --global for future sessions). The latest chat toggle wins. After an explicit enable, load the Dirigent skill and rules before task work. Independent repository instructions still apply.`;
   if (!enabled) return control;
-  // Reference files instead of inlining them: Claude caps hook context at 10,000 characters.
+  // Claude caps hook context at 10,000 characters: reference SKILL.md by path, inline only the rules.
   const root = path.dirname(__dirname);
   const skill = path.join(root, "skills", "dirigent", "SKILL.md");
-  const rules = path.join(root, "rules", "agents.md");
-  for (const file of [skill, rules]) fs.accessSync(file, fs.constants.R_OK);
-  return `${control}\n\nDirigent is enabled. Before any task work, read these files in full and apply them while enabled:\n- ${skill}\n- ${rules}`;
+  const rulesDir = path.join(root, "rules");
+  fs.accessSync(skill, fs.constants.R_OK);
+  const rulesText = fs.readFileSync(path.join(rulesDir, "agents.md"), "utf8");
+  return `${control}\n\nDirigent is enabled. Before any task work, read the skill in full: ${skill}\nApply these rules while enabled (rules directory: ${rulesDir}):\n\n${rulesText}`;
 }
 
 function output(provider, event, context) {

@@ -203,12 +203,13 @@ test("Claude delegation hooks are silent while off and active while on", () => s
   assert.match(call("delegation-summary.js", { session_id: sessionId }).stderr, /Delegation stats/);
 }));
 
-test("enabled context stays under Claude's hook limit and points to readable files", () => sandbox(({ env }) => {
+test("enabled context stays under Claude's hook limit and inlines rules", () => sandbox(({ env }) => {
   for (const provider of PROVIDERS) {
     set(provider, "on", "chat", env);
     const text = context(hook(provider, "session-start", env, { session_id: "chat" }));
     assert.ok(text.length < 10000, `${provider}: ${text.length} chars`);
-    for (const file of text.match(/^- (.+)$/gm).map((line) => line.slice(2))) assert.ok(fs.existsSync(file), file);
+    assert.ok(fs.existsSync(text.match(/read the skill in full: (.+)/)[1]));
+    assert.ok(text.includes(fs.readFileSync(path.join(ROOT, "plugins", provider, "itixo", "rules", "agents.md"), "utf8")));
   }
 }));
 
