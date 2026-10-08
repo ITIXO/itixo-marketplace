@@ -272,7 +272,7 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
 }
 if (failures === 0) ok("dirigent skills exist and their rules reference canonical agent IDs");
 
-// --- 3c. Codex and Copilot package the shared model-update workflow ---
+// --- 3c. Model updaters use only packaged resources and native provider tooling ---
 if (fs.existsSync(path.join(ROOT, "plugins/claude/itixo/skills/update-models"))) {
   fail("Claude must not package the update-models skill");
 }
@@ -285,13 +285,21 @@ for (const plugin of ["codex/itixo", "copilot/itixo"]) {
   }
   const text = readFile(rel);
   if (!/^---\nname: update-models\n/m.test(text)) fail(`${rel}: invalid update-models frontmatter`);
-  if (!text.includes("base/models/model-catalog.json")) {
-    fail(`${rel}: must reference the shared model catalog`);
+  for (const dependency of ["AGENTS.md", "CLAUDE.md", "base/models/", "base/agents/", "scripts/generate-agents.js", "source checkout"]) {
+    if (text.includes(dependency)) fail(`${rel}: updater must not depend on repository resources ('${dependency}')`);
   }
-  if (!text.includes("node scripts/generate-agents.js")) {
-    fail(`${rel}: must regenerate provider agent files`);
+  const packagedResources = plugin.startsWith("codex/")
+    ? ["scripts/model-catalog.json", "scripts/install-agents.js", "templates/agents/", "rules/agents.md", "skills/install-agents/SKILL.md"]
+    : ["plugin.json", "rules/agents.md", "agents/itixo-*.agent.md"];
+  for (const resource of packagedResources) {
+    if (!text.includes("${PLUGIN_ROOT}/" + resource)) fail(`${rel}: must reference packaged '${resource}'`);
+    if (!resource.includes("*") && !fs.existsSync(path.join(ROOT, "plugins", plugin, resource))) {
+      fail(`${rel}: packaged dependency '${resource}' missing`);
+    }
   }
-  if (!text.includes("source checkout")) fail(`${rel}: must keep updates in the source checkout`);
+  if (plugin.startsWith("copilot/") && (!text.includes("copilot plugin list --json") || !text.includes("copilot plugin update NAME"))) {
+    fail(`${rel}: must inspect and update the identified native plugin`);
+  }
 }
 
 // Copilot must not reference Codex tooling (the shared dirigent runtime is provider-neutral).
@@ -551,9 +559,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.2"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.3"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.3"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.4"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.6"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.7"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

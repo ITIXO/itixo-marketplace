@@ -1,3 +1,13 @@
+## 2026-10-08
+
+### itixo 0.10.4
+
+- Set Claude mid-tier Sonnet and cheap-tier Haiku agents to medium effort.
+
+### itixo 0.10.3
+
+- Add explicit Haiku 5.5 and Haiku 4.5 choices while keeping the provider-aware `haiku` default (Haiku 5.5 on Anthropic).
+
 ## 2026-10-05
 
 ### itixo 0.10.2

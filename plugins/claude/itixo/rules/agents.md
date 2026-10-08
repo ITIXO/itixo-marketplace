@@ -11,11 +11,13 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 | Tier | Model | Agents |
 |------|-------|--------|
 | orchestrator | inherit (user-selected) | itixo-planner |
-| mid | sonnet | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku | itixo-investigator, itixo-docs-updater |
+| mid | sonnet + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | haiku + medium (Haiku 5.5 on Anthropic API) | itixo-investigator, itixo-docs-updater |
 | security | opus + max | itixo-security-reviewer |
 
 The shared model catalog stores aliases globally but records concrete IDs per provider. Use an alias only when its Claude provider entry exists; never infer Claude support from another provider's entry.
+
+The `haiku` alias selects Haiku 5.5 on the Anthropic API and may select Haiku 4.5 on other providers. The catalog supports explicit `claude-haiku-5-5` and `claude-haiku-4-5` choices; use the provider’s documented model configuration to pin them. See [Claude model configuration](https://code.claude.com/docs/en/model-config).
 
 ## Rules
 

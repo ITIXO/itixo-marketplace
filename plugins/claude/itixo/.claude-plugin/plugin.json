@@ -2,7 +2,7 @@
   "name": "itixo",
   "displayName": "itixo",
   "description": "Itixo library for Claude users: agents, skills, rules and prompts shared across the company. Includes opt-in Dirigent orchestration for delegating precise steps to subagents. Recommended companions: the caveman marketplace (https://github.com/JuliusBrussee/caveman) and Mattpocock Skills (https://github.com/mattpocock/skills).",
-  "version": "0.10.2",
+  "version": "0.10.4",
   "author": {
     "name": "Itixo",
     "url": "https://github.com/ITIXO"

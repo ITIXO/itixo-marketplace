@@ -3,6 +3,7 @@ name: itixo-builder
 description: "Implements one precisely specified change."
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: sonnet
+effort: medium
 ---
 
 ## Role

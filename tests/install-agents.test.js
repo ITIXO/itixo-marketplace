@@ -23,14 +23,14 @@ const AGENT_IDS = [
 ];
 const MARKER = "# Itixo-managed custom agent. Do not edit.\n";
 const DEFAULT_SETTINGS = {
-  "itixo-builder": { model: "gpt-6-sol", effort: "medium" },
+  "itixo-builder": { model: "gpt-6.1-sol", effort: "medium" },
   "itixo-docs-updater": { model: "gpt-6-luna", effort: "high" },
-  "itixo-github-issues": { model: "gpt-6-sol", effort: "medium" },
+  "itixo-github-issues": { model: "gpt-6.1-sol", effort: "medium" },
   "itixo-investigator": { model: "gpt-6-luna", effort: "high" },
   "itixo-planner": { model: null, effort: null },
-  "itixo-reviewer": { model: "gpt-6-sol", effort: "medium" },
+  "itixo-reviewer": { model: "gpt-6.1-sol", effort: "medium" },
   "itixo-security-reviewer": { model: "gpt-6-astra", effort: "max" },
-  "itixo-tester": { model: "gpt-6-sol", effort: "medium" },
+  "itixo-tester": { model: "gpt-6.1-sol", effort: "medium" },
 };
 
 function withTemporaryDirectory(callback) {
@@ -148,7 +148,7 @@ test("installs exactly eight default custom agents into an isolated personal hom
       assert.match(readAgent(home, agentId), /^model_reasoning_effort = "high"$/m);
     }
     for (const agentId of ["itixo-builder", "itixo-github-issues", "itixo-tester", "itixo-reviewer"]) {
-      assert.match(readAgent(home, agentId), /^model = "gpt-6-sol"$/m);
+      assert.match(readAgent(home, agentId), /^model = "gpt-6\.1-sol"$/m);
       assert.match(readAgent(home, agentId), /^model_reasoning_effort = "medium"$/m);
     }
     assert.doesNotMatch(readAgent(home, "itixo-planner"), /^model(?:_reasoning_effort)? =/m);
@@ -313,7 +313,7 @@ test("accepts legacy and GPT-6 model aliases for every agent", () => {
   withTemporaryDirectory((temporary) => {
     const plugin = makePlugin(temporary);
     const aliases = [
-      ["sol", "gpt-6-sol"],
+      ["sol", "gpt-6.1-sol"],
       ["terra", "gpt-5.6-terra"],
       ["luna", "gpt-6-luna"],
       ["astra", "gpt-6-astra"],
@@ -324,6 +324,7 @@ test("accepts legacy and GPT-6 model aliases for every agent", () => {
       ["gpt-5.6-luna", "gpt-5.6-luna"],
       ["gpt-6-astra", "gpt-6-astra"],
       ["gpt-6-sol", "gpt-6-sol"],
+      ["gpt-6.1-sol", "gpt-6.1-sol"],
       ["gpt-6-luna", "gpt-6-luna"],
     ];
     for (const [alias, model] of aliases) {
@@ -368,7 +369,7 @@ test("retains every legacy effort override", () => {
       assert.match(result.stdout, new RegExp(`agent-efforts=${overrides.map(([agentId]) => `${agentId}:${effort}`).join(",")}\\n$`));
       for (const agentId of AGENT_IDS) {
         assertAgentSettings(project, agentId, {
-          model: "gpt-6-sol",
+          model: "gpt-6.1-sol",
           effort: effort === "none" ? null : effort,
         });
       }
@@ -381,6 +382,7 @@ test("accepts GPT-6 efforts, including the inherited-effort sentinel", () => {
     const plugin = makePlugin(temporary);
     const valid = [
       ["astra", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
+      ["gpt-6.1-sol", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
       ["gpt6-sol", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
       ["gpt6-luna", ["none", "low", "medium", "high", "xhigh", "max"]],
     ];
@@ -443,7 +445,7 @@ test("installs explicit planner Sol and max overrides together", () => {
       result.stdout,
       /summary installed=8 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=high agent-models=itixo-planner:sol agent-efforts=itixo-planner:max\n$/,
     );
-    assertAgentSettings(project, "itixo-planner", { model: "gpt-6-sol", effort: "max" });
+    assertAgentSettings(project, "itixo-planner", { model: "gpt-6.1-sol", effort: "max" });
   });
 });
 
@@ -509,7 +511,7 @@ test("installs legacy and GPT-6 Luna cheap model selections", () => {
           assert.match(readAgent(project, agentId), new RegExp(`^model_reasoning_effort = "${cheapEffort}"$`, "m"));
         }
         for (const agentId of ["itixo-builder", "itixo-github-issues", "itixo-tester", "itixo-reviewer"]) {
-          assert.match(readAgent(project, agentId), /^model = "gpt-6-sol"$/m);
+          assert.match(readAgent(project, agentId), /^model = "gpt-6\.1-sol"$/m);
           assert.match(readAgent(project, agentId), /^model_reasoning_effort = "medium"$/m);
         }
         assert.doesNotMatch(readAgent(project, "itixo-planner"), /^model(?:_reasoning_effort)? =/m);
@@ -672,7 +674,7 @@ test("reinstalling identical overrides is idempotent and changing one field upda
     ]);
     assert.equal(changed.status, 0, changed.stderr);
     assert.match(changed.stdout, /summary installed=1 skipped=7 .*agent-models=itixo-planner:sol agent-efforts=itixo-planner:xhigh\n$/);
-    assertAgentSettings(project, "itixo-planner", { model: "gpt-6-sol", effort: "xhigh" });
+    assertAgentSettings(project, "itixo-planner", { model: "gpt-6.1-sol", effort: "xhigh" });
   });
 });
 
@@ -975,5 +977,52 @@ test("rejects duplicate tier aliases and invalid model-version assignments befor
       assert.match(result.stderr, scenario.error, scenario.args.join(" "));
       assert.deepEqual(installedFiles(project), [], scenario.args.join(" "));
     }
+  });
+});
+
+test("updates packaged agents from an unrelated project without marketplace resources", () => {
+  withTemporaryDirectory((temporary) => {
+    const plugin = makePlugin(temporary);
+    for (const relative of ["skills/update-models", "skills/install-agents", "rules/agents.md"]) {
+      fs.cpSync(path.join(SOURCE_PLUGIN, relative), path.join(plugin, relative), { recursive: true });
+    }
+    const project = path.join(temporary, "user-project");
+    fs.mkdirSync(project);
+    for (const root of [temporary, plugin, project]) {
+      for (const resource of ["AGENTS.md", "CLAUDE.md", "base", ".git"]) {
+        assert.equal(fs.existsSync(path.join(root, resource)), false, `${root}/${resource}`);
+      }
+    }
+    const bundledPaths = ["scripts/install-agents.js", "scripts/model-catalog.json", "rules/agents.md",
+      "skills/update-models/SKILL.md", "skills/install-agents/SKILL.md",
+      ...AGENT_IDS.map((id) => `templates/agents/${id}.toml`)];
+    const before = bundledPaths.map((relative) => fs.readFileSync(path.join(plugin, relative), "utf8"));
+    const runFromProject = (args) => spawnSync(process.execPath, [path.join(plugin, "scripts", "install-agents.js"),
+      "--scope", "project", "--project-root", project, ...args], { cwd: project, encoding: "utf8" });
+    const retainedOverrides = [
+      "--agent-model", "itixo-planner=gpt-5.6-sol", "--agent-effort", "itixo-planner=max",
+      "--agent-model", "itixo-reviewer=gpt-5.6-luna", "--agent-effort", "itixo-reviewer=xhigh",
+      "--agent-effort", "itixo-security-reviewer=none",
+    ];
+    const initial = runFromProject(["--model-version", "sol=gpt-6-sol", ...retainedOverrides]);
+    assert.equal(initial.status, 0, initial.stderr);
+    assertAgentSettings(project, "itixo-builder", { model: "gpt-6-sol", effort: "medium" });
+
+    const updated = runFromProject(["--tier-model", "cheap=luna", "--tier-model", "mid=sol",
+      "--tier-model", "security=astra", "--model-version", "luna=gpt-6-luna",
+      "--model-version", "sol=gpt-6.1-sol", "--model-version", "astra=gpt-6-astra",
+      "--cheap-effort", "high", ...retainedOverrides]);
+    assert.equal(updated.status, 0, updated.stderr);
+    assert.match(updated.stdout, /summary installed=3 skipped=5/);
+    for (const id of ["itixo-builder", "itixo-github-issues", "itixo-tester"]) {
+      assertAgentSettings(project, id, { model: "gpt-6.1-sol", effort: "medium" });
+    }
+    assertAgentSettings(project, "itixo-planner", { model: "gpt-5.6-sol", effort: "max" });
+    assertAgentSettings(project, "itixo-reviewer", { model: "gpt-5.6-luna", effort: "xhigh" });
+    assertAgentSettings(project, "itixo-security-reviewer", { model: "gpt-6-astra", effort: null });
+    for (const id of ["itixo-investigator", "itixo-docs-updater"]) {
+      assertAgentSettings(project, id, { model: "gpt-6-luna", effort: "high" });
+    }
+    assert.deepEqual(bundledPaths.map((relative) => fs.readFileSync(path.join(plugin, relative), "utf8")), before);
   });
 });

@@ -3,10 +3,11 @@
     "sol": {
       "providers": {
         "codex": {
-          "default": "gpt-6-sol",
+          "default": "gpt-6.1-sol",
           "versions": [
             "gpt-5.6-sol",
-            "gpt-6-sol"
+            "gpt-6-sol",
+            "gpt-6.1-sol"
           ]
         }
       }
@@ -85,6 +86,14 @@
         "gpt-5.6-terra": "low"
       },
       "effortsByModel": {
+        "gpt-6.1-sol": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra"
+        ],
         "gpt-6-astra": [
           "low",
           "medium",

@@ -3,6 +3,7 @@ name: itixo-investigator
 description: "Read-only code locator."
 tools: Read, Grep, Glob, Bash
 model: haiku
+effort: medium
 ---
 
 ## Role

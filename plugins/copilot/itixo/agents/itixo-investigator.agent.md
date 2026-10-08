@@ -1,7 +1,7 @@
 ---
 description: "Read-only code locator."
 tools: ["read", "search", "execute"]
-model: "claude-haiku-4.5"
+model: "claude-haiku-5.5"
 ---
 
 ## Role

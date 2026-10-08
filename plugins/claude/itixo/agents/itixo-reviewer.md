@@ -3,6 +3,7 @@ name: itixo-reviewer
 description: "Reviews diffs, branches, or files."
 tools: Read, Grep, Bash
 model: sonnet
+effort: medium
 ---
 
 ## Role

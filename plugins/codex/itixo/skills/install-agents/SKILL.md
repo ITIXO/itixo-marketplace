@@ -5,7 +5,7 @@ description: Install Itixo-managed Codex custom-agent TOML files into a personal
 
 # Install Itixo custom agents
 
-Read the current `${PLUGIN_ROOT}/scripts/model-catalog.json` before installation. Do not use a stale list of models. Root `aliases` are shared names; use only aliases with a `providers.codex` entry, and read concrete choices from that provider entry. Ask user before installation and do not assume any choice:
+Resolve `PLUGIN_ROOT` to the absolute directory two levels above this loaded skill’s directory, independent of the working directory. Treat it as the resolved path for commands; do not assume a shell environment variable is already set. Verify `${PLUGIN_ROOT}/scripts/install-agents.js` and `${PLUGIN_ROOT}/templates/agents/` exist. Read the current `${PLUGIN_ROOT}/scripts/model-catalog.json` before installation. Do not use a stale list of models. Root `aliases` are shared names; use only aliases with a `providers.codex` entry, and read concrete choices from that provider entry. Ask user before installation and do not assume any choice:
 
 1. Scope: personal (`~/.codex/agents/`) or project (`<project-root>/.codex/agents/`).
 2. For each tier used by the installed agents, choose a non-pinned root alias whose `providers.codex` entry exists, preselecting the current `providers.codex.models.<tier>` value. The current catalog preselects `luna` for cheap, `sol` for mid, and `astra` for security; treat those as examples derived from the file, not a static list. Honor an explicit tier choice without asking again.
@@ -15,14 +15,16 @@ Read the current `${PLUGIN_ROOT}/scripts/model-catalog.json` before installation
 
 Tier aliases and concrete versions are independent choices. A tier alias selects the family; its version selects the concrete model ID. Per-agent model and effort overrides have highest precedence independently. `none` clears an effort field and lets the provider default apply. Full concrete IDs pin an agent directly. Legacy `--cheap-model` remains accepted for compatibility with aliases, full IDs, and pinned selectors, but cannot be combined with an explicit `--tier-model cheap=...`.
 
+Before replacing existing agents, inspect all eight managed files in the chosen scope and show their current model and effort fields. Preserve unselected per-agent choices independently, including planner overrides and omitted effort fields (`none`). If intent is unknown, ask which values to retain. The installer replaces every managed definition, so carry all confirmed retained overrides into its command.
+
 If the user already supplied an explicit scope, tier alias, version, effort, or per-agent choice, honor it and do not ask for it again.
 
-After user answers, run exactly one command from plugin root. Use repeatable `--tier-model tier=alias` and `--model-version alias=concrete-id` flags, plus `--cheap-effort` and any explicit per-agent overrides:
+After user answers, substitute the resolved absolute plugin path and run exactly one installer command from any working directory. Use repeatable `--tier-model tier=alias` and `--model-version alias=concrete-id` flags, plus `--cheap-effort` and any explicit per-agent overrides:
 
 ```sh
-node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope personal --tier-model cheap=luna --tier-model mid=sol --tier-model security=astra --model-version luna=gpt-6-luna --model-version sol=gpt-6-sol --model-version astra=gpt-6-astra --cheap-effort high
+node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope personal --tier-model cheap=luna --tier-model mid=sol --tier-model security=astra --model-version luna=gpt-6-luna --model-version sol=gpt-6.1-sol --model-version astra=gpt-6-astra --cheap-effort high
 node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope project --project-root "/absolute/or/resolved/project-root" --tier-model cheap=terra --tier-model mid=sol --tier-model security=astra --model-version terra=gpt-5.6-terra --model-version sol=gpt-5.6-sol --model-version astra=gpt-6-astra --cheap-effort low
-node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope project --project-root "/absolute/or/resolved/project-root" --tier-model cheap=luna --tier-model mid=sol --tier-model security=astra --model-version luna=gpt-6-luna --model-version sol=gpt-6-sol --model-version astra=gpt-6-astra --agent-model itixo-planner=gpt6-sol --agent-effort itixo-planner=max --agent-model itixo-reviewer=gpt-5.6-luna --agent-effort itixo-reviewer=xhigh
+node "${PLUGIN_ROOT}/scripts/install-agents.js" --scope project --project-root "/absolute/or/resolved/project-root" --tier-model cheap=luna --tier-model mid=sol --tier-model security=astra --model-version luna=gpt-6-luna --model-version sol=gpt-6.1-sol --model-version astra=gpt-6-astra --agent-model itixo-planner=gpt6-sol --agent-effort itixo-planner=max --agent-model itixo-reviewer=gpt-5.6-luna --agent-effort itixo-reviewer=xhigh
 ```
 
 Report installed and skipped paths plus the resolved tier alias/version summary from command output. When per-agent overrides are supplied, the summary includes exact `agent-models=` and/or `agent-efforts=` fields with agent IDs sorted lexically; each field is omitted when its override type was not supplied. Never manually copy TOML files or overwrite unmanaged files. Installer only overwrites files carrying its exact Itixo-managed marker.

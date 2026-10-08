@@ -1,3 +1,17 @@
+## 2026-10-08
+
+### itixo 0.9.6
+
+- Run the model updater from any project using the packaged catalog and bundled installer, preserving confirmed installed agent model and effort overrides.
+
+### itixo 0.9.5
+
+- The model updater now recognizes source checkouts through the root `AGENTS.md` instructions.
+
+### itixo 0.9.4
+
+- Default Sol agents to GPT-6.1 Sol with medium effort; retain GPT-6 Sol, GPT-5.6 Sol, and pinned compatibility selectors.
+
 ## 2026-10-05
 
 ### itixo 0.9.3
