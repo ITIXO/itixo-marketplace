@@ -10,7 +10,7 @@ const PLUGIN_ROOT = path.resolve(__dirname, "..");
 const TEMPLATE_DIRECTORY = path.join(PLUGIN_ROOT, "templates", "agents");
 const MANAGED_MARKER = "# Itixo-managed custom agent. Do not edit.\n";
 const NOFOLLOW_FLAG = typeof fs.constants.O_NOFOLLOW === "number" ? fs.constants.O_NOFOLLOW : 0;
-const CHEAP_AGENT_IDS = new Set(["itixo-investigator", "itixo-docs-updater"]);
+const CHEAP_AGENT_IDS = new Set(["itixo-investigator", "itixo-docs-updater", "itixo-junior-builder"]);
 const SECURITY_REVIEWER_AGENT_ID = "itixo-security-reviewer";
 const TIER_NAMES = ["cheap", "mid", "security"];
 const CODEX_CATALOG = validateCatalog(MODEL_CATALOG);
@@ -30,6 +30,7 @@ const AGENT_IDS = [
   "itixo-docs-updater",
   "itixo-github-issues",
   "itixo-investigator",
+  "itixo-junior-builder",
   "itixo-planner",
   "itixo-reviewer",
   SECURITY_REVIEWER_AGENT_ID,
