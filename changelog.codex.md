@@ -1,5 +1,9 @@
 ## 2026-10-08
 
+### itixo 0.9.6
+
+- Run the model updater from any project using the packaged catalog and bundled installer, preserving confirmed installed agent model and effort overrides.
+
 ### itixo 0.9.5
 
 - The model updater now recognizes source checkouts through the root `AGENTS.md` instructions.

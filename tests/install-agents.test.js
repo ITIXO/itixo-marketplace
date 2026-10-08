@@ -979,3 +979,50 @@ test("rejects duplicate tier aliases and invalid model-version assignments befor
     }
   });
 });
+
+test("updates packaged agents from an unrelated project without marketplace resources", () => {
+  withTemporaryDirectory((temporary) => {
+    const plugin = makePlugin(temporary);
+    for (const relative of ["skills/update-models", "skills/install-agents", "rules/agents.md"]) {
+      fs.cpSync(path.join(SOURCE_PLUGIN, relative), path.join(plugin, relative), { recursive: true });
+    }
+    const project = path.join(temporary, "user-project");
+    fs.mkdirSync(project);
+    for (const root of [temporary, plugin, project]) {
+      for (const resource of ["AGENTS.md", "CLAUDE.md", "base", ".git"]) {
+        assert.equal(fs.existsSync(path.join(root, resource)), false, `${root}/${resource}`);
+      }
+    }
+    const bundledPaths = ["scripts/install-agents.js", "scripts/model-catalog.json", "rules/agents.md",
+      "skills/update-models/SKILL.md", "skills/install-agents/SKILL.md",
+      ...AGENT_IDS.map((id) => `templates/agents/${id}.toml`)];
+    const before = bundledPaths.map((relative) => fs.readFileSync(path.join(plugin, relative), "utf8"));
+    const runFromProject = (args) => spawnSync(process.execPath, [path.join(plugin, "scripts", "install-agents.js"),
+      "--scope", "project", "--project-root", project, ...args], { cwd: project, encoding: "utf8" });
+    const retainedOverrides = [
+      "--agent-model", "itixo-planner=gpt-5.6-sol", "--agent-effort", "itixo-planner=max",
+      "--agent-model", "itixo-reviewer=gpt-5.6-luna", "--agent-effort", "itixo-reviewer=xhigh",
+      "--agent-effort", "itixo-security-reviewer=none",
+    ];
+    const initial = runFromProject(["--model-version", "sol=gpt-6-sol", ...retainedOverrides]);
+    assert.equal(initial.status, 0, initial.stderr);
+    assertAgentSettings(project, "itixo-builder", { model: "gpt-6-sol", effort: "medium" });
+
+    const updated = runFromProject(["--tier-model", "cheap=luna", "--tier-model", "mid=sol",
+      "--tier-model", "security=astra", "--model-version", "luna=gpt-6-luna",
+      "--model-version", "sol=gpt-6.1-sol", "--model-version", "astra=gpt-6-astra",
+      "--cheap-effort", "high", ...retainedOverrides]);
+    assert.equal(updated.status, 0, updated.stderr);
+    assert.match(updated.stdout, /summary installed=3 skipped=5/);
+    for (const id of ["itixo-builder", "itixo-github-issues", "itixo-tester"]) {
+      assertAgentSettings(project, id, { model: "gpt-6.1-sol", effort: "medium" });
+    }
+    assertAgentSettings(project, "itixo-planner", { model: "gpt-5.6-sol", effort: "max" });
+    assertAgentSettings(project, "itixo-reviewer", { model: "gpt-5.6-luna", effort: "xhigh" });
+    assertAgentSettings(project, "itixo-security-reviewer", { model: "gpt-6-astra", effort: null });
+    for (const id of ["itixo-investigator", "itixo-docs-updater"]) {
+      assertAgentSettings(project, id, { model: "gpt-6-luna", effort: "high" });
+    }
+    assert.deepEqual(bundledPaths.map((relative) => fs.readFileSync(path.join(plugin, relative), "utf8")), before);
+  });
+});

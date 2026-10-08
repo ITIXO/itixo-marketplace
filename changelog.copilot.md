@@ -1,5 +1,9 @@
 ## 2026-10-08
 
+### itixo 0.8.7
+
+- Run the model updater without a marketplace clone: inspect installed agent defaults, update only the Itixo plugin through Copilot, and verify the new packaged definitions.
+
 ### itixo 0.8.6
 
 - The model updater now recognizes source checkouts through the root `AGENTS.md` instructions.
