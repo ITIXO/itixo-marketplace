@@ -48,7 +48,7 @@ Equivalent plain-language wording is understood by intent. Global changes affect
 
 ## Orchestration concept
 
-Orchestrator (main thread) runs on the model the user selected and does the thinking: decompose, delegate, integrate. Precisely specified steps go to subagents on cheaper models:
+Orchestrator (main thread) runs on the model the user selected and does the thinking: decompose, delegate, integrate. Precisely specified steps go to subagents on cheaper models; small, clearly specified edits and file or folder scaffolding go to a cheaper junior builder, while anything that needs judgment goes to the regular builder:
 
 | Tier | Claude | Codex | Copilot CLI | Agents |
 |------|--------|-------|-------------|--------|
