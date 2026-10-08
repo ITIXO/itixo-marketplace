@@ -19,4 +19,4 @@ The optional `sol` catalog alias selects `gpt-6.1-sol`, with `gpt-6-sol` and `gp
 
 The security-review default is `claude-opus-5.5` with no effort field; do not infer or broaden an override.
 
-- itixo-investigator (haiku) locates first; exact file:line targets go to itixo-junior-builder (claude-haiku-5.5) when the junior routing rule below qualifies, otherwise to itixo-builder (claude-sonnet-5).
+- itixo-investigator (haiku) locates first; exact file:line targets go to itixo-junior-builder (claude-haiku-5.5) when the the junior routing rule in `agents.md` qualifies, otherwise to itixo-builder (claude-sonnet-5).

@@ -18,7 +18,7 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 - Claude: Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
 - Codex: Default tier aliases are `luna` (cheap), `sol` (mid), and `astra` (security); each resolves through its selected catalog version to a concrete model ID. `itixo-planner` inherits. Explicit user-requested per-agent overrides are installed with `itixo:install-agents` and then owned by the matching TOML. Keep legacy selectors such as `terra`, `gpt6-sol`, and `gpt6-luna`, and accept full GPT-6 and GPT-5.6 IDs. Do not pass an additional invocation override. Explicit planner GPT-6.1 Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
-- Codex install: explicit scope, tier-alias, model-version, and effort choices. The recommended settings are `luna` → GPT-6 Luna + high, `sol` → GPT-6.1 Sol + medium, and `astra` → GPT-6 Astra + max; `terra` → GPT-5.6 Terra + low remains the fallback.
+- Codex install recommended settings are `luna` → GPT-6 Luna + high, `sol` → GPT-6.1 Sol + medium, and `astra` → GPT-6 Astra + max; `terra` → GPT-5.6 Terra + low remains the fallback.
 - Copilot: Copilot has no effort field; never pass an effort override to a Copilot agent.
 
 ## Codex installation choices

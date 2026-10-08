@@ -12,10 +12,11 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 - If a required custom agent is unavailable, stop the affected work and read `codex-agent-install.md` next to this file before responding; never substitute a generic agent or perform the role inline.
 - Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`.
 - `itixo-investigator` locates first; exact file:line targets go to `itixo-junior-builder` when the junior routing rule below qualifies, otherwise to `itixo-builder`.
-- Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested override supported by Codex.
+- Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested override supported by Codex. Never pass an invocation override; the installed TOML owns model and effort. Never infer an override or apply it to another agent.
 - Subagents never expand scope; scope change returns to orchestrator.
 - **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
 - **Output style:** every agent uses `caveman:caveman` if that skill is available; otherwise it keeps responses terse — no filler, no hedging, no pleasantries. Code, commit messages, and security warnings stay in normal prose either way.
+- **Model details:** before relaying a user-requested model or effort override, answering model/tier questions, or documenting model choices, read `models.md` next to this file in full; its rules are binding.
 - Parallelize independent subagent runs.
 - **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least three safe independent executable units exist, launch exactly three direct worker subagents in one parallel batch before awaiting any result. Orchestrator is not a worker.
 - Keep rolling window: dispatch next ready independent worker task as soon as worker slot opens; never wait serially while ready independent work exists.
@@ -27,7 +28,6 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 ## Security-review lifecycle
 
 - Before publishing security-review findings or remediating them, read `security-review.md` next to this file in full; its rules are binding.
-- **Model details:** before relaying a user-requested model or effort override, answering model/tier questions, or documenting model choices, read `models.md` next to this file in full; its rules are binding.
 
 ## GitHub issue delegation (mandatory)
 

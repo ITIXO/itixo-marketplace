@@ -4,7 +4,7 @@ Derived from `base/rules/agents.md` — edit there, sync here.
 
 Dirigent starts off unless a hook injects enabled state. Fresh sessions inherit the provider-profile default; session toggles override it until session ends. Global on/off affects this session and future sessions in this provider profile, not other live sessions or providers. Handle clear slash-command or plain-language toggles before delegation. Use injected helper metadata; never guess state paths or session IDs. If metadata or writable storage is unavailable, report failure. Hooks inject instructions, not platform permission controls; Copilot prompt-hook output cannot inject context, and its built-in general-purpose agent lacks a subagent-start hook. Apply delegation rules below only while enabled; independent repository and higher-priority instructions still apply.
 
-Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to a subagent on a cheaper model.
+Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to a subagent on a cheaper model. The orchestrator never invents or broadens a model override.
 
 ## Rules
 
@@ -16,6 +16,7 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 - Subagents never expand scope; scope change returns to orchestrator.
 - **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
 - **Output style:** every agent uses `caveman:caveman` if that skill is available; otherwise it keeps responses terse — no filler, no hedging, no pleasantries. Code, commit messages, and security warnings stay in normal prose either way.
+- **Model details:** before relaying a user-requested model override, answering model/tier questions, or documenting model choices, read `models.md` next to this file in full; its rules are binding.
 - Parallelize independent subagent runs.
 - **Maximum parallel workers:** decompose upfront to expose safe independent executable units. When at least three safe independent executable units exist, launch exactly three direct worker subagents in one parallel batch before awaiting any result. The orchestrator is not a worker.
 - Keep a rolling window: dispatch the next ready independent worker task as soon as a worker slot opens; never wait serially while ready independent work exists.
@@ -26,7 +27,6 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 ## Security-review lifecycle
 
 - Before publishing security-review findings or remediating them, read `security-review.md` next to this file in full; its rules are binding.
-- **Model details:** before relaying a user-requested model override, answering model/tier questions, or documenting model choices, read `models.md` next to this file in full; its rules are binding.
 
 ## GitHub issue delegation (mandatory)
 

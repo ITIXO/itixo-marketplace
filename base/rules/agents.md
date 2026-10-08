@@ -36,8 +36,8 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 ## Provider dispatch
 
 - Claude invokes the native plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model and effort.
-- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the installed TOML owns instructions, model, and effort.
-- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents`. Never substitute a generic agent or perform the role inline.
+- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the installed TOML owns instructions, model, and effort. Never pass an invocation override; never infer an override or apply it to another agent.
+- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, tier-alias, model-version, and effort choices (recommended settings in `models.md`). Never substitute a generic agent or perform the role inline.
 - Copilot CLI invokes the native Copilot plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model.
 - If a required Claude or Copilot `itixo-*` agent is unavailable, stop the affected work and tell the user the itixo plugin's agents must be installed and enabled; never substitute a generic agent or perform the role inline.
 - **Model details:** before relaying a user-requested model or effort override, answering model/tier questions, or documenting model choices, read `models.md` next to this file in full; its rules are binding.
