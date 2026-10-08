@@ -6,22 +6,12 @@ Dirigent starts off unless a hook injects enabled state. Fresh sessions inherit 
 
 Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to its prescribed agent role using that role's installed model and effort. Without an explicit user-requested per-agent installation override, the prescribed tier defaults MUST be used. Orchestrator never invents or broadens an override.
 
-## Model tiers (Codex)
-
-| Tier | Model | Agents |
-|------|-------|--------|
-| orchestrator | user-selected | itixo-planner |
-| mid | `sol` → gpt-6.1-sol + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | `luna` → gpt-6-luna + high (default); `terra` → gpt-5.6-terra + low (fallback) | itixo-investigator, itixo-docs-updater, itixo-junior-builder |
-| security | `astra` → gpt-6-astra + max | itixo-security-reviewer |
-
 ## Rules
 
-- Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the TOML owns instructions, model, and effort. Default tier aliases are `luna` (cheap), `sol` (mid), and `astra` (security); each resolves through the Codex provider entry for that root alias and its selected version to a concrete model ID. `itixo-planner` inherits. Explicit user-requested per-agent overrides must be installed with `itixo:install-agents` and are then owned by the matching TOML; do not pass an additional invocation override. Keep legacy selectors such as `terra`, `gpt6-sol`, and `gpt6-luna`, and accept full GPT-6 and GPT-5.6 IDs. Explicit planner GPT-6.1 Sol may exceed the caller model.
-- Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
+- Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the TOML owns instructions, model, and effort.
 - If a required custom agent is unavailable, stop the affected work and read `codex-agent-install.md` next to this file before responding; never substitute a generic agent or perform the role inline.
-- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is gpt-6-astra + max; never infer or broaden an override.
-- `itixo-investigator` locates first using its installed configured model, which defaults to the cheap tier absent a matching explicit user override; exact file:line targets go to `itixo-junior-builder` (cheap tier, `luna`) when the junior routing rule below qualifies, otherwise to `itixo-builder` (mid tier, `sol`), each using its installed configured model under the same constraint.
+- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`.
+- `itixo-investigator` locates first; exact file:line targets go to `itixo-junior-builder` when the junior routing rule below qualifies, otherwise to `itixo-builder`.
 - Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested override supported by Codex.
 - Subagents never expand scope; scope change returns to orchestrator.
 - **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
@@ -37,6 +27,7 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 ## Security-review lifecycle
 
 - Before publishing security-review findings or remediating them, read `security-review.md` next to this file in full; its rules are binding.
+- **Model details:** before relaying a user-requested model or effort override, answering model/tier questions, or documenting model choices, read `models.md` next to this file in full; its rules are binding.
 
 ## GitHub issue delegation (mandatory)
 

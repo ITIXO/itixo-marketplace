@@ -6,25 +6,12 @@ Dirigent starts off unless a hook injects enabled state. Fresh sessions inherit 
 
 Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to a subagent on a cheaper model.
 
-## Model tiers (Copilot CLI)
-
-| Tier | Model | Agents |
-|------|-------|--------|
-| orchestrator | inherit (user-selected) | itixo-planner |
-| mid | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | claude-haiku-5.5 | itixo-investigator, itixo-docs-updater, itixo-junior-builder |
-| security | claude-opus-5.5 | itixo-security-reviewer |
-
-The shared model catalog stores aliases globally but records concrete IDs per provider. Use an alias only when its Copilot provider entry exists; never infer Copilot support from another provider's entry.
-
-The optional `sol` catalog alias selects `gpt-6.1-sol`, with `gpt-6-sol` and `gpt-5.6-sol` retained for pinning. Mid-tier agents still use Sonnet. The `haiku` alias selects `claude-haiku-5.5`, retaining `claude-haiku-4.5` for pinning. See [Copilot CLI supported models](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#supported-models).
-
 ## Rules
 
 - Copilot CLI invokes the native Copilot plugin agent using its canonical `itixo-*` ID and the definition's prescribed tier.
 - If a required `itixo-*` agent is unavailable, stop the affected work and tell the user the itixo plugin's agents must be installed and enabled; never substitute a generic agent or perform the role inline.
-- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is `claude-opus-5.5` with no effort field; do not infer or broaden an override.
-- itixo-investigator (haiku) locates first; exact file:line targets go to itixo-junior-builder (claude-haiku-5.5) when the junior routing rule below qualifies, otherwise to itixo-builder (claude-sonnet-5).
+- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`.
+- itixo-investigator locates first; exact file:line targets go to itixo-junior-builder when the junior routing rule below qualifies, otherwise to itixo-builder.
 - Subagent prompt: goal, files, constraints, expected output format.
 - Subagents never expand scope; scope change returns to orchestrator.
 - **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
@@ -39,6 +26,7 @@ The optional `sol` catalog alias selects `gpt-6.1-sol`, with `gpt-6-sol` and `gp
 ## Security-review lifecycle
 
 - Before publishing security-review findings or remediating them, read `security-review.md` next to this file in full; its rules are binding.
+- **Model details:** before relaying a user-requested model override, answering model/tier questions, or documenting model choices, read `models.md` next to this file in full; its rules are binding.
 
 ## GitHub issue delegation (mandatory)
 
