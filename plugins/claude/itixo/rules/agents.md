@@ -12,7 +12,7 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 |------|-------|--------|
 | orchestrator | inherit (user-selected) | itixo-planner |
 | mid | sonnet + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku + medium (Haiku 5.5 on Anthropic API) | itixo-investigator, itixo-docs-updater |
+| cheap | haiku + medium (Haiku 5.5 on Anthropic API) | itixo-investigator, itixo-docs-updater, itixo-junior-builder |
 | security | opus + max | itixo-security-reviewer |
 
 The shared model catalog stores aliases globally but records concrete IDs per provider. Use an alias only when its Claude provider entry exists; never infer Claude support from another provider's entry.
@@ -26,7 +26,7 @@ The `haiku` alias selects Haiku 5.5 on the Anthropic API and may select Haiku 4.
 - Generated definitions own default model and effort. Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
 - Never infer an override or apply it to another invocation. Provider or organization restrictions may constrain requested models or effort.
 - Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is Opus + max; never infer or broaden an override.
-- `itixo-investigator` locates first on its configured invocation model, defaulting to cheap-tier Haiku absent a matching explicit user override; `itixo-builder` gets exact file:line targets on its configured invocation model, defaulting to mid-tier Sonnet under the same constraint.
+- `itixo-investigator` locates first on its configured invocation model, defaulting to cheap-tier Haiku absent a matching explicit user override; exact file:line targets go to `itixo-junior-builder` (cheap-tier Haiku) when the junior routing rule below qualifies, otherwise to `itixo-builder` (mid-tier Sonnet), each on its configured invocation model under the same constraint.
 - Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested model or effort override.
 - Subagents never expand scope; scope change returns to orchestrator.
 - **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
@@ -50,7 +50,10 @@ The `haiku` alias selects Haiku 5.5 on the Anthropic API and may select Haiku 4.
 
 ## Workflow
 
-- Route work by canonical native plugin-agent ID: itixo-investigator for location/read-only mapping; itixo-planner for decomposition; itixo-builder for exact implementation; itixo-tester for specified validation; itixo-reviewer for general code-review findings; itixo-security-reviewer for explicit user security-review requests; itixo-docs-updater for affected docs; itixo-github-issues for GitHub issue structure and creation. Invoke the native Claude plugin agent by that ID.
+- Route work by canonical native plugin-agent ID: itixo-investigator for location/read-only mapping; itixo-planner for decomposition; itixo-junior-builder for well-scoped, unambiguous low-thinking changes and exact scaffolding (junior routing rule below); itixo-builder for all other exact implementation; itixo-tester for specified validation; itixo-reviewer for general code-review findings; itixo-security-reviewer for explicit user security-review requests; itixo-docs-updater for affected docs; itixo-github-issues for GitHub issue structure and creation. Invoke the native Claude plugin agent by that ID.
+- **Junior routing:** delegate to `itixo-junior-builder` only when ALL hold: every target has an exact path (file:line for edits); the change is specified unambiguously (need not be literal); it involves no design choice, dependency research, or debugging; and it touches about 3 files or fewer (scaffolding is exempt when every path and its content or spec is given). All other implementation goes to `itixo-builder`.
+- Split larger work into junior-sized units only when the split is obvious; never bend a task to fit junior.
+- `itixo-junior-builder` returns to orchestrator on any open decision. On verification failure it returns without debugging, retrying, or committing; orchestrator then re-scopes or routes to `itixo-builder`.
 - When documenting Codex installation choices, read root aliases and their Codex provider entries from the current catalog, then use provider-specific concrete versions; do not copy a stale model list or infer availability across providers.
 - Integrate results, run proportionate verification, report evidence and unresolved blockers. Do not let orchestration replace implementation ownership or bypass repository safeguards.
 - For GitHub work, use configured GitHub connector or MCP first. Apply all additional repository instructions, including commit, review, and approval constraints.
@@ -60,7 +63,7 @@ The `haiku` alias selects Haiku 5.5 on the Anthropic API and may select Haiku 4.
 Negative rules — soft phrasing elsewhere never overrides them. The orchestrator itself does NOT:
 
 - run `ls`, `find`, `grep`, `rg`, `Grep`, or `Glob` to map or scan the codebase — read-only mapping IS itixo-investigator's job. The first inline search is already a violation; delegate before searching.
-- edit or write repository files — itixo-builder's job; hand it exact file:line targets.
+- edit or write repository files — itixo-junior-builder's or itixo-builder's job; hand it exact file:line targets.
 - write or run test suites — itixo-tester's job.
 - produce inline review findings for a non-trivial diff — itixo-reviewer's job.
 - create GitHub issues by hand — itixo-github-issues agent's job.

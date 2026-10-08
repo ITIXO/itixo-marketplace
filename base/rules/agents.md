@@ -25,7 +25,7 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 |------|---------|--------|-------|---------|
 | orchestrator | thinking, decomposition, integration | user-selected (inherit) | user-selected | user-selected |
 | mid | implementation, tests, review | sonnet + medium | `sol` → gpt-6.1-sol + medium | claude-sonnet-5 |
-| cheap | lookups, docs, mechanical reads | haiku + medium | `luna` → gpt-6-luna + high (`terra` → gpt-5.6-terra + low fallback) | claude-haiku-5.5 |
+| cheap | lookups, docs, mechanical reads, well-scoped implementation and scaffolding | haiku + medium | `luna` → gpt-6-luna + high (`terra` → gpt-5.6-terra + low fallback) | claude-haiku-5.5 |
 | security | security review | opus + max | `astra` → gpt-6-astra + max | claude-opus-5.5 |
 
 Supported provider model IDs, tier aliases, and reasoning efforts are maintained in `base/models/model-catalog.json`. Its root `aliases` are shared names; each alias contains provider-specific `default` and `versions` entries, and a provider entry means that alias is available there. `providers.<provider>.models` assigns those aliases to tiers. Codex and Copilot provide `/itixo:update-models` from their installed plugins: Codex reads the packaged catalog and applies confirmed settings through its bundled installer, while Copilot uses its native plugin update flow and verifies packaged agent defaults; Claude does not package this skill. Keep installed plugin caches and installed agent files read-only; preserve legacy selectors and user-selected overrides.
@@ -41,6 +41,7 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 | itixo-reviewer | mid | review diff, severity-tagged findings |
 | itixo-investigator | cheap | locate code, map structure, answer "where/what" |
 | itixo-docs-updater | cheap | sync docs with code changes |
+| itixo-junior-builder | cheap | implement one unambiguously specified, low-thinking change or scaffold exact files |
 | itixo-security-reviewer | security | read-only security review, severity-tagged findings |
 
 ## Provider dispatch
@@ -62,7 +63,7 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 - Delegate when the step is self-contained; keep in orchestrator when it requires cross-step judgment.
 - Prompt to subagent must include: goal, exact files/paths if known, constraints, expected output format, and any explicit user-requested model or effort override supported by the provider.
 - Subagent returns compact result; orchestrator never re-reads what subagent already summarized.
-- `itixo-investigator` before `itixo-builder`: investigator locates first on its configured model, defaulting to the cheap tier unless the user supplied a matching explicit override; then hand precise file:line targets to builder on its configured model, defaulting to the mid tier unless likewise overridden.
+- `itixo-investigator` before implementation: investigator locates first on its configured model, defaulting to the cheap tier unless the user supplied a matching explicit override; then hand precise file:line targets to `itixo-junior-builder` when the junior routing rule qualifies, otherwise to `itixo-builder`, each on its configured model, defaulting to its tier unless likewise overridden.
 - Never let a subagent expand scope. Scope change goes back to orchestrator.
 - **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
 - **Output style:** every agent uses `caveman:caveman` if that skill is available; otherwise it keeps responses terse — no filler, no hedging, no pleasantries. Code, commit messages, and security warnings stay in normal prose either way.
@@ -82,7 +83,10 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 
 ## Workflow
 
-- Route work by canonical `itixo-*` agent ID: itixo-investigator for location/read-only mapping; itixo-planner for decomposition; itixo-builder for exact implementation; itixo-tester for specified validation; itixo-reviewer for general code-review findings; itixo-security-reviewer for explicit user security-review requests; itixo-docs-updater for affected docs; itixo-github-issues for GitHub issue structure and creation. Invoke the provider's native agent by that ID (see Provider dispatch).
+- Route work by canonical `itixo-*` agent ID: itixo-investigator for location/read-only mapping; itixo-planner for decomposition; itixo-junior-builder for well-scoped, unambiguous low-thinking changes and exact scaffolding (junior routing rule below); itixo-builder for all other exact implementation; itixo-tester for specified validation; itixo-reviewer for general code-review findings; itixo-security-reviewer for explicit user security-review requests; itixo-docs-updater for affected docs; itixo-github-issues for GitHub issue structure and creation. Invoke the provider's native agent by that ID (see Provider dispatch).
+- **Junior routing:** delegate to `itixo-junior-builder` only when ALL hold: every target has an exact path (file:line for edits); the change is specified unambiguously (need not be literal); it involves no design choice, dependency research, or debugging; and it touches about 3 files or fewer (scaffolding is exempt when every path and its content or spec is given). All other implementation goes to `itixo-builder`.
+- Split larger work into junior-sized units only when the split is obvious; never bend a task to fit junior.
+- `itixo-junior-builder` returns to orchestrator on any open decision. On verification failure it returns without debugging, retrying, or committing; orchestrator then re-scopes or routes to `itixo-builder`.
 - When documenting Codex installation choices, read root aliases and their Codex provider entries from the current catalog, then use provider-specific concrete versions; do not copy a stale model list or infer availability across providers.
 - Integrate results, run proportionate verification, report evidence and unresolved blockers. Do not let orchestration replace implementation ownership or bypass repository safeguards.
 - For GitHub work, use configured GitHub connector or MCP first. Apply all additional repository instructions, including commit, review, and approval constraints.
@@ -92,7 +96,7 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 These are negative rules, not preferences. Soft phrasing elsewhere ("prefer", "should") never overrides them. The orchestrator itself does NOT:
 
 - run `ls`, `find`, `grep`, `rg`, `Grep`, or `Glob` to map or scan the codebase — read-only mapping IS itixo-investigator's job. The first inline search is already a violation; delegate before searching.
-- edit or write repository files — itixo-builder's job; hand it exact file:line targets.
+- edit or write repository files — itixo-junior-builder's or itixo-builder's job; hand it exact file:line targets.
 - write or run test suites — itixo-tester's job.
 - produce inline review findings for a non-trivial diff — itixo-reviewer's job.
 - create GitHub issues by hand — itixo-github-issues agent's job.

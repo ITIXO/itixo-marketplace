@@ -54,10 +54,10 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 |------|--------|-------|-------------|--------|
 | orchestrator | inherit | user-selected | inherit | itixo-planner |
 | mid | sonnet + medium | `sol` → GPT-6.1 Sol + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku + medium | `luna` → GPT-6 Luna + high | claude-haiku-5.5 | itixo-investigator, itixo-docs-updater |
+| cheap | haiku + medium | `luna` → GPT-6 Luna + high | claude-haiku-5.5 | itixo-investigator, itixo-docs-updater, itixo-junior-builder |
 | security | opus + max | `astra` → GPT-6 Astra + max | claude-opus-5.5 | itixo-security-reviewer |
 
-The eight canonical IDs above are shared by all three platforms. `itixo-planner` inherits the main task's model and effort. The `0.2.0` release renamed the former generic IDs; no agent-ID aliases are provided.
+The nine canonical IDs above are shared by all three platforms. `itixo-planner` inherits the main task's model and effort. The `0.2.0` release renamed the former generic IDs; no agent-ID aliases are provided.
 
 The shared catalog defines root aliases such as `sol`, `luna`, `terra`, and `opus`, then records each provider's concrete `default` and `versions` entries. A provider entry is the availability signal, so an alias can work for Claude and Copilot without implying Codex support. Codex assigns its provider aliases to mid, cheap, and security tiers; the installer filters out pinned compatibility aliases, then lets users choose the tier alias and its provider-specific version independently. Legacy selectors such as `gpt6-sol` and `gpt6-luna`, plus full model IDs, remain accepted.
 
@@ -117,7 +117,7 @@ Then install `itixo` (Codex plugin) via the `/plugins` browser. It is published 
 
 Before using `dirigent`, invoke `itixo:install-agents`. Personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. The skill reads the current catalog, prompts for each tier alias and the concrete version of each selected alias, then shows the resolved cheap, mid, and security settings. Defaults are `luna` → GPT-6 Luna + high, `sol` → GPT-6.1 Sol + medium, `astra` → GPT-6 Astra + max, and the planner inherits. `terra` → GPT-5.6 Terra + low remains the fallback.
 
-Tier choices can be passed with repeatable `--tier-model cheap|mid|security=alias` and `--model-version alias=concrete-id` options. `--cheap-model` remains a compatibility shortcut, but cannot be combined with an explicit cheap tier alias. Any of the eight agents can also receive repeatable `--agent-model id=alias-or-concrete-id` and `--agent-effort id=none|low|medium|high|xhigh|max|ultra` overrides. Model and effort are independent, and per-agent fields win over tier settings. `none` clears the effort field and lets the model inherit its provider default. An explicit planner override can exceed the caller model, subject to provider or organization restrictions.
+Tier choices can be passed with repeatable `--tier-model cheap|mid|security=alias` and `--model-version alias=concrete-id` options. `--cheap-model` remains a compatibility shortcut, but cannot be combined with an explicit cheap tier alias. Any of the nine agents can also receive repeatable `--agent-model id=alias-or-concrete-id` and `--agent-effort id=none|low|medium|high|xhigh|max|ultra` overrides. Model and effort are independent, and per-agent fields win over tier settings. `none` clears the effort field and lets the model inherit its provider default. An explicit planner override can exceed the caller model, subject to provider or organization restrictions.
 
 The installer creates or replaces only TOML files with its exact Itixo-managed marker, refuses unmanaged conflicts, and skips unchanged managed files on reinstall. Its sorted summary adds `agent-models=` and `agent-efforts=` only when those overrides were supplied. Start a new task or restart Codex after installation so custom agents are discovered. Provider or organization restrictions may constrain available overrides.
 
