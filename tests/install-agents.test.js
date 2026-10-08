@@ -985,7 +985,7 @@ test("rejects duplicate tier aliases and invalid model-version assignments befor
 test("updates packaged agents from an unrelated project without marketplace resources", () => {
   withTemporaryDirectory((temporary) => {
     const plugin = makePlugin(temporary);
-    for (const relative of ["skills/update-models", "skills/install-agents", "rules/agents.md"]) {
+    for (const relative of ["skills/update-models", "skills/install-agents", "rules/agents.md", "rules/models.md"]) {
       fs.cpSync(path.join(SOURCE_PLUGIN, relative), path.join(plugin, relative), { recursive: true });
     }
     const project = path.join(temporary, "user-project");
@@ -995,7 +995,7 @@ test("updates packaged agents from an unrelated project without marketplace reso
         assert.equal(fs.existsSync(path.join(root, resource)), false, `${root}/${resource}`);
       }
     }
-    const bundledPaths = ["scripts/install-agents.js", "scripts/model-catalog.json", "rules/agents.md",
+    const bundledPaths = ["scripts/install-agents.js", "scripts/model-catalog.json", "rules/agents.md", "rules/models.md",
       "skills/update-models/SKILL.md", "skills/install-agents/SKILL.md",
       ...AGENT_IDS.map((id) => `templates/agents/${id}.toml`)];
     const before = bundledPaths.map((relative) => fs.readFileSync(path.join(plugin, relative), "utf8"));
