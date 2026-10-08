@@ -17,6 +17,8 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 
 The shared model catalog stores aliases globally but records concrete IDs per provider. Use an alias only when its Copilot provider entry exists; never infer Copilot support from another provider's entry.
 
+The optional `sol` catalog alias selects `gpt-6.1-sol`, with `gpt-6-sol` and `gpt-5.6-sol` retained for pinning. Mid-tier agents still use Sonnet. Haiku stays at `claude-haiku-4.5` until the native Haiku 5.5 selector is verified. See [Copilot CLI supported models](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#supported-models).
+
 ## Rules
 
 - Copilot CLI invokes the native Copilot plugin agent using its canonical `itixo-*` ID and the definition's prescribed tier.

@@ -53,7 +53,7 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 | Tier | Claude | Codex | Copilot CLI | Agents |
 |------|--------|-------|-------------|--------|
 | orchestrator | inherit | user-selected | inherit | itixo-planner |
-| mid | sonnet | `sol` → GPT-6 Sol + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| mid | sonnet | `sol` → GPT-6.1 Sol + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
 | cheap | haiku | `luna` → GPT-6 Luna + high | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
 | security | opus + max | `astra` → GPT-6 Astra + max | claude-opus-5.5 | itixo-security-reviewer |
 
@@ -64,6 +64,8 @@ The shared catalog defines root aliases such as `sol`, `luna`, `terra`, and `opu
 Codex and Copilot each provide their own `/itixo:update-models`; Claude does not package this skill. It first shows two tables populated from the checkout: each level's current model and possible options; then each agent and its level. A questionnaire collects confirmed changes and offers the current values. Codex's version covers the shared catalog and, after validation, runs `itixo:install-agents` to update installed agents in the selected scope. Copilot's version changes only Copilot models and ships them through a plugin release, so users get new models by updating the plugin.
 
 Claude keeps generated defaults unless the user explicitly requests a provider-supported model or effort override. The shared catalog's `opus` alias has a Claude provider entry; Claude Code v2.1.280+ resolves it to Opus 5.5 for Anthropic, API, AWS Bedrock, and Google Vertex, while Foundry resolves an older Opus version. See the [official Claude model configuration docs](https://code.claude.com/docs/en/model-config) for provider-specific aliases and restrictions. Pin older Claude choices through the provider's documented model configuration or environment settings.
+
+Claude Code’s `haiku` alias selects Haiku 5.5 on the Anthropic API; other providers may resolve Haiku 4.5. The Claude catalog also retains explicit `claude-haiku-4-5` and adds `claude-haiku-5-5`. Copilot’s `sol` alias now selects `gpt-6.1-sol`, retaining older versions; its Haiku selection remains `claude-haiku-4.5` until an exact native Haiku 5.5 selector is verified. See the [Claude model configuration](https://code.claude.com/docs/en/model-config) and [Copilot CLI model reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#supported-models).
 
 ### Security reviews
 
@@ -113,7 +115,7 @@ codex plugin marketplace add ITIXO/itixo-marketplace
 
 Then install `itixo` (Codex plugin) via the `/plugins` browser. It is published only in the native `.agents/plugins/marketplace.json` marketplace; the Claude marketplace publishes only `itixo` (Claude plugin).
 
-Before using `dirigent`, invoke `itixo:install-agents`. Personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. The skill reads the current catalog, prompts for each tier alias and the concrete version of each selected alias, then shows the resolved cheap, mid, and security settings. Defaults are `luna` → GPT-6 Luna + high, `sol` → GPT-6 Sol + medium, `astra` → GPT-6 Astra + max, and the planner inherits. `terra` → GPT-5.6 Terra + low remains the fallback.
+Before using `dirigent`, invoke `itixo:install-agents`. Personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. The skill reads the current catalog, prompts for each tier alias and the concrete version of each selected alias, then shows the resolved cheap, mid, and security settings. Defaults are `luna` → GPT-6 Luna + high, `sol` → GPT-6.1 Sol + medium, `astra` → GPT-6 Astra + max, and the planner inherits. `terra` → GPT-5.6 Terra + low remains the fallback.
 
 Tier choices can be passed with repeatable `--tier-model cheap|mid|security=alias` and `--model-version alias=concrete-id` options. `--cheap-model` remains a compatibility shortcut, but cannot be combined with an explicit cheap tier alias. Any of the eight agents can also receive repeatable `--agent-model id=alias-or-concrete-id` and `--agent-effort id=none|low|medium|high|xhigh|max|ultra` overrides. Model and effort are independent, and per-agent fields win over tier settings. `none` clears the effort field and lets the model inherit its provider default. An explicit planner override can exceed the caller model, subject to provider or organization restrictions.
 

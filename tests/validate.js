@@ -551,9 +551,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.2"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.3"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.3"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.3"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.4"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.4"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

@@ -323,7 +323,7 @@ test("resolves shared aliases to each provider's concrete model ID", () => {
     assert.equal(result.status, 0, result.stderr);
     assert.match(
       fs.readFileSync(path.join(repository, "plugins", "copilot", "itixo", "agents", "itixo-builder.agent.md"), "utf8"),
-      /^model: "gpt-6-sol"$/m,
+      /^model: "gpt-6\.1-sol"$/m,
     );
     assert.match(
       fs.readFileSync(path.join(repository, "plugins", "claude", "itixo", "agents", "itixo-security-reviewer.md"), "utf8"),
@@ -562,4 +562,25 @@ test("filesystem freshness check reports stale, missing, and orphan provider fil
       ],
     });
   });
+});
+
+
+test("generates explicit Haiku versions while retaining the provider-aware default", () => {
+  for (const model of ["haiku", "claude-haiku-4-5", "claude-haiku-5-5"]) {
+    withTemporaryDirectory((temporary) => {
+      const repository = makeGeneratorRepository(temporary);
+      const catalogPath = path.join(repository, "base", "models", "model-catalog.json");
+      const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+      assert.ok(catalog.aliases.haiku.providers.claude.versions.includes(model));
+      catalog.aliases.haiku.providers.claude.default = model;
+      fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+      const result = spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js")], {
+        cwd: repository,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, result.stderr);
+      const agent = fs.readFileSync(path.join(repository, "plugins", "claude", "itixo", "agents", "itixo-investigator.md"), "utf8");
+      assert.ok(agent.includes(`\nmodel: ${model}\n`));
+    });
+  }
 });

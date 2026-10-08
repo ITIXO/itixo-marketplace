@@ -3,7 +3,7 @@
 Source of truth for all provider plugins. Edit here, then sync to plugins.
 
 - Delegate all GitHub issue assessment, structuring, and creation work to exactly one `itixo-github-issues` agent. Do not split checks and creation between agents.
-- Before delegating, load the matching `agents/itixo-github-issues.md` role instructions. For Claude, honor a matching explicit per-invocation model and/or effort override; otherwise use the `mid`-tier Sonnet default. For Codex, invoke the installed TOML, which owns either its explicit installed override or the `mid`-tier GPT-6 Sol + medium default.
+- Before delegating, load the matching `agents/itixo-github-issues.md` role instructions. For Claude, honor a matching explicit per-invocation model and/or effort override; otherwise use the `mid`-tier Sonnet default. For Codex, invoke the installed TOML, which owns either its explicit installed override or the `mid`-tier GPT-6.1 Sol + medium default.
 - Prompt that agent with requested outcome, target repository and owner context, constraints, expected output, and known IssueType or project conventions. Require it to determine whether native GitHub IssueTypes are available; the fallback below applies only when they are unavailable in a personal repository.
 - The `itixo-github-issues` agent owns duplicate, native-IssueType availability, fallback-label, linked-sub-issue/depth, and repository-convention checks, then reports or creates the issue result.
 - With native IssueTypes, it classifies the root as `Feature` when appropriate, direct children as `Task` by default, and a direct child as `Feature` only when that large child is split into executable children. It allows at most two parent-child edges: `Feature -> Feature -> Task`.

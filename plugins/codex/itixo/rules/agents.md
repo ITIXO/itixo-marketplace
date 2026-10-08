@@ -11,13 +11,13 @@ Orchestrator = main thread, runs on user-selected model. It thinks, decomposes, 
 | Tier | Model | Agents |
 |------|-------|--------|
 | orchestrator | user-selected | itixo-planner |
-| mid | `sol` → gpt-6-sol + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| mid | `sol` → gpt-6.1-sol + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
 | cheap | `luna` → gpt-6-luna + high (default); `terra` → gpt-5.6-terra + low (fallback) | itixo-investigator, itixo-docs-updater |
 | security | `astra` → gpt-6-astra + max | itixo-security-reviewer |
 
 ## Rules
 
-- Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the TOML owns instructions, model, and effort. Default tier aliases are `luna` (cheap), `sol` (mid), and `astra` (security); each resolves through the Codex provider entry for that root alias and its selected version to a concrete model ID. `itixo-planner` inherits. Explicit user-requested per-agent overrides must be installed with `itixo:install-agents` and are then owned by the matching TOML; do not pass an additional invocation override. Keep legacy selectors such as `terra`, `gpt6-sol`, and `gpt6-luna`, and accept full GPT-6 and GPT-5.6 IDs. Explicit planner GPT-6 Sol may exceed the caller model.
+- Codex invokes the installed custom TOML agent using its canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the TOML owns instructions, model, and effort. Default tier aliases are `luna` (cheap), `sol` (mid), and `astra` (security); each resolves through the Codex provider entry for that root alias and its selected version to a concrete model ID. `itixo-planner` inherits. Explicit user-requested per-agent overrides must be installed with `itixo:install-agents` and are then owned by the matching TOML; do not pass an additional invocation override. Keep legacy selectors such as `terra`, `gpt6-sol`, and `gpt6-luna`, and accept full GPT-6 and GPT-5.6 IDs. Explicit planner GPT-6.1 Sol may exceed the caller model.
 - Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
 - If a required custom agent is unavailable, stop the affected work and read `codex-agent-install.md` next to this file before responding; never substitute a generic agent or perform the role inline.
 - Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is gpt-6-astra + max; never infer or broaden an override.
