@@ -64,6 +64,8 @@
         "security": "opus"
       },
       "efforts": {
+        "cheap": "medium",
+        "mid": "medium",
         "security": "max"
       }
     },

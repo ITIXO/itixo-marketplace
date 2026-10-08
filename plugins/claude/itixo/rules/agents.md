@@ -11,8 +11,8 @@ Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It think
 | Tier | Model | Agents |
 |------|-------|--------|
 | orchestrator | inherit (user-selected) | itixo-planner |
-| mid | sonnet | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku (Haiku 5.5 on Anthropic API) | itixo-investigator, itixo-docs-updater |
+| mid | sonnet + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | haiku + medium (Haiku 5.5 on Anthropic API) | itixo-investigator, itixo-docs-updater |
 | security | opus + max | itixo-security-reviewer |
 
 The shared model catalog stores aliases globally but records concrete IDs per provider. Use an alias only when its Claude provider entry exists; never infer Claude support from another provider's entry.

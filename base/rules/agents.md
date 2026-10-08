@@ -24,8 +24,8 @@ MUST be delegated to its prescribed agent role and, by default, that role's pres
 | Tier | Purpose | Claude | Codex | Copilot |
 |------|---------|--------|-------|---------|
 | orchestrator | thinking, decomposition, integration | user-selected (inherit) | user-selected | user-selected |
-| mid | implementation, tests, review | sonnet | `sol` → gpt-6.1-sol + medium | claude-sonnet-5 |
-| cheap | lookups, docs, mechanical reads | haiku | `luna` → gpt-6-luna + high (`terra` → gpt-5.6-terra + low fallback) | claude-haiku-4.5 |
+| mid | implementation, tests, review | sonnet + medium | `sol` → gpt-6.1-sol + medium | claude-sonnet-5 |
+| cheap | lookups, docs, mechanical reads | haiku + medium | `luna` → gpt-6-luna + high (`terra` → gpt-5.6-terra + low fallback) | claude-haiku-4.5 |
 | security | security review | opus + max | `astra` → gpt-6-astra + max | claude-opus-5.5 |
 
 Supported provider model IDs, tier aliases, and reasoning efforts are maintained in `base/models/model-catalog.json`. Its root `aliases` are shared names; each alias contains provider-specific `default` and `versions` entries, and a provider entry means that alias is available there. `providers.<provider>.models` assigns those aliases to tiers. Codex and Copilot provide `/itixo:update-models` from the source checkout to verify or promote requested models, regenerate outputs, and validate the change; Claude does not package this skill. Keep installed plugin caches and installed agent files read-only; preserve legacy selectors and user-selected overrides.

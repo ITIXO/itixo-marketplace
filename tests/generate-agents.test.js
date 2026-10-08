@@ -393,6 +393,7 @@ test("renders provider model, TOML schema, and tool metadata from each tier", ()
 
     assert.equal(frontmatter.name, name);
     assert.equal(frontmatter.model, PROVIDERS.claude.models[agent.tier]);
+    assert.equal(frontmatter.effort, { cheap: "medium", mid: "medium", security: "max" }[agent.tier]);
     assert.equal(
       frontmatter.tools,
       agent.capabilities.map((capability) => CLAUDE_TOOLS[capability]).join(", "),

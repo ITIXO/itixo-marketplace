@@ -53,8 +53,8 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 | Tier | Claude | Codex | Copilot CLI | Agents |
 |------|--------|-------|-------------|--------|
 | orchestrator | inherit | user-selected | inherit | itixo-planner |
-| mid | sonnet | `sol` → GPT-6.1 Sol + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku | `luna` → GPT-6 Luna + high | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
+| mid | sonnet + medium | `sol` → GPT-6.1 Sol + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | haiku + medium | `luna` → GPT-6 Luna + high | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
 | security | opus + max | `astra` → GPT-6 Astra + max | claude-opus-5.5 | itixo-security-reviewer |
 
 The eight canonical IDs above are shared by all three platforms. `itixo-planner` inherits the main task's model and effort. The `0.2.0` release renamed the former generic IDs; no agent-ID aliases are provided.

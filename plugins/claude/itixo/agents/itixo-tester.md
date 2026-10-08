@@ -3,6 +3,7 @@ name: itixo-tester
 description: "Writes or runs tests for specified behavior."
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: sonnet
+effort: medium
 ---
 
 ## Role

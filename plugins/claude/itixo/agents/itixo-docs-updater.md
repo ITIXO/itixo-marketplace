@@ -3,6 +3,7 @@ name: itixo-docs-updater
 description: "Syncs documentation with code changes."
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
 model: haiku
+effort: medium
 ---
 
 ## Role

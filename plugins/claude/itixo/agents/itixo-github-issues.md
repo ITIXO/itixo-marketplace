@@ -3,6 +3,7 @@ name: itixo-github-issues
 description: "Assesses request shape and creates GitHub issues."
 tools: Read, Grep, Glob, Bash, Skill, mcp__github__*
 model: sonnet
+effort: medium
 ---
 
 ## Role

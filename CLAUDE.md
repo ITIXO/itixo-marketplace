@@ -47,8 +47,8 @@ All three must pass.
 | Tier | Claude | Codex | Copilot | Agents |
 |------|--------|-------|---------|--------|
 | orchestrator | inherit | user-selected | user-selected | itixo-planner |
-| mid | sonnet | `sol` → GPT-6.1 Sol + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku | `luna` → GPT-6 Luna + high | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
+| mid | sonnet + medium | `sol` → GPT-6.1 Sol + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
+| cheap | haiku + medium | `luna` → GPT-6 Luna + high | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
 | security | opus + max | `astra` → GPT-6 Astra + max | claude-opus-5.5 | itixo-security-reviewer |
 
 The eight `itixo-*` IDs are canonical and shared by Claude native agents and Codex custom agents. Without an explicit override, `itixo-planner` inherits the main task's model and effort and every other role uses its tier default.
