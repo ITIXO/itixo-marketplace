@@ -1,5 +1,11 @@
 ## 2026-10-08
 
+### itixo 0.9.7
+
+- Add the `itixo-junior-builder` agent: a cheap-tier junior developer for well-scoped, unambiguously specified changes and file/repo scaffolding; Dirigent now routes such tasks to it instead of `itixo-builder`.
+- Rerun `itixo:install-agents` to install the new agent template.
+- Dirigent now loads model and override details on demand from `rules/models.md`, keeping its always-on rules shorter.
+
 ### itixo 0.9.6
 
 - Run the model updater from any project using the packaged catalog and bundled installer, preserving confirmed installed agent model and effort overrides.

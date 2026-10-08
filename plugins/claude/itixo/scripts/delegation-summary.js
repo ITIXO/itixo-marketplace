@@ -55,7 +55,7 @@ process.stdin.on("end", () => {
       console.error(
         `[itixo] Delegation stats: ${directEdits.length} direct edit(s), 0 delegations this session. ` +
           `When Dirigent is enabled in this chat, delegate precise steps to subagents ` +
-          `(itixo-builder/itixo-tester/itixo-docs-updater); otherwise its delegation checks do not apply. See rules/agents.md.`
+          `(itixo-builder/itixo-junior-builder/itixo-tester/itixo-docs-updater); otherwise its delegation checks do not apply. See rules/agents.md.`
       );
     } else if (delegations.length > 0) {
       const bySubagent = {};

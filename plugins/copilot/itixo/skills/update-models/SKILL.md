@@ -9,11 +9,11 @@ Copilot agents ship with the plugin. Update their released defaults through Copi
 
 ## Inspect the installed plugin
 
-1. Resolve `PLUGIN_ROOT` to the absolute directory two levels above this loaded skill's directory, independent of the working directory. Read `${PLUGIN_ROOT}/plugin.json`, `${PLUGIN_ROOT}/rules/agents.md`, and the eight `${PLUGIN_ROOT}/agents/itixo-*.agent.md` definitions. Report missing files as an incomplete installation. Use packaged rules for the agent-to-level mapping and agent frontmatter for model defaults; the planner inherits unless its definition says otherwise.
+1. Resolve `PLUGIN_ROOT` to the absolute directory two levels above this loaded skill's directory, independent of the working directory. Read `${PLUGIN_ROOT}/plugin.json`, `${PLUGIN_ROOT}/rules/agents.md`, `${PLUGIN_ROOT}/rules/models.md`, and the nine `${PLUGIN_ROOT}/agents/itixo-*.agent.md` definitions. Report missing files as an incomplete installation. Use packaged rules for the agent-to-level mapping and agent frontmatter for model defaults; the planner inherits unless its definition says otherwise.
 2. Run `copilot plugin list --json` to identify the installed `itixo` plugin and its marketplace/source. Use the exact registered identity, adding `@MARKETPLACE` when needed to disambiguate. If more than one installation remains possible, ask which to update. Inspect any accessible native per-agent model overrides and show them separately from packaged defaults; if effective session configuration is unavailable, state that it has not been verified.
 3. Present exactly two tables:
    - **Level | Current model | Possible options**: show cheap, mid, security, and orchestrator from the packaged agents. If agents differ within a level, show their individual values. Options are keeping the installed release or updating to the defaults supplied by a newer plugin release; do not invent independently selectable tier versions.
-   - **Agent name | Level**: include all eight canonical agents, their packaged defaults, and any known native configuration overrides. Copilot has no packaged effort field.
+   - **Agent name | Level**: include all nine canonical agents, their packaged defaults, and any known native configuration overrides. Copilot has no packaged effort field.
 4. For a check/verify request, stop after inspection without updating the plugin or user configuration. For an update request, honor explicit authorization or collect the keep/update choice through a questionnaire or text. A request for a specific model does not prove that a released plugin provides it.
 
 ## Update and verify

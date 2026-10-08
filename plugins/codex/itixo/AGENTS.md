@@ -12,6 +12,7 @@ Use only these canonical custom-agent IDs:
 
 - `itixo-planner` — decompose problem into delegable steps.
 - `itixo-builder` — implement one precisely specified change.
+- `itixo-junior-builder` — implement one unambiguously specified, low-thinking change or scaffold exact files.
 - `itixo-github-issues` — assess issue shape; create one issue or Feature with linked executable sub-issues.
 - `itixo-tester` — write or run tests for specified behavior.
 - `itixo-reviewer` — produce severity-tagged diff review.

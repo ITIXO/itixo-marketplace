@@ -32,9 +32,10 @@ function readJson(rel) {
   }
 }
 
-// --- Expected orchestration model tiers (must match base/rules/agents.md) ---
+// --- Expected orchestration model tiers (must match base/rules/models.md) ---
 const TIERS = {
   "itixo-investigator": "cheap",
+  "itixo-junior-builder": "cheap",
   "itixo-planner": "orchestrator",
   "itixo-builder": "mid",
   "itixo-github-issues": "mid",
@@ -289,8 +290,8 @@ for (const plugin of ["codex/itixo", "copilot/itixo"]) {
     if (text.includes(dependency)) fail(`${rel}: updater must not depend on repository resources ('${dependency}')`);
   }
   const packagedResources = plugin.startsWith("codex/")
-    ? ["scripts/model-catalog.json", "scripts/install-agents.js", "templates/agents/", "rules/agents.md", "skills/install-agents/SKILL.md"]
-    : ["plugin.json", "rules/agents.md", "agents/itixo-*.agent.md"];
+    ? ["scripts/model-catalog.json", "scripts/install-agents.js", "templates/agents/", "rules/agents.md", "rules/models.md", "skills/install-agents/SKILL.md"]
+    : ["plugin.json", "rules/agents.md", "rules/models.md", "agents/itixo-*.agent.md"];
   for (const resource of packagedResources) {
     if (!text.includes("${PLUGIN_ROOT}/" + resource)) fail(`${rel}: must reference packaged '${resource}'`);
     if (!resource.includes("*") && !fs.existsSync(path.join(ROOT, "plugins", plugin, resource))) {
@@ -447,6 +448,7 @@ for (const rel of [
   ...["base", "plugins/claude/itixo", "plugins/codex/itixo", "plugins/copilot/itixo"].flatMap((d) => [
     `${d}/rules/github-issue-delegation.md`,
     `${d}/rules/security-review.md`,
+    `${d}/rules/models.md`,
   ]),
 ]) {
   if (!fs.existsSync(path.join(ROOT, rel))) fail(`${rel} missing`);
@@ -461,7 +463,7 @@ for (const rel of [
 ]) {
   if (!fs.existsSync(path.join(ROOT, rel))) continue;
   const text = readFile(rel);
-  for (const sibling of ["github-issue-delegation.md", "security-review.md"]) {
+  for (const sibling of ["github-issue-delegation.md", "security-review.md", "models.md"]) {
     if (!text.includes(sibling)) fail(`${rel}: must reference sibling rule file '${sibling}'`);
   }
 }
@@ -559,9 +561,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.4"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.6"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.7"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.5"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.7"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.8"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

@@ -1,5 +1,10 @@
 ## 2026-10-08
 
+### itixo 0.8.8
+
+- Add the `itixo-junior-builder` agent: a cheap-tier junior developer for well-scoped, unambiguously specified changes and file/repo scaffolding; Dirigent now routes such tasks to it instead of `itixo-builder`.
+- Dirigent now loads model and override details on demand from `rules/models.md`, keeping its always-on rules shorter.
+
 ### itixo 0.8.7
 
 - Run the model updater without a marketplace clone: inspect installed agent defaults, update only the Itixo plugin through Copilot, and verify the new packaged definitions.
