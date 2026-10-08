@@ -35,6 +35,7 @@ function readJson(rel) {
 // --- Expected orchestration model tiers (must match base/rules/agents.md) ---
 const TIERS = {
   "itixo-investigator": "cheap",
+  "itixo-junior-builder": "cheap",
   "itixo-planner": "orchestrator",
   "itixo-builder": "mid",
   "itixo-github-issues": "mid",

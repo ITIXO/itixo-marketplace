@@ -16,6 +16,7 @@ const AGENT_IDS = [
   "itixo-docs-updater",
   "itixo-github-issues",
   "itixo-investigator",
+  "itixo-junior-builder",
   "itixo-planner",
   "itixo-reviewer",
   "itixo-security-reviewer",
@@ -27,6 +28,7 @@ const DEFAULT_SETTINGS = {
   "itixo-docs-updater": { model: "gpt-6-luna", effort: "high" },
   "itixo-github-issues": { model: "gpt-6.1-sol", effort: "medium" },
   "itixo-investigator": { model: "gpt-6-luna", effort: "high" },
+  "itixo-junior-builder": { model: "gpt-6-luna", effort: "high" },
   "itixo-planner": { model: null, effort: null },
   "itixo-reviewer": { model: "gpt-6.1-sol", effort: "medium" },
   "itixo-security-reviewer": { model: "gpt-6-astra", effort: "max" },
@@ -130,7 +132,7 @@ function temporaryFiles(root) {
   return fs.readdirSync(destination(root)).filter((name) => name.endsWith(".tmp"));
 }
 
-test("installs exactly eight default custom agents into an isolated personal home", () => {
+test("installs exactly nine default custom agents into an isolated personal home", () => {
   withTemporaryDirectory((temporary) => {
     const plugin = makePlugin(temporary);
     const home = path.join(temporary, "home");
@@ -141,9 +143,9 @@ test("installs exactly eight default custom agents into an isolated personal hom
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stderr, "");
     assert.match(result.stdout, /^installed .+\n/m);
-    assert.match(result.stdout, /summary installed=8 skipped=0 scope=personal .*cheap-model=gpt-6-luna cheap-effort=high\n$/);
+    assert.match(result.stdout, /summary installed=9 skipped=0 scope=personal .*cheap-model=gpt-6-luna cheap-effort=high\n$/);
     assertAgentSet(home);
-    for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
+    for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assert.match(readAgent(home, agentId), /^model = "gpt-6-luna"$/m);
       assert.match(readAgent(home, agentId), /^model_reasoning_effort = "high"$/m);
     }
@@ -191,7 +193,7 @@ test("catalog-only model additions and defaults flow through generation and pack
     ]);
 
     assert.equal(result.status, 0, result.stderr);
-    for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
+    for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assertAgentSettings(project, agentId, { model: "gpt-7-nova", effort: "medium" });
     }
     assertAgentSettings(project, "itixo-builder", { model: "gpt-5.6-sol", effort: "medium" });
@@ -279,9 +281,9 @@ test("defaults an explicit Terra cheap model to low effort", () => {
     const result = run(plugin, ["--scope", "project", "--project-root", project, "--cheap-model", "terra"]);
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /summary installed=8 skipped=0 scope=project .*cheap-model=gpt-5\.6-terra cheap-effort=low\n$/);
+    assert.match(result.stdout, /summary installed=9 skipped=0 scope=project .*cheap-model=gpt-5\.6-terra cheap-effort=low\n$/);
     assertAgentSet(project);
-    for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
+    for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assert.match(readAgent(project, agentId), /^model = "gpt-5\.6-terra"$/m);
       assert.match(readAgent(project, agentId), /^model_reasoning_effort = "low"$/m);
     }
@@ -301,8 +303,8 @@ test("uses GPT-6 Luna default for an effort-only cheap override", () => {
     const result = run(plugin, ["--scope", "project", "--project-root", project, "--cheap-effort", "low"]);
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /summary installed=8 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=low\n$/);
-    for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
+    assert.match(result.stdout, /summary installed=9 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=low\n$/);
+    for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assert.match(readAgent(project, agentId), /^model = "gpt-6-luna"$/m);
       assert.match(readAgent(project, agentId), /^model_reasoning_effort = "low"$/m);
     }
@@ -339,7 +341,7 @@ test("accepts legacy and GPT-6 model aliases for every agent", () => {
       assert.equal(result.status, 0, result.stderr);
       assert.match(
         result.stdout,
-        new RegExp(`summary installed=8 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=high agent-models=${overrides.map(([agentId]) => `${agentId}:${alias}`).join(",")}\\n$`),
+        new RegExp(`summary installed=9 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=high agent-models=${overrides.map(([agentId]) => `${agentId}:${alias}`).join(",")}\\n$`),
       );
       for (const agentId of AGENT_IDS) {
         assertAgentSettings(project, agentId, {
@@ -443,7 +445,7 @@ test("installs explicit planner Sol and max overrides together", () => {
     assert.equal(result.status, 0, result.stderr);
     assert.match(
       result.stdout,
-      /summary installed=8 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=high agent-models=itixo-planner:sol agent-efforts=itixo-planner:max\n$/,
+      /summary installed=9 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=high agent-models=itixo-planner:sol agent-efforts=itixo-planner:max\n$/,
     );
     assertAgentSettings(project, "itixo-planner", { model: "gpt-6.1-sol", effort: "max" });
   });
@@ -481,7 +483,7 @@ test("per-agent fields independently override compatible cheap-role flags", () =
     assert.equal(result.status, 0, result.stderr);
     assert.match(
       result.stdout,
-      /summary installed=8 skipped=0 scope=project .*cheap-model=gpt-5\.6-terra cheap-effort=low agent-models=itixo-docs-updater:luna agent-efforts=itixo-investigator:xhigh\n$/,
+      /summary installed=9 skipped=0 scope=project .*cheap-model=gpt-5\.6-terra cheap-effort=low agent-models=itixo-docs-updater:luna agent-efforts=itixo-investigator:xhigh\n$/,
     );
     assertAgentSettings(project, "itixo-docs-updater", { model: "gpt-6-luna", effort: "low" });
     assertAgentSettings(project, "itixo-investigator", { model: "gpt-5.6-terra", effort: "xhigh" });
@@ -504,9 +506,9 @@ test("installs legacy and GPT-6 Luna cheap model selections", () => {
         assert.equal(result.status, 0, result.stderr);
         assert.match(
           result.stdout,
-          new RegExp(`summary installed=8 skipped=0 scope=project .*cheap-model=${expectedModel.replaceAll(".", "\\.")} cheap-effort=${cheapEffort}\\n$`),
+          new RegExp(`summary installed=9 skipped=0 scope=project .*cheap-model=${expectedModel.replaceAll(".", "\\.")} cheap-effort=${cheapEffort}\\n$`),
         );
-        for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
+        for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
           assert.match(readAgent(project, agentId), new RegExp(`^model = "${expectedModel.replaceAll(".", "\\.")}"$`, "m"));
           assert.match(readAgent(project, agentId), new RegExp(`^model_reasoning_effort = "${cheapEffort}"$`, "m"));
         }
@@ -638,13 +640,13 @@ test("preflights conflicts before writing and updates only managed agents", () =
     fs.writeFileSync(unmanaged, `${MARKER}old managed content\n`, "utf8");
     const updated = run(plugin, ["--scope", "project", "--project-root", project]);
     assert.equal(updated.status, 0, updated.stderr);
-    assert.match(updated.stdout, /summary installed=8 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=high\n$/);
+    assert.match(updated.stdout, /summary installed=9 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=high\n$/);
     assertAgentSet(project);
     assert.notEqual(readAgent(project, "itixo-tester"), `${MARKER}old managed content\n`);
 
     const idempotent = run(plugin, ["--scope", "project", "--project-root", project]);
     assert.equal(idempotent.status, 0, idempotent.stderr);
-    assert.match(idempotent.stdout, /summary installed=0 skipped=8 scope=project .*cheap-model=gpt-6-luna cheap-effort=high\n$/);
+    assert.match(idempotent.stdout, /summary installed=0 skipped=9 scope=project .*cheap-model=gpt-6-luna cheap-effort=high\n$/);
   });
 });
 
@@ -661,11 +663,11 @@ test("reinstalling identical overrides is idempotent and changing one field upda
 
     const installed = run(plugin, baseArgs);
     assert.equal(installed.status, 0, installed.stderr);
-    assert.match(installed.stdout, /summary installed=8 skipped=0 .*agent-models=itixo-planner:sol agent-efforts=itixo-planner:max\n$/);
+    assert.match(installed.stdout, /summary installed=9 skipped=0 .*agent-models=itixo-planner:sol agent-efforts=itixo-planner:max\n$/);
 
     const idempotent = run(plugin, baseArgs);
     assert.equal(idempotent.status, 0, idempotent.stderr);
-    assert.match(idempotent.stdout, /summary installed=0 skipped=8 .*agent-models=itixo-planner:sol agent-efforts=itixo-planner:max\n$/);
+    assert.match(idempotent.stdout, /summary installed=0 skipped=9 .*agent-models=itixo-planner:sol agent-efforts=itixo-planner:max\n$/);
 
     const changed = run(plugin, [
       "--scope", "project", "--project-root", project,
@@ -673,7 +675,7 @@ test("reinstalling identical overrides is idempotent and changing one field upda
       "--agent-effort", "itixo-planner=xhigh",
     ]);
     assert.equal(changed.status, 0, changed.stderr);
-    assert.match(changed.stdout, /summary installed=1 skipped=7 .*agent-models=itixo-planner:sol agent-efforts=itixo-planner:xhigh\n$/);
+    assert.match(changed.stdout, /summary installed=1 skipped=8 .*agent-models=itixo-planner:sol agent-efforts=itixo-planner:xhigh\n$/);
     assertAgentSettings(project, "itixo-planner", { model: "gpt-6.1-sol", effort: "xhigh" });
   });
 });
@@ -879,7 +881,7 @@ test("assigns tiers and alias versions independently", () => {
     ]);
 
     assert.equal(result.status, 0, result.stderr);
-    for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
+    for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assertAgentSettings(project, agentId, { model: "gpt-5.6-luna", effort: "high" });
     }
     for (const agentId of ["itixo-builder", "itixo-github-issues", "itixo-reviewer", "itixo-tester"]) {
@@ -908,7 +910,7 @@ test("changes a tier alias without changing that alias default version", () => {
     for (const agentId of ["itixo-builder", "itixo-github-issues", "itixo-reviewer", "itixo-tester"]) {
       assertAgentSettings(project, agentId, { model: "gpt-5.6-terra", effort: "medium" });
     }
-    for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
+    for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assertAgentSettings(project, agentId, { model: "gpt-6-luna", effort: "high" });
     }
     assertAgentSettings(project, "itixo-security-reviewer", { model: "gpt-6-astra", effort: "max" });
@@ -946,7 +948,7 @@ test("legacy full IDs remain pinned when an alias version changes", () => {
     ]);
 
     assert.equal(result.status, 0, result.stderr);
-    for (const agentId of ["itixo-investigator", "itixo-docs-updater"]) {
+    for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assertAgentSettings(project, agentId, { model: "gpt-5.6-luna", effort: "high" });
     }
   });
@@ -1013,14 +1015,14 @@ test("updates packaged agents from an unrelated project without marketplace reso
       "--model-version", "sol=gpt-6.1-sol", "--model-version", "astra=gpt-6-astra",
       "--cheap-effort", "high", ...retainedOverrides]);
     assert.equal(updated.status, 0, updated.stderr);
-    assert.match(updated.stdout, /summary installed=3 skipped=5/);
+    assert.match(updated.stdout, /summary installed=3 skipped=6/);
     for (const id of ["itixo-builder", "itixo-github-issues", "itixo-tester"]) {
       assertAgentSettings(project, id, { model: "gpt-6.1-sol", effort: "medium" });
     }
     assertAgentSettings(project, "itixo-planner", { model: "gpt-5.6-sol", effort: "max" });
     assertAgentSettings(project, "itixo-reviewer", { model: "gpt-5.6-luna", effort: "xhigh" });
     assertAgentSettings(project, "itixo-security-reviewer", { model: "gpt-6-astra", effort: null });
-    for (const id of ["itixo-investigator", "itixo-docs-updater"]) {
+    for (const id of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assertAgentSettings(project, id, { model: "gpt-6-luna", effort: "high" });
     }
     assert.deepEqual(bundledPaths.map((relative) => fs.readFileSync(path.join(plugin, relative), "utf8")), before);

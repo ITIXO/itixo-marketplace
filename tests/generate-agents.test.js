@@ -28,6 +28,7 @@ const ROLE_NAMES = [
   "itixo-docs-updater",
   "itixo-github-issues",
   "itixo-investigator",
+  "itixo-junior-builder",
   "itixo-planner",
   "itixo-reviewer",
   "itixo-security-reviewer",
@@ -39,6 +40,7 @@ const CAPABILITIES_BY_ROLE = {
   "itixo-docs-updater": ["read", "edit", "write", "grep", "glob", "bash", "skill"],
   "itixo-github-issues": ["read", "grep", "glob", "bash", "skill", "github"],
   "itixo-investigator": ["read", "grep", "glob", "bash"],
+  "itixo-junior-builder": ["read", "edit", "write", "grep", "glob", "bash", "skill"],
   "itixo-planner": ["read", "grep", "glob", "bash"],
   "itixo-reviewer": ["read", "grep", "bash"],
   "itixo-security-reviewer": ["read", "grep", "bash", "github"],
@@ -60,6 +62,7 @@ const ROLE_SENTINELS = {
   "itixo-docs-updater": ["Refuse code, configuration, or test edits", "unsupported claims"],
   "itixo-github-issues": ["Use GitHub connector or MCP first", "Never implement work or mutate repository files", "unverifiable type, label, or hierarchy evidence"],
   "itixo-investigator": ["Never edit or write files", "mutating shell commands", "Refuse edits, fixes, design, test work"],
+  "itixo-junior-builder": ["do not debug, do not retry, do not commit", "Scaffolding is exempt"],
   "itixo-planner": [
     "Never run commands except that end-of-run cleanup, edit or write files",
     "Refuse implementation, edits, commands except the end-of-run cleanup below, and assumptions",
@@ -209,7 +212,7 @@ test("renders every canonical role into Claude agents, Codex TOML templates, and
   assert.deepEqual(agents.map(({ name }) => name), ROLE_NAMES);
 
   const outputs = expectedOutputs(agents, ROOT);
-  assert.equal(outputs.length, 25); // 24 agents + Codex catalog copy
+  assert.equal(outputs.length, 28); // 27 agents + Codex catalog copy
 
   for (const { provider, name, path: outputPath, content } of outputs) {
     assert.ok(fs.existsSync(outputPath), `${provider}/${name} output is missing`);
@@ -602,7 +605,7 @@ test("generates Copilot Haiku 5.5 and retains Haiku 4.5 pinning", () => {
         encoding: "utf8",
       });
       assert.equal(result.status, 0, result.stderr);
-      for (const name of ["itixo-investigator", "itixo-docs-updater"]) {
+      for (const name of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
         const agent = fs.readFileSync(path.join(repository, "plugins", "copilot", "itixo", "agents", `${name}.agent.md`), "utf8");
         assert.ok(agent.includes(`\nmodel: "${model}"\n`));
       }
