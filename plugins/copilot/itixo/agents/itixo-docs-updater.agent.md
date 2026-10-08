@@ -1,7 +1,7 @@
 ---
 description: "Syncs documentation with code changes."
 tools: ["read", "edit", "search", "execute"]
-model: "claude-haiku-4.5"
+model: "claude-haiku-5.5"
 ---
 
 ## Role

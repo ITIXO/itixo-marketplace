@@ -585,3 +585,27 @@ test("generates explicit Haiku versions while retaining the provider-aware defau
     });
   }
 });
+
+
+test("generates Copilot Haiku 5.5 and retains Haiku 4.5 pinning", () => {
+  for (const model of ["claude-haiku-5.5", "claude-haiku-4.5"]) {
+    withTemporaryDirectory((temporary) => {
+      const repository = makeGeneratorRepository(temporary);
+      const catalogPath = path.join(repository, "base", "models", "model-catalog.json");
+      const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+      assert.equal(catalog.aliases.haiku.providers.copilot.default, "claude-haiku-5.5");
+      assert.ok(catalog.aliases.haiku.providers.copilot.versions.includes(model));
+      catalog.aliases.haiku.providers.copilot.default = model;
+      fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+      const result = spawnSync(process.execPath, [path.join(repository, "scripts", "generate-agents.js")], {
+        cwd: repository,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, result.stderr);
+      for (const name of ["itixo-investigator", "itixo-docs-updater"]) {
+        const agent = fs.readFileSync(path.join(repository, "plugins", "copilot", "itixo", "agents", `${name}.agent.md`), "utf8");
+        assert.ok(agent.includes(`\nmodel: "${model}"\n`));
+      }
+    });
+  }
+});

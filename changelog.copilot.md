@@ -1,5 +1,9 @@
 ## 2026-10-08
 
+### itixo 0.8.5
+
+- Default cheap-tier agents to `claude-haiku-5.5`, retaining `claude-haiku-4.5` for explicit pinning.
+
 ### itixo 0.8.4
 
 - Default the optional `sol` alias to GPT-6.1 Sol while retaining older versions; existing tier assignments and Haiku 4.5 remain available.

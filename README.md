@@ -54,7 +54,7 @@ Orchestrator (main thread) runs on the model the user selected and does the thin
 |------|--------|-------|-------------|--------|
 | orchestrator | inherit | user-selected | inherit | itixo-planner |
 | mid | sonnet + medium | `sol` → GPT-6.1 Sol + medium | claude-sonnet-5 | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku + medium | `luna` → GPT-6 Luna + high | claude-haiku-4.5 | itixo-investigator, itixo-docs-updater |
+| cheap | haiku + medium | `luna` → GPT-6 Luna + high | claude-haiku-5.5 | itixo-investigator, itixo-docs-updater |
 | security | opus + max | `astra` → GPT-6 Astra + max | claude-opus-5.5 | itixo-security-reviewer |
 
 The eight canonical IDs above are shared by all three platforms. `itixo-planner` inherits the main task's model and effort. The `0.2.0` release renamed the former generic IDs; no agent-ID aliases are provided.
@@ -65,7 +65,7 @@ Codex and Copilot each provide their own `/itixo:update-models`; Claude does not
 
 Claude keeps generated defaults unless the user explicitly requests a provider-supported model or effort override. The shared catalog's `opus` alias has a Claude provider entry; Claude Code v2.1.280+ resolves it to Opus 5.5 for Anthropic, API, AWS Bedrock, and Google Vertex, while Foundry resolves an older Opus version. See the [official Claude model configuration docs](https://code.claude.com/docs/en/model-config) for provider-specific aliases and restrictions. Pin older Claude choices through the provider's documented model configuration or environment settings.
 
-Claude Code’s `haiku` alias selects Haiku 5.5 on the Anthropic API; other providers may resolve Haiku 4.5. The Claude catalog also retains explicit `claude-haiku-4-5` and adds `claude-haiku-5-5`. Copilot’s `sol` alias now selects `gpt-6.1-sol`, retaining older versions; its Haiku selection remains `claude-haiku-4.5` until an exact native Haiku 5.5 selector is verified. See the [Claude model configuration](https://code.claude.com/docs/en/model-config) and [Copilot CLI model reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#supported-models).
+Claude Code’s `haiku` alias selects Haiku 5.5 on the Anthropic API; other providers may resolve Haiku 4.5. The Claude catalog also retains explicit `claude-haiku-4-5` and adds `claude-haiku-5-5`. Copilot’s `sol` alias now selects `gpt-6.1-sol`, retaining older versions; its `haiku` alias selects `claude-haiku-5.5`, retaining `claude-haiku-4.5` for pinning. See the [Claude model configuration](https://code.claude.com/docs/en/model-config) and [Copilot CLI model reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#supported-models).
 
 ### Security reviews
 
