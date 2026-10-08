@@ -16,7 +16,8 @@ See the [full changelog in the project Wiki](https://github.com/ITIXO/itixo-mark
 .github/plugin/
   marketplace.json        # Marketplace manifest — Copilot CLI native
 base/                     # Shared source of truth for all orchestration plugins
-  rules/agents.md         # Delegation rules + model tier table
+  rules/agents.md         # Delegation rules
+  rules/models.md         # Model tier table + override rules
   agents/                 # Canonical platform-neutral agent role definitions
 plugins/
   claude/
