@@ -1,5 +1,9 @@
 ## 2026-10-08
 
+### itixo 0.8.6
+
+- The model updater now recognizes source checkouts through the root `AGENTS.md` instructions.
+
 ### itixo 0.8.5
 
 - Default cheap-tier agents to `claude-haiku-5.5`, retaining `claude-haiku-4.5` for explicit pinning.

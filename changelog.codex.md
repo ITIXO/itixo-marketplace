@@ -1,5 +1,9 @@
 ## 2026-10-08
 
+### itixo 0.9.5
+
+- The model updater now recognizes source checkouts through the root `AGENTS.md` instructions.
+
 ### itixo 0.9.4
 
 - Default Sol agents to GPT-6.1 Sol with medium effort; retain GPT-6 Sol, GPT-5.6 Sol, and pinned compatibility selectors.
