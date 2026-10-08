@@ -19,17 +19,6 @@ Every step that is:
 
 MUST be delegated to its prescribed agent role and, by default, that role's prescribed model tier. A matching model and/or effort override explicitly supplied by the user replaces only those default fields; it does not remove the delegation requirement. The orchestrator never invents or broadens an override.
 
-## Model tiers
-
-| Tier | Purpose | Claude | Codex | Copilot |
-|------|---------|--------|-------|---------|
-| orchestrator | thinking, decomposition, integration | user-selected (inherit) | user-selected | user-selected |
-| mid | implementation, tests, review | sonnet + medium | `sol` → gpt-6.1-sol + medium | claude-sonnet-5 |
-| cheap | lookups, docs, mechanical reads, well-scoped implementation and scaffolding | haiku + medium | `luna` → gpt-6-luna + high (`terra` → gpt-5.6-terra + low fallback) | claude-haiku-5.5 |
-| security | security review | opus + max | `astra` → gpt-6-astra + max | claude-opus-5.5 |
-
-Supported provider model IDs, tier aliases, and reasoning efforts are maintained in `base/models/model-catalog.json`. Its root `aliases` are shared names; each alias contains provider-specific `default` and `versions` entries, and a provider entry means that alias is available there. `providers.<provider>.models` assigns those aliases to tiers. Codex and Copilot provide `/itixo:update-models` from their installed plugins: Codex reads the packaged catalog and applies confirmed settings through its bundled installer, while Copilot uses its native plugin update flow and verifies packaged agent defaults; Claude does not package this skill. Keep installed plugin caches and installed agent files read-only; preserve legacy selectors and user-selected overrides.
-
 ## Agent → tier mapping
 
 | Agent | Tier | Role |
@@ -46,12 +35,12 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 
 ## Provider dispatch
 
-- Claude invokes the native plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model and effort. Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
-- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the installed TOML owns instructions, model, and effort. Default tier aliases are `luna` (cheap), `sol` (mid), and `astra` (security); each resolves through its selected catalog version to a concrete model ID. `itixo-planner` inherits. Explicit user-requested per-agent overrides are installed with `itixo:install-agents` and then owned by the matching TOML. Keep legacy selectors such as `terra`, `gpt6-sol`, and `gpt6-luna`, and accept full GPT-6 and GPT-5.6 IDs. Do not pass an additional invocation override. Explicit planner GPT-6.1 Sol may exceed the caller model.
-- Never infer an override or apply it to another agent. Relay only explicit user choices. Provider or organization restrictions may constrain requested models or effort.
-- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents` with explicit scope, tier-alias, model-version, and effort choices. The recommended settings are `luna` → GPT-6 Luna + high, `sol` → GPT-6.1 Sol + medium, and `astra` → GPT-6 Astra + max; `terra` → GPT-5.6 Terra + low remains the fallback. Never substitute a generic agent or perform the role inline.
-- Copilot CLI invokes the native Copilot plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model. Copilot has no effort field; never pass an effort override to a Copilot agent.
+- Claude invokes the native plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model and effort.
+- Codex invokes the installed custom TOML agent using the canonical `itixo-*` ID. Never load `plugins/codex/itixo/agents/*.md`; the installed TOML owns instructions, model, and effort.
+- If a required Codex custom agent is unavailable, stop the affected work. Tell user installation is required and invoke or offer `itixo:install-agents`. Never substitute a generic agent or perform the role inline.
+- Copilot CLI invokes the native Copilot plugin agent using the canonical `itixo-*` ID. Its generated definition owns the default model.
 - If a required Claude or Copilot `itixo-*` agent is unavailable, stop the affected work and tell the user the itixo plugin's agents must be installed and enabled; never substitute a generic agent or perform the role inline.
+- **Model details:** before relaying a user-requested model or effort override, answering model/tier questions, or documenting model choices, read `models.md` next to this file in full; its rules are binding.
 
 ## Security-review routing and lifecycle
 
@@ -85,7 +74,6 @@ Supported provider model IDs, tier aliases, and reasoning efforts are maintained
 
 - Route work by canonical `itixo-*` agent ID: itixo-investigator for location/read-only mapping; itixo-planner for decomposition; itixo-junior-builder for unambiguous low-thinking changes and exact scaffolding (rule below); itixo-builder for all other exact implementation; itixo-tester for specified validation; itixo-reviewer for general code-review findings; itixo-security-reviewer for explicit user security-review requests; itixo-docs-updater for affected docs; itixo-github-issues for GitHub issue structure and creation. Invoke the provider's native agent by that ID (see Provider dispatch).
 - **Junior routing:** MUST use `itixo-junior-builder` when ALL hold: exact paths (file:line for edits); unambiguous spec; no design, research, or debugging; about 3 files or fewer (scaffolding exempt if every path and its content/spec is given). Otherwise `itixo-builder`. Split larger work only when obvious. Junior hand-backs go to orchestrator to re-scope or route to `itixo-builder`.
-- When documenting Codex installation choices, read root aliases and their Codex provider entries from the current catalog, then use provider-specific concrete versions; do not copy a stale model list or infer availability across providers.
 - Integrate results, run proportionate verification, report evidence and unresolved blockers. Do not let orchestration replace implementation ownership or bypass repository safeguards.
 - For GitHub work, use configured GitHub connector or MCP first. Apply all additional repository instructions, including commit, review, and approval constraints.
 

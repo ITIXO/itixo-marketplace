@@ -6,27 +6,12 @@ Dirigent starts off unless a hook injects enabled state. Fresh sessions inherit 
 
 Orchestrator = main thread, runs on user-selected model (e.g. Fable 5). It thinks, decomposes, integrates. Every self-contained, precisely specified step MUST be delegated to its prescribed agent role and, without a matching explicit user-requested per-invocation override, its prescribed model tier. Orchestrator never invents or broadens an override.
 
-## Model tiers (Claude)
-
-| Tier | Model | Agents |
-|------|-------|--------|
-| orchestrator | inherit (user-selected) | itixo-planner |
-| mid | sonnet + medium | itixo-builder, itixo-github-issues, itixo-tester, itixo-reviewer |
-| cheap | haiku + medium (Haiku 5.5 on Anthropic API) | itixo-investigator, itixo-docs-updater, itixo-junior-builder |
-| security | opus + max | itixo-security-reviewer |
-
-The shared model catalog stores aliases globally but records concrete IDs per provider. Use an alias only when its Claude provider entry exists; never infer Claude support from another provider's entry.
-
-The `haiku` alias selects Haiku 5.5 on the Anthropic API and may select Haiku 4.5 on other providers. The catalog supports explicit `claude-haiku-5-5` and `claude-haiku-4-5` choices; use the provider’s documented model configuration to pin them. See [Claude model configuration](https://code.claude.com/docs/en/model-config).
-
 ## Rules
 
 - Claude invokes the native plugin agent using its canonical `itixo-*` ID and the definition's prescribed default tier.
 - If a required `itixo-*` agent is unavailable, stop the affected work and tell the user the itixo plugin's agents must be installed and enabled; never substitute a generic agent or perform the role inline.
-- Generated definitions own default model and effort. Only when the user explicitly requests an override for a matching invocation, relay `model=opus|sonnet|haiku|fable|inherit` and/or `effort=low|medium|high|xhigh|max`; omitted fields keep generated defaults. Explicit Opus may exceed the caller model.
-- Never infer an override or apply it to another invocation. Provider or organization restrictions may constrain requested models or effort.
-- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`. The security-review default is Opus + max; never infer or broaden an override.
-- `itixo-investigator` locates first on its configured invocation model, defaulting to cheap-tier Haiku absent a matching explicit user override; exact file:line targets go to `itixo-junior-builder` (Haiku) when the junior rule qualifies, else `itixo-builder` (Sonnet), each on its configured model under the same constraint.
+- Route an explicit user request for a security review to canonical `itixo-security-reviewer`; general code review remains `itixo-reviewer`.
+- `itixo-investigator` locates first; exact file:line targets go to `itixo-junior-builder` when the junior rule qualifies, else `itixo-builder`.
 - Subagent prompt: goal, files, constraints, expected output format, and any explicit user-requested model or effort override.
 - Subagents never expand scope; scope change returns to orchestrator.
 - **Write-work commit contract:** for every meaningful unit of write work, require the assigned agent to read each target before editing, make the smallest authorized change, inspect scoped dependencies, inspect the diff, run proportionate verification, and commit before returning. Use `caveman:caveman-commit`; if unavailable, use a terse Conventional Commit message.
@@ -47,12 +32,12 @@ The `haiku` alias selects Haiku 5.5 on the Anthropic API and may select Haiku 4.
 
 - Delegate all GitHub issue assessment, structuring, and creation work to exactly one `itixo-github-issues` agent; the orchestrator never assesses, structures, or creates issues directly.
 - Before delegating, read `github-issue-delegation.md` next to this file in full; its rules are binding.
+- **Model details:** before relaying a user-requested model or effort override, answering model/tier questions, or documenting model choices, read `models.md` next to this file in full; its rules are binding.
 
 ## Workflow
 
 - Route work by canonical native plugin-agent ID: itixo-investigator for location/read-only mapping; itixo-planner for decomposition; itixo-junior-builder for unambiguous low-thinking changes and exact scaffolding (rule below); itixo-builder for all other exact implementation; itixo-tester for specified validation; itixo-reviewer for general code-review findings; itixo-security-reviewer for explicit user security-review requests; itixo-docs-updater for affected docs; itixo-github-issues for GitHub issue structure and creation. Invoke the native Claude plugin agent by that ID.
 - **Junior routing:** MUST use `itixo-junior-builder` when ALL hold: exact paths (file:line for edits); unambiguous spec; no design, research, or debugging; about 3 files or fewer (scaffolding exempt if every path and its content/spec is given). Otherwise `itixo-builder`. Split larger work only when obvious. Junior hand-backs go to orchestrator to re-scope or route to `itixo-builder`.
-- When documenting Codex installation choices, read root aliases and their Codex provider entries from the current catalog, then use provider-specific concrete versions; do not copy a stale model list or infer availability across providers.
 - Integrate results, run proportionate verification, report evidence and unresolved blockers. Do not let orchestration replace implementation ownership or bypass repository safeguards.
 - For GitHub work, use configured GitHub connector or MCP first. Apply all additional repository instructions, including commit, review, and approval constraints.
 
