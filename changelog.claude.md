@@ -1,5 +1,9 @@
 ## 2026-10-08
 
+### itixo 0.10.5
+
+- Add the `itixo-junior-builder` agent: a cheap-tier junior developer for well-scoped, unambiguously specified changes and file/repo scaffolding; Dirigent now routes such tasks to it instead of `itixo-builder`.
+
 ### itixo 0.10.4
 
 - Set Claude mid-tier Sonnet and cheap-tier Haiku agents to medium effort.
