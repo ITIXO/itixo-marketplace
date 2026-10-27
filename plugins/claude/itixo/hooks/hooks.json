@@ -6,6 +6,7 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Loading Dirigent...",
             "command": "node -e \"require(require('node:path').join(process.env.CLAUDE_PLUGIN_ROOT.replaceAll(String.fromCharCode(92), '/'), 'scripts/dirigent-runtime.js')).invoke(['claude','session-start'])\""
           }
         ]
@@ -16,6 +17,7 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Updating Dirigent...",
             "command": "node -e \"require(require('node:path').join(process.env.CLAUDE_PLUGIN_ROOT.replaceAll(String.fromCharCode(92), '/'), 'scripts/dirigent-runtime.js')).invoke(['claude','user-prompt-submit'])\""
           }
         ]
@@ -26,6 +28,7 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Loading Dirigent for agent...",
             "command": "node -e \"require(require('node:path').join(process.env.CLAUDE_PLUGIN_ROOT.replaceAll(String.fromCharCode(92), '/'), 'scripts/dirigent-runtime.js')).invoke(['claude','subagent-start'])\""
           }
         ]
@@ -37,6 +40,7 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Checking investigation guidance...",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/investigation-nudge.js\""
           }
         ]
@@ -48,6 +52,7 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Recording tool usage...",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/log-tool.js\""
           }
         ]
@@ -58,6 +63,7 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Summarizing delegation...",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/delegation-summary.js\""
           }
         ]
