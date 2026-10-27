@@ -9,7 +9,7 @@
     "terra": {
       "providers": {
         "codex": { "default": "gpt-6.1-terra", "versions": ["gpt-5.6-terra", "gpt-6.1-terra"] },
-        "copilot": { "default": "gpt-5.6-terra", "versions": ["gpt-5.6-terra", "gpt-6.1-terra"] }
+        "copilot": { "default": "gpt-6.1-terra", "versions": ["gpt-5.6-terra", "gpt-6.1-terra"] }
       }
     },
     "luna": {

@@ -2,7 +2,7 @@
 
 ### itixo 0.8.9
 
-- Add GPT-6.1 Terra as an optional `terra` model version while keeping existing agent defaults.
+- Default the optional `terra` alias to GPT-6.1 Terra while retaining GPT-5.6 Terra for explicit selection and existing agent defaults.
 
 ## 2026-10-08
 

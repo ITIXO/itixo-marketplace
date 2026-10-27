@@ -310,12 +310,12 @@ test("a Copilot-only base catalog change leaves the Codex catalog copy unchanged
   });
 });
 
-test("defaults Codex mid tier to Terra while retaining Copilot defaults", () => {
+test("defaults Terra aliases to 6.1 while retaining Copilot Sonnet mid tier", () => {
   const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, "base", "models", "model-catalog.json"), "utf8"));
   assert.equal(PROVIDERS.codex.models.mid, "gpt-6.1-terra");
   assert.equal(PROVIDERS.codex.efforts.mid, "medium");
   assert.equal(PROVIDERS.copilot.models.mid, "claude-sonnet-5");
-  assert.equal(catalog.aliases.terra.providers.copilot.default, "gpt-5.6-terra");
+  assert.equal(catalog.aliases.terra.providers.copilot.default, "gpt-6.1-terra");
   for (const provider of ["codex", "copilot"]) {
     assert.deepEqual(catalog.aliases.terra.providers[provider].versions, ["gpt-5.6-terra", "gpt-6.1-terra"]);
   }
