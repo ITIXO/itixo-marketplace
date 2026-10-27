@@ -1,3 +1,9 @@
+## 2026-10-27
+
+### itixo 0.10.6
+
+- Show descriptive status messages while Claude hooks run.
+
 ## 2026-10-08
 
 ### itixo 0.10.5
