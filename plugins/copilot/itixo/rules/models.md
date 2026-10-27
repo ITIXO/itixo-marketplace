@@ -15,6 +15,8 @@ The shared model catalog stores aliases globally but records concrete IDs per pr
 
 The optional `sol` catalog alias selects `gpt-6.1-sol`, with `gpt-6-sol` and `gpt-5.6-sol` retained for pinning. Mid-tier agents still use Sonnet. The `haiku` alias selects `claude-haiku-5.5`, retaining `claude-haiku-4.5` for pinning. See [Copilot CLI supported models](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference#supported-models).
 
+The optional `terra` catalog alias offers `gpt-6.1-terra` and `gpt-5.6-terra`; `gpt-5.6-terra` remains its default. Mid-tier agents still use Sonnet.
+
 ## Rules
 
 The security-review default is `claude-opus-5.5` with no effort field; do not infer or broaden an override.
