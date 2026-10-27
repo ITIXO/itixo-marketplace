@@ -562,7 +562,7 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
 }
 for (const [rel, manifest, technicalName, version] of [
   [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.5"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.8"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.9"],
   [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.9"],
 ]) {
   if (!manifest) continue;

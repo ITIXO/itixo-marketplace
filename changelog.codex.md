@@ -1,5 +1,9 @@
 ## 2026-10-27
 
+### itixo 0.9.9
+
+- Show descriptive names for Codex hooks in the plugin settings.
+
 ### itixo 0.9.8
 
 - Default mid-tier agents and the `terra` alias to GPT-6.1 Terra with medium effort; retain GPT-5.6 Terra through its full model ID or an explicit version choice.
