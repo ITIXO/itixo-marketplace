@@ -1,3 +1,9 @@
+## 2026-10-27
+
+### itixo 0.8.9
+
+- Add GPT-6.1 Terra as an optional `terra` model version while keeping existing agent defaults.
+
 ## 2026-10-08
 
 ### itixo 0.8.8

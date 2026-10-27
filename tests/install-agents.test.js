@@ -24,15 +24,15 @@ const AGENT_IDS = [
 ];
 const MARKER = "# Itixo-managed custom agent. Do not edit.\n";
 const DEFAULT_SETTINGS = {
-  "itixo-builder": { model: "gpt-6.1-sol", effort: "medium" },
+  "itixo-builder": { model: "gpt-6.1-terra", effort: "medium" },
   "itixo-docs-updater": { model: "gpt-6-luna", effort: "high" },
-  "itixo-github-issues": { model: "gpt-6.1-sol", effort: "medium" },
+  "itixo-github-issues": { model: "gpt-6.1-terra", effort: "medium" },
   "itixo-investigator": { model: "gpt-6-luna", effort: "high" },
   "itixo-junior-builder": { model: "gpt-6-luna", effort: "high" },
   "itixo-planner": { model: null, effort: null },
-  "itixo-reviewer": { model: "gpt-6.1-sol", effort: "medium" },
+  "itixo-reviewer": { model: "gpt-6.1-terra", effort: "medium" },
   "itixo-security-reviewer": { model: "gpt-6-astra", effort: "max" },
-  "itixo-tester": { model: "gpt-6.1-sol", effort: "medium" },
+  "itixo-tester": { model: "gpt-6.1-terra", effort: "medium" },
 };
 
 function withTemporaryDirectory(callback) {
@@ -150,7 +150,7 @@ test("installs exactly nine default custom agents into an isolated personal home
       assert.match(readAgent(home, agentId), /^model_reasoning_effort = "high"$/m);
     }
     for (const agentId of ["itixo-builder", "itixo-github-issues", "itixo-tester", "itixo-reviewer"]) {
-      assert.match(readAgent(home, agentId), /^model = "gpt-6\.1-sol"$/m);
+      assert.match(readAgent(home, agentId), /^model = "gpt-6\.1-terra"$/m);
       assert.match(readAgent(home, agentId), /^model_reasoning_effort = "medium"$/m);
     }
     assert.doesNotMatch(readAgent(home, "itixo-planner"), /^model(?:_reasoning_effort)? =/m);
@@ -165,6 +165,7 @@ test("catalog-only model additions and defaults flow through generation and pack
     writeCatalog(repository, (catalog) => {
       const codex = catalog.providers.codex;
       codex.models.cheap = "nova";
+      codex.models.mid = "sol";
       codex.efforts.cheap = "medium";
       catalog.aliases.nova = { providers: { codex: { default: "gpt-7-nova", versions: ["gpt-7-nova"] } } };
       catalog.aliases.sol.providers.codex.default = "gpt-5.6-sol";
@@ -272,13 +273,13 @@ test("rejects malformed and invalid packaged catalogs before writing agents", ()
   });
 });
 
-test("defaults an explicit Terra cheap model to low effort", () => {
+test("retains low effort for the full GPT-5.6 Terra cheap model ID", () => {
   withTemporaryDirectory((temporary) => {
     const plugin = makePlugin(temporary);
     const project = path.join(temporary, "project");
     fs.mkdirSync(project);
 
-    const result = run(plugin, ["--scope", "project", "--project-root", project, "--cheap-model", "terra"]);
+    const result = run(plugin, ["--scope", "project", "--project-root", project, "--cheap-model", "gpt-5.6-terra"]);
 
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /summary installed=9 skipped=0 scope=project .*cheap-model=gpt-5\.6-terra cheap-effort=low\n$/);
@@ -316,7 +317,7 @@ test("accepts legacy and GPT-6 model aliases for every agent", () => {
     const plugin = makePlugin(temporary);
     const aliases = [
       ["sol", "gpt-6.1-sol"],
-      ["terra", "gpt-5.6-terra"],
+      ["terra", "gpt-6.1-terra"],
       ["luna", "gpt-6-luna"],
       ["astra", "gpt-6-astra"],
       ["gpt6-sol", "gpt-6-sol"],
@@ -327,6 +328,7 @@ test("accepts legacy and GPT-6 model aliases for every agent", () => {
       ["gpt-6-astra", "gpt-6-astra"],
       ["gpt-6-sol", "gpt-6-sol"],
       ["gpt-6.1-sol", "gpt-6.1-sol"],
+      ["gpt-6.1-terra", "gpt-6.1-terra"],
       ["gpt-6-luna", "gpt-6-luna"],
     ];
     for (const [alias, model] of aliases) {
@@ -385,6 +387,7 @@ test("accepts GPT-6 efforts, including the inherited-effort sentinel", () => {
     const valid = [
       ["astra", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
       ["gpt-6.1-sol", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
+      ["gpt-6.1-terra", ["none", "low", "medium", "high", "xhigh", "max"]],
       ["gpt6-sol", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
       ["gpt6-luna", ["none", "low", "medium", "high", "xhigh", "max"]],
     ];
@@ -405,7 +408,7 @@ test("accepts GPT-6 efforts, including the inherited-effort sentinel", () => {
       }
     }
 
-    for (const [model, effort] of [["luna", "ultra"], ["gpt-5.6-luna", "ultra"], ["gpt6-luna", "ultra"]]) {
+    for (const [model, effort] of [["gpt-6.1-terra", "ultra"], ["luna", "ultra"], ["gpt-5.6-luna", "ultra"], ["gpt6-luna", "ultra"]]) {
       const project = path.join(temporary, `invalid-${model}-${effort}`);
       fs.mkdirSync(project);
       const result = run(plugin, [
@@ -483,17 +486,17 @@ test("per-agent fields independently override compatible cheap-role flags", () =
     assert.equal(result.status, 0, result.stderr);
     assert.match(
       result.stdout,
-      /summary installed=9 skipped=0 scope=project .*cheap-model=gpt-5\.6-terra cheap-effort=low agent-models=itixo-docs-updater:luna agent-efforts=itixo-investigator:xhigh\n$/,
+      /summary installed=9 skipped=0 scope=project .*cheap-model=gpt-6\.1-terra cheap-effort=low agent-models=itixo-docs-updater:luna agent-efforts=itixo-investigator:xhigh\n$/,
     );
     assertAgentSettings(project, "itixo-docs-updater", { model: "gpt-6-luna", effort: "low" });
-    assertAgentSettings(project, "itixo-investigator", { model: "gpt-5.6-terra", effort: "xhigh" });
+    assertAgentSettings(project, "itixo-investigator", { model: "gpt-6.1-terra", effort: "xhigh" });
   });
 });
 
 test("installs legacy and GPT-6 Luna cheap model selections", () => {
   withTemporaryDirectory((temporary) => {
     const plugin = makePlugin(temporary);
-    for (const [cheapModel, expectedModel] of [["luna", "gpt-6-luna"], ["terra", "gpt-5.6-terra"], ["gpt6-luna", "gpt-6-luna"], ["gpt-6-luna", "gpt-6-luna"], ["gpt-5.6-luna", "gpt-5.6-luna"]]) {
+    for (const [cheapModel, expectedModel] of [["luna", "gpt-6-luna"], ["terra", "gpt-6.1-terra"], ["gpt-5.6-terra", "gpt-5.6-terra"], ["gpt6-luna", "gpt-6-luna"], ["gpt-6-luna", "gpt-6-luna"], ["gpt-5.6-luna", "gpt-5.6-luna"]]) {
       for (const cheapEffort of ["high", "low"]) {
         const project = path.join(temporary, `${cheapModel}-${cheapEffort}`);
         fs.mkdirSync(project);
@@ -513,7 +516,7 @@ test("installs legacy and GPT-6 Luna cheap model selections", () => {
           assert.match(readAgent(project, agentId), new RegExp(`^model_reasoning_effort = "${cheapEffort}"$`, "m"));
         }
         for (const agentId of ["itixo-builder", "itixo-github-issues", "itixo-tester", "itixo-reviewer"]) {
-          assert.match(readAgent(project, agentId), /^model = "gpt-6\.1-sol"$/m);
+          assert.match(readAgent(project, agentId), /^model = "gpt-6\.1-terra"$/m);
           assert.match(readAgent(project, agentId), /^model_reasoning_effort = "medium"$/m);
         }
         assert.doesNotMatch(readAgent(project, "itixo-planner"), /^model(?:_reasoning_effort)? =/m);
@@ -903,12 +906,12 @@ test("changes a tier alias without changing that alias default version", () => {
 
     const result = run(plugin, [
       "--scope", "project", "--project-root", project,
-      "--tier-model", "mid=terra",
+      "--tier-model", "mid=sol",
     ]);
 
     assert.equal(result.status, 0, result.stderr);
     for (const agentId of ["itixo-builder", "itixo-github-issues", "itixo-reviewer", "itixo-tester"]) {
-      assertAgentSettings(project, agentId, { model: "gpt-5.6-terra", effort: "medium" });
+      assertAgentSettings(project, agentId, { model: "gpt-6.1-sol", effort: "medium" });
     }
     for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assertAgentSettings(project, agentId, { model: "gpt-6-luna", effort: "high" });
@@ -925,12 +928,12 @@ test("changes an alias version without changing its tier assignment", () => {
 
     const result = run(plugin, [
       "--scope", "project", "--project-root", project,
-      "--model-version", "sol=gpt-5.6-sol",
+      "--model-version", "terra=gpt-5.6-terra",
     ]);
 
     assert.equal(result.status, 0, result.stderr);
     for (const agentId of ["itixo-builder", "itixo-github-issues", "itixo-reviewer", "itixo-tester"]) {
-      assertAgentSettings(project, agentId, { model: "gpt-5.6-sol", effort: "medium" });
+      assertAgentSettings(project, agentId, { model: "gpt-5.6-terra", effort: "medium" });
     }
   });
 });
@@ -1006,7 +1009,7 @@ test("updates packaged agents from an unrelated project without marketplace reso
       "--agent-model", "itixo-reviewer=gpt-5.6-luna", "--agent-effort", "itixo-reviewer=xhigh",
       "--agent-effort", "itixo-security-reviewer=none",
     ];
-    const initial = runFromProject(["--model-version", "sol=gpt-6-sol", ...retainedOverrides]);
+    const initial = runFromProject(["--tier-model", "mid=sol", "--model-version", "sol=gpt-6-sol", ...retainedOverrides]);
     assert.equal(initial.status, 0, initial.stderr);
     assertAgentSettings(project, "itixo-builder", { model: "gpt-6-sol", effort: "medium" });
 
