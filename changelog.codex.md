@@ -1,3 +1,9 @@
+## 2026-10-27
+
+### itixo 0.9.8
+
+- Default mid-tier agents and the `terra` alias to GPT-6.1 Terra with medium effort; retain GPT-5.6 Terra through its full model ID or an explicit version choice.
+
 ## 2026-10-08
 
 ### itixo 0.9.7

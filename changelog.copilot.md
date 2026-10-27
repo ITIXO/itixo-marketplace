@@ -1,3 +1,9 @@
+## 2026-10-27
+
+### itixo 0.8.9
+
+- Default the optional `terra` alias to GPT-6.1 Terra while retaining GPT-5.6 Terra for explicit selection and existing agent defaults.
+
 ## 2026-10-08
 
 ### itixo 0.8.8
