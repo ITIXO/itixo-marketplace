@@ -254,32 +254,36 @@ for (const agent of expectedRoles) {
 }
 if (failures === 0) ok("generated provider bodies retain structured contracts");
 
-// --- 3b. dirigent skills exist and reference canonical Itixo IDs ---
+// --- 3b. dirigent and teamlead skills exist and reference canonical Itixo IDs ---
+const TEAMLEAD_RULE_IDS = ["itixo-reviewer", "itixo-security-reviewer", "itixo-investigator", "itixo-tester", "itixo-github-issues"];
 for (const plugin of ORCHESTRATION_PLUGINS) {
-  const rel = `plugins/${plugin}/skills/dirigent/SKILL.md`;
-  const p = path.join(ROOT, rel);
-  if (!fs.existsSync(p)) {
-    fail(`${rel} missing`);
-    continue;
-  }
-  const text = readFile(rel);
-  if (!/^---\nname: dirigent\n/m.test(text)) fail(`${rel}: invalid dirigent frontmatter`);
-  if (!text.includes("../../rules/agents.md")) fail(`${rel}: must load delegation rules`);
-  if (!plugin.startsWith("codex/") && !text.includes("\ndisable-model-invocation: true\n")) {
-    fail(`${rel}: must set disable-model-invocation: true`);
-  }
-  if (plugin.startsWith("codex/")) {
-    const yamlRel = `plugins/${plugin}/skills/dirigent/agents/openai.yaml`;
-    const yamlText = fs.existsSync(path.join(ROOT, yamlRel)) ? readFile(yamlRel) : "";
-    if (!yamlText.includes("allow_implicit_invocation: false")) fail(`${yamlRel}: must set allow_implicit_invocation: false`);
-  }
-  const rulesRel = `plugins/${plugin}/rules/agents.md`;
-  const rulesText = fs.existsSync(path.join(ROOT, rulesRel)) ? readFile(rulesRel) : "";
-  for (const agent of expectedRoles) {
-    if (!rulesText.includes(agent)) fail(`${rulesRel}: missing canonical agent ID '${agent}'`);
+  for (const [skill, rules] of [["dirigent", "agents.md"], ["teamlead", "teamlead.md"]]) {
+    const rel = `plugins/${plugin}/skills/${skill}/SKILL.md`;
+    const p = path.join(ROOT, rel);
+    if (!fs.existsSync(p)) {
+      fail(`${rel} missing`);
+      continue;
+    }
+    const text = readFile(rel);
+    if (!new RegExp(`^---\\nname: ${skill}\\n`, "m").test(text)) fail(`${rel}: invalid ${skill} frontmatter`);
+    if (!text.includes(`../../rules/${rules}`)) fail(`${rel}: must load delegation rules '${rules}'`);
+    if (!plugin.startsWith("codex/") && !text.includes("\ndisable-model-invocation: true\n")) {
+      fail(`${rel}: must set disable-model-invocation: true`);
+    }
+    if (plugin.startsWith("codex/")) {
+      const yamlRel = `plugins/${plugin}/skills/${skill}/agents/openai.yaml`;
+      const yamlText = fs.existsSync(path.join(ROOT, yamlRel)) ? readFile(yamlRel) : "";
+      if (!yamlText.includes("allow_implicit_invocation: false")) fail(`${yamlRel}: must set allow_implicit_invocation: false`);
+    }
+    const rulesRel = `plugins/${plugin}/rules/${rules}`;
+    const rulesText = fs.existsSync(path.join(ROOT, rulesRel)) ? readFile(rulesRel) : "";
+    const requiredIds = rules === "agents.md" ? expectedRoles : TEAMLEAD_RULE_IDS;
+    for (const agent of requiredIds) {
+      if (!rulesText.includes(agent)) fail(`${rulesRel}: missing canonical agent ID '${agent}'`);
+    }
   }
 }
-if (failures === 0) ok("dirigent skills exist and their rules reference canonical agent IDs");
+if (failures === 0) ok("dirigent and teamlead skills exist and their rules reference canonical agent IDs");
 
 // --- 3c. Model updaters use only packaged resources and native provider tooling ---
 if (fs.existsSync(path.join(ROOT, "plugins/claude/itixo/skills/update-models"))) {
@@ -448,11 +452,15 @@ if (failures === 0) ok("codex/itixo references canonical agent IDs");
 // --- 6. rules files exist ---
 for (const rel of [
   "base/rules/agents.md",
+  "base/rules/teamlead.md",
   "plugins/claude/itixo/rules/agents.md",
+  "plugins/claude/itixo/rules/teamlead.md",
   "plugins/codex/itixo/rules/agents.md",
+  "plugins/codex/itixo/rules/teamlead.md",
   "plugins/codex/itixo/rules/codex-agent-install.md",
   "plugins/codex/itixo/AGENTS.md",
   "plugins/copilot/itixo/rules/agents.md",
+  "plugins/copilot/itixo/rules/teamlead.md",
   ...["base", "plugins/claude/itixo", "plugins/codex/itixo", "plugins/copilot/itixo"].flatMap((d) => [
     `${d}/rules/github-issue-delegation.md`,
     `${d}/rules/security-review.md`,
@@ -465,9 +473,13 @@ if (failures === 0) ok("rules files present");
 
 for (const rel of [
   "base/rules/agents.md",
+  "base/rules/teamlead.md",
   "plugins/claude/itixo/rules/agents.md",
+  "plugins/claude/itixo/rules/teamlead.md",
   "plugins/codex/itixo/rules/agents.md",
+  "plugins/codex/itixo/rules/teamlead.md",
   "plugins/copilot/itixo/rules/agents.md",
+  "plugins/copilot/itixo/rules/teamlead.md",
 ]) {
   if (!fs.existsSync(path.join(ROOT, rel))) continue;
   const text = readFile(rel);
@@ -477,6 +489,9 @@ for (const rel of [
 }
 if (!readFile("plugins/codex/itixo/rules/agents.md").includes("codex-agent-install.md")) {
   fail("plugins/codex/itixo/rules/agents.md: must reference 'codex-agent-install.md'");
+}
+if (!readFile("plugins/codex/itixo/rules/teamlead.md").includes("codex-agent-install.md")) {
+  fail("plugins/codex/itixo/rules/teamlead.md: must reference 'codex-agent-install.md'");
 }
 if (failures === 0) ok("agents.md files reference sibling rule files");
 
@@ -569,9 +584,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.7"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.10"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.10"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.8"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.11"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.11"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);
