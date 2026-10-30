@@ -1,5 +1,13 @@
 ## 2026-10-30
 
+### itixo 0.10.8
+
+- Add Teamlead, an opt-in single-loop mode: your main assistant plans, investigates, implements, and updates docs itself, and calls itixo agents only for code review, security review, independent testing, parallel research, and GitHub issues.
+- Teamlead turns on or off only when you explicitly ask, for example `/teamlead`, "use teamlead", "teamlead on", "teamlead off", or "use teamlead globally"; it keeps its own saved default, separate from Dirigent.
+- When Dirigent and Teamlead are both on, the one you turned on most recently applies; turning that one off leaves neither active. If the order is unknown, you are asked which one to use.
+- Fix `/dirigent OFF` turning Dirigent on instead of off.
+- Dirigent delegation reminders stay silent while Teamlead is the active mode.
+
 ### itixo 0.10.7
 
 - Dirigent turns on or off only when you explicitly ask, for example `/dirigent`, "use dirigent", "dirigent on", "dirigent off", or "use dirigent globally"; it is never enabled from the content or complexity of a request.

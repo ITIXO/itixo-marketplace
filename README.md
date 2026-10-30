@@ -17,6 +17,7 @@ See the [full changelog in the project Wiki](https://github.com/ITIXO/itixo-mark
   marketplace.json        # Marketplace manifest — Copilot CLI native
 base/                     # Shared source of truth for all orchestration plugins
   rules/agents.md         # Delegation rules
+  rules/teamlead.md       # Teamlead single-loop rules
   rules/models.md         # Model tier table + override rules
   agents/                 # Canonical platform-neutral agent role definitions
 plugins/
@@ -46,6 +47,19 @@ Use slash commands or plain language to change Dirigent's state:
 | `/dirigent off --global` — “turn off Dirigent for future sessions” | Disable now and remove this provider profile's saved opt-in. |
 
 Equivalent plain-language wording is understood by intent. Global changes affect the current session and future sessions in this provider profile; they do not change other live sessions or providers. Session and saved state live in the provider's writable plugin data, falling back to its configuration directory. If the provider cannot supply hook or control metadata, or storage is unavailable, Dirigent reports that the change could not be saved. It never edits personal instruction files as a fallback.
+
+### Teamlead
+
+Teamlead is an opt-in single-loop mode. The main assistant owns the task in one conversation: it plans, investigates, implements, and tests itself, and brings in itixo agents only for code review, security review, independent testing, parallel research, and GitHub issues. Fewer details get lost between helpers, so work is usually faster and cheaper. It is off by default, keeps its own saved setting separate from Dirigent, and is never switched on because a task looks complex.
+
+| Request | Effect |
+|---|---|
+| `/teamlead` or `/teamlead on` — “use teamlead”, “teamlead on” | Enable for this session; state lasts until changed. |
+| `/teamlead off` — “teamlead off” | Disable for this session; saved default stays unchanged. |
+| `/teamlead on --global` — “use teamlead globally” | Enable now and save opt-in for new sessions across projects in this provider profile. |
+| `/teamlead off --global` | Disable now and remove this provider profile's saved opt-in. |
+
+If Dirigent and Teamlead are both on, the one switched on most recently applies. Switching off the mode that currently applies leaves neither active; switching off the other one leaves the current mode on. If the order is unknown, the assistant asks which one to use.
 
 ## Orchestration concept
 
@@ -116,7 +130,7 @@ codex plugin marketplace add ITIXO/itixo-marketplace
 
 Then install `itixo` (Codex plugin) via the `/plugins` browser. It is published only in the native `.agents/plugins/marketplace.json` marketplace; the Claude marketplace publishes only `itixo` (Claude plugin).
 
-Before using `dirigent`, invoke `itixo:install-agents`. Personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. The skill reads the current catalog, prompts for each tier alias and the concrete version of each selected alias, then shows the resolved cheap, mid, and security settings. Defaults are `luna` → GPT-6 Luna + high, `terra` → GPT-6.1 Terra + medium, `astra` → GPT-6 Astra + max, and the planner inherits. GPT-5.6 Terra remains selectable by its full model ID.
+Before using `dirigent` or `teamlead`, invoke `itixo:install-agents`. Personal scope installs to `~/.codex/agents/`; project scope installs to `<project-root>/.codex/agents/` and requires an explicit project root. The skill reads the current catalog, prompts for each tier alias and the concrete version of each selected alias, then shows the resolved cheap, mid, and security settings. Defaults are `luna` → GPT-6 Luna + high, `terra` → GPT-6.1 Terra + medium, `astra` → GPT-6 Astra + max, and the planner inherits. GPT-5.6 Terra remains selectable by its full model ID.
 
 Tier choices can be passed with repeatable `--tier-model cheap|mid|security=alias` and `--model-version alias=concrete-id` options. `--cheap-model` remains a compatibility shortcut, but cannot be combined with an explicit cheap tier alias. Any of the nine agents can also receive repeatable `--agent-model id=alias-or-concrete-id` and `--agent-effort id=none|low|medium|high|xhigh|max|ultra` overrides. Model and effort are independent, and per-agent fields win over tier settings. `none` clears the effort field and lets the model inherit its provider default. An explicit planner override can exceed the caller model, subject to provider or organization restrictions.
 
@@ -138,7 +152,7 @@ Install the plugin:
 copilot plugin install itixo@itixo
 ```
 
-When explicitly requested or enabled through a saved opt-in, the `dirigent` skill loads `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Copilot CLI provides session-start and user-prompt hooks; its built-in general-purpose agent has no subagent-start hook, and prompt-hook output cannot inject context. The original user request and explicit skill invocation still handle those paths. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer` (claude-opus-5.5, read-only security review), `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`.
+When explicitly requested or enabled through a saved opt-in, the `dirigent` skill loads `rules/agents.md`, then delegates each step to the appropriate `itixo-*` agent at the prescribed model tier. Copilot CLI provides session-start and user-prompt hooks; its built-in general-purpose agent has no subagent-start hook, and prompt-hook output cannot inject context. The original user request and explicit skill invocation still handle those paths. Available agents include `itixo-investigator` (haiku, read-only locator), `itixo-builder` (sonnet, implementation), `itixo-tester`, `itixo-reviewer`, `itixo-security-reviewer` (claude-opus-5.5, read-only security review), `itixo-planner`, `itixo-docs-updater`, and `itixo-github-issues`. The `teamlead` skill works the same way with `rules/teamlead.md`, calling agents only for code review, security review, independent testing, parallel research, and GitHub issues.
 
 ## Adding a new plugin
 

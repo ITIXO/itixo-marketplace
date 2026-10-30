@@ -14,6 +14,7 @@ README = product front door. Non-technical people read it to decide if caveman w
 .github/plugin/marketplace.json   # Marketplace manifest — Copilot native
 .wiki/                             # Checkout of GitHub Wiki repository ITIXO/itixo-marketplace.wiki — place at root of main repository; separate Git repository, ignored by main repository
 base/rules/agents.md              # Delegation rules (source of truth)
+base/rules/teamlead.md            # Teamlead single-loop rules (source of truth)
 base/rules/models.md              # Model tier table + override rules (source of truth)
 base/agents/                      # Canonical platform-neutral agent role definitions
 plugins/claude/itixo/             # Claude plugin (generated native agents, skills, rules, prompts)
