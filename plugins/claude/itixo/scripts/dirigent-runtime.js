@@ -89,8 +89,8 @@ function setMode(provider, sessionId, feature, enabled, global, override) {
     const mine = readState(p.session), theirs = readState(op.session);
     const [d, t] = feature === "dirigent" ? [mine, theirs] : [theirs, mine];
     const eff = pick(d, t);
-    // No fallback: turning off the effective (or undecided) mode must not revive the other.
-    if (eff === feature || eff === "ask") writeState(op.session, { enabled: false, at: now });
+    // No fallback: turning off the effective mode must not revive the other.
+    if (eff === feature) writeState(op.session, { enabled: false, at: now });
   }
   writeState(p.session, state);
   if (global) writeState(p.global, state);
