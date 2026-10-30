@@ -32,7 +32,7 @@ scripts/
 
 Each provider publishes an `itixo` plugin — Claude, Codex, and Copilot CLI — from its provider-specific source directory. Anything useful for Itixo people working with those providers belongs there. Orchestration below is the first module; more skills/agents/rules will accumulate over time.
 
-All three plugins include `dirigent`, which loads the plugin's `rules/agents.md` for multi-step orchestration. It is off by default. Provider hooks inject its current state at supported session and agent starts; ordinary coding work, discussion, and quotation do not enable it. Hooks provide instructions, not platform permission controls. Repository instructions still apply when Dirigent is off.
+All three plugins include `dirigent`, which loads the plugin's `rules/agents.md` for multi-step orchestration. It is off by default and changes state only when you explicitly ask; it is never switched on because a task looks complex. Provider hooks inject its current state at supported session and agent starts; ordinary coding work, discussion, and quotation do not enable it. Hooks provide instructions, not platform permission controls. Repository instructions still apply when Dirigent is off.
 
 ### Dirigent activation
 
@@ -40,9 +40,9 @@ Use slash commands or plain language to change Dirigent's state:
 
 | Request | Effect |
 |---|---|
-| `/dirigent` or `/dirigent on` — “turn on Dirigent” | Enable for this session; state lasts until changed. |
-| `/dirigent off` — “stop Dirigent” | Disable for this session; saved default stays unchanged. |
-| `/dirigent on --global` — “turn on Dirigent globally” | Enable now and save opt-in for new sessions across projects in this provider profile. |
+| `/dirigent` or `/dirigent on` — “turn on Dirigent”, “dirigent on” | Enable for this session; state lasts until changed. |
+| `/dirigent off` — “stop Dirigent”, “dirigent off” | Disable for this session; saved default stays unchanged. |
+| `/dirigent on --global` — “turn on Dirigent globally”, “use dirigent globally” | Enable now and save opt-in for new sessions across projects in this provider profile. |
 | `/dirigent off --global` — “turn off Dirigent for future sessions” | Disable now and remove this provider profile's saved opt-in. |
 
 Equivalent plain-language wording is understood by intent. Global changes affect the current session and future sessions in this provider profile; they do not change other live sessions or providers. Session and saved state live in the provider's writable plugin data, falling back to its configuration directory. If the provider cannot supply hook or control metadata, or storage is unavailable, Dirigent reports that the change could not be saved. It never edits personal instruction files as a fallback.
