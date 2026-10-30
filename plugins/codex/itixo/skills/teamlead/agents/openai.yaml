@@ -1,0 +1,6 @@
+interface:
+  display_name: "Teamlead"
+  short_description: "Turn single-loop mode on or off explicitly"
+  default_prompt: "Use $teamlead to turn on Teamlead for this chat."
+policy:
+  allow_implicit_invocation: false
