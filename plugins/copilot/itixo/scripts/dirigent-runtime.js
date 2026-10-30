@@ -49,12 +49,9 @@ function writeState(file, state) {
 const features = ["dirigent", "teamlead"];
 const other = (feature) => (feature === "dirigent" ? "teamlead" : "dirigent");
 
-// With --state-dir the other feature's dir is the sibling <data>/<other>/<provider>; null if the layout differs.
-function overrideFor(provider, override, feature, target) {
-  if (!override || feature === target) return override;
-  const dir = path.resolve(override);
-  return path.basename(dir) === provider && path.basename(path.dirname(dir)) === feature
-    ? path.join(path.dirname(path.dirname(dir)), target, provider) : null;
+// With --state-dir (validated in setMode) the other feature's dir is the sibling <data>/<other>/<provider>.
+function overrideFor(override, target, provider) {
+  return override && path.join(path.dirname(path.dirname(path.resolve(override))), target, provider);
 }
 
 function pick(d, t) {
@@ -79,13 +76,16 @@ function ensureSession(provider, sessionId, feature = "dirigent") {
 }
 
 function setMode(provider, sessionId, feature, enabled, global, override) {
+  if (override) {
+    const dir = path.resolve(override);
+    if (path.basename(dir) !== provider || path.basename(path.dirname(dir)) !== feature) throw Error("state dir does not match feature");
+  }
   const p = paths(provider, sessionId, override, feature);
   const now = Date.now();
   const state = { enabled, at: now };
   const o = other(feature);
-  const oo = overrideFor(provider, override, feature, o);
-  const op = oo === null ? null : paths(provider, sessionId, oo, o);
-  if (!enabled && op) {
+  const op = paths(provider, sessionId, overrideFor(override, o, provider), o);
+  if (!enabled) {
     const mine = readState(p.session), theirs = readState(op.session);
     const [d, t] = feature === "dirigent" ? [mine, theirs] : [theirs, mine];
     const eff = pick(d, t);
@@ -136,7 +136,7 @@ function rootContext(provider, sessionId, d, t) {
   const onOff = (s) => (s.enabled ? "ON" : "OFF");
   const control = `Dirigent ${onOff(d)}, Teamlead ${onOff(t)} for this chat; effective mode: ${label}. When both are on, the later toggle wins; apply only the effective mode's rules and ignore rules injected earlier in this chat for the other mode. Session ID: ${sessionId}. State directories: Dirigent ${d.stateDir}; Teamlead ${t.stateDir}. Manual control: ${helper(provider, sessionId, d.stateDir)} (replace on with off; add --global to save for future sessions). Teamlead manual control: ${helper(provider, sessionId, t.stateDir, "teamlead")} (same options). The latest chat toggle wins. After a manual enable, read ${path.join(rulesDir, "agents.md")} for Dirigent or ${path.join(rulesDir, "teamlead.md")} for Teamlead before task work. Independent repository instructions still apply.`;
   if (mode === "none") return control;
-  if (mode === "ask") return `${control}\n\nDirigent and Teamlead are both on and which was toggled last is unknown. Before task work, ask the user which mode to use, then turn the other off with its manual control command.`;
+  if (mode === "ask") return `${control}\n\nDirigent and Teamlead are both on and which was toggled last is unknown. Do not apply either mode's rules until the user chooses; before task work, ask the user which mode to use, then turn the other off with its manual control command.`;
   // Rules are inlined; keep them under Claude's 10,000-char hook cap (tests enforce).
   const rulesText = fs.readFileSync(path.join(rulesDir, mode === "dirigent" ? "agents.md" : "teamlead.md"), "utf8");
   return `${control}\n\n${label} is enabled. Apply these rules while enabled (rules directory: ${rulesDir}):\n\n${rulesText}`;

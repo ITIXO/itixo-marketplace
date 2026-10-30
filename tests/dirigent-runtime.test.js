@@ -208,8 +208,16 @@ test("failed manual writes do not report a saved preference", () => sandbox(({ r
   assert.equal(fs.readFileSync(blocked, "utf8"), "keep");
 }));
 
+test("mismatched state dir is rejected before any write", () => sandbox(({ root, env }) => {
+  const directory = path.join(root, "state", "dirigent", "codex");
+  const result = run("codex", "set", env, {}, ["on", "--feature", "teamlead", "--session", "chat", "--state-dir", directory]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /state dir does not match feature/);
+  assert.equal(fs.existsSync(path.join(root, "state")), false);
+}));
+
 test("manual control accepts an isolated state directory and malformed defaults fail closed", () => sandbox(({ root, env }) => {
-  const directory = path.join(root, "manual-state");
+  const directory = path.join(root, "manual-state", "dirigent", "codex");
   const saved = set("codex", "on", "manual-chat", env, ["--state-dir", directory]);
   assert.equal(saved.stateDir, directory);
   assert.equal(fs.readdirSync(directory).length, 1);
