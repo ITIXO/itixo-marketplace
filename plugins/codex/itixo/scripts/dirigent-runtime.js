@@ -68,10 +68,11 @@ function parseToggle(raw) {
   const text = raw.trim().replace(/[.!?]+$/, "").trim();
   const slash = text.match(/^[/$](?:(?:itixo:)?dirigent)(?:\s+(on|off))?(?:\s+(--global))?$/i);
   if (slash) return { enabled: slash[1] !== "off", global: Boolean(slash[2]) };
-  const natural = text.match(/^(?:please\s+|(?:can|could|would)\s+you\s+)?(turn\s+(on|off)\s+dirigent|turn\s+dirigent\s+(on|off)|(?:enable|disable|start|stop|use)\s+dirigent)(?:\s+(globally|for\s+(?:all\s+)?future\s+sessions|for\s+futur(?:e)?\s+use))?(?:\s+please)?$/i);
+  const natural = text.match(/^(?:please\s+|(?:can|could|would)\s+you\s+)?(turn\s+(on|off)\s+dirigent|turn\s+dirigent\s+(on|off)|dirigent\s+(on|off)|(?:enable|disable|start|stop|use)\s+dirigent)(?:\s+(globally|for\s+(?:all\s+)?future\s+sessions|for\s+futur(?:e)?\s+use))?(?:\s+please)?$/i);
   if (!natural) return null;
-  const enabled = natural[2] ? natural[2].toLowerCase() === "on" : natural[3] ? natural[3].toLowerCase() === "on" : /^(?:enable|start|use)\b/i.test(natural[1]);
-  return { enabled, global: Boolean(natural[4]) };
+  const onOff = natural[2] || natural[3] || natural[4];
+  const enabled = onOff ? onOff.toLowerCase() === "on" : /^(?:enable|start|use)\b/i.test(natural[1]);
+  return { enabled, global: Boolean(natural[5]) };
 }
 
 // Claude's Bash tool uses Git Bash on Windows; Codex and Copilot use PowerShell there.

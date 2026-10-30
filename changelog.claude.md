@@ -1,3 +1,10 @@
+## 2026-10-30
+
+### itixo 0.10.7
+
+- Dirigent turns on or off only when you explicitly ask, for example `/dirigent`, "use dirigent", "dirigent on", "dirigent off", or "use dirigent globally"; it is never enabled from the content or complexity of a request.
+- Accept bare "dirigent on" and "dirigent off" toggles, optionally followed by "globally" or "for future sessions".
+
 ## 2026-10-27
 
 ### itixo 0.10.6

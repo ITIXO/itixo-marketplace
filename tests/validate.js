@@ -265,6 +265,14 @@ for (const plugin of ORCHESTRATION_PLUGINS) {
   const text = readFile(rel);
   if (!/^---\nname: dirigent\n/m.test(text)) fail(`${rel}: invalid dirigent frontmatter`);
   if (!text.includes("../../rules/agents.md")) fail(`${rel}: must load delegation rules`);
+  if (!plugin.startsWith("codex/") && !text.includes("\ndisable-model-invocation: true\n")) {
+    fail(`${rel}: must set disable-model-invocation: true`);
+  }
+  if (plugin.startsWith("codex/")) {
+    const yamlRel = `plugins/${plugin}/skills/dirigent/agents/openai.yaml`;
+    const yamlText = fs.existsSync(path.join(ROOT, yamlRel)) ? readFile(yamlRel) : "";
+    if (!yamlText.includes("allow_implicit_invocation: false")) fail(`${yamlRel}: must set allow_implicit_invocation: false`);
+  }
   const rulesRel = `plugins/${plugin}/rules/agents.md`;
   const rulesText = fs.existsSync(path.join(ROOT, rulesRel)) ? readFile(rulesRel) : "";
   for (const agent of expectedRoles) {
@@ -561,9 +569,9 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
   fail(".agents/plugins/marketplace.json: public marketplace displayName must be 'itixo'");
 }
 for (const [rel, manifest, technicalName, version] of [
-  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.6"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.9"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.9"],
+  [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.7"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.10"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.10"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

@@ -2,3 +2,5 @@ interface:
   display_name: "Dirigent"
   short_description: "Turn delegation on or off explicitly"
   default_prompt: "Use $dirigent to turn on Dirigent for this chat."
+policy:
+  allow_implicit_invocation: false

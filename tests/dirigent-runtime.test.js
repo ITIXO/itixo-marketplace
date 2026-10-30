@@ -95,6 +95,7 @@ for (const provider of PROVIDERS) {
       "Quote: turn on dirigent",
       "`/dirigent on`",
       "Please explain how to turn on dirigent",
+      "Is dirigent on?",
     ]) {
       hook(provider, "user-prompt-submit", env, { session_id: "chat", prompt });
       assert.equal(enabled(provider, "chat", env), false, prompt);
@@ -108,6 +109,14 @@ for (const provider of PROVIDERS) {
     assert.equal(enabled(provider, "next", env), true);
     hook(provider, "session-start", env, { session_id: "later" });
     assert.equal(enabled(provider, "later", env), false);
+    hook(provider, "user-prompt-submit", env, { session_id: "later", prompt: "dirigent on" });
+    assert.equal(enabled(provider, "later", env), true);
+    hook(provider, "user-prompt-submit", env, { session_id: "later", prompt: "Dirigent off" });
+    assert.equal(enabled(provider, "later", env), false);
+    hook(provider, "user-prompt-submit", env, { session_id: "later", prompt: "dirigent on globally" });
+    assert.equal(enabled(provider, "later", env), true);
+    hook(provider, "session-start", env, { session_id: "last" });
+    assert.equal(enabled(provider, "last", env), true);
   }));
 
   test(`${provider}: global preference seeds new chats, while plain off is local`, () => sandbox(({ env }) => {
