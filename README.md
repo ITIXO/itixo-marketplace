@@ -59,7 +59,7 @@ Teamlead is an opt-in single-loop mode. The main assistant owns the task in one 
 | `/teamlead on --global` — “use teamlead globally” | Enable now and save opt-in for new sessions across projects in this provider profile. |
 | `/teamlead off --global` | Disable now and remove this provider profile's saved opt-in. |
 
-If Dirigent and Teamlead are both on, the one switched on most recently applies. Switching that one off leaves neither mode active. If the order is unknown, the assistant asks which one to use.
+If Dirigent and Teamlead are both on, the one switched on most recently applies. Switching off the mode that currently applies leaves neither active; switching off the other one leaves the current mode on. If the order is unknown, the assistant asks which one to use.
 
 ## Orchestration concept
 
