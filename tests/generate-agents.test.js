@@ -337,7 +337,7 @@ test("resolves shared aliases to each provider's concrete model ID", () => {
     assert.equal(result.status, 0, result.stderr);
     assert.match(
       fs.readFileSync(path.join(repository, "plugins", "copilot", "itixo", "agents", "itixo-builder.agent.md"), "utf8"),
-      /^model: "gpt-6\.1-sol"$/m,
+      /^model: "gpt-6\.2-sol"$/m,
     );
     assert.match(
       fs.readFileSync(path.join(repository, "plugins", "claude", "itixo", "agents", "itixo-security-reviewer.md"), "utf8"),
@@ -432,7 +432,7 @@ test("renders provider model, TOML schema, and tool metadata from each tier", ()
   const securityReviewer = readBaseAgents(ROOT).find(({ name }) => name === "itixo-security-reviewer");
   assert.equal(readFrontmatter(renderClaude("itixo-security-reviewer", securityReviewer.agent)).model, "opus");
   assert.equal(readFrontmatter(renderClaude("itixo-security-reviewer", securityReviewer.agent)).effort, "max");
-  assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model = "gpt-6-astra"$/m);
+  assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model = "gpt-6.2-astra"$/m);
   assert.match(renderCodex("itixo-security-reviewer", securityReviewer.agent), /^model_reasoning_effort = "max"$/m);
 });
 

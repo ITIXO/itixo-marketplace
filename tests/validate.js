@@ -562,8 +562,8 @@ if (codexMarketplace?.interface?.displayName !== "itixo") {
 }
 for (const [rel, manifest, technicalName, version] of [
   [claudePluginManifestRel, claudePluginManifest, "itixo", "0.10.6"],
-  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.9"],
-  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.9"],
+  [codexPluginManifestRel, codexPluginManifest, "itixo", "0.9.10"],
+  [copilotPluginManifestRel, copilotPluginManifest, "itixo", "0.8.10"],
 ]) {
   if (!manifest) continue;
   if (manifest.name !== technicalName) fail(`${rel}: technical name must remain '${technicalName}'`);

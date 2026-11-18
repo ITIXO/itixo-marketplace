@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS = {
   "itixo-junior-builder": { model: "gpt-6-luna", effort: "high" },
   "itixo-planner": { model: null, effort: null },
   "itixo-reviewer": { model: "gpt-6.1-terra", effort: "medium" },
-  "itixo-security-reviewer": { model: "gpt-6-astra", effort: "max" },
+  "itixo-security-reviewer": { model: "gpt-6.2-astra", effort: "max" },
   "itixo-tester": { model: "gpt-6.1-terra", effort: "medium" },
 };
 
@@ -154,7 +154,7 @@ test("installs exactly nine default custom agents into an isolated personal home
       assert.match(readAgent(home, agentId), /^model_reasoning_effort = "medium"$/m);
     }
     assert.doesNotMatch(readAgent(home, "itixo-planner"), /^model(?:_reasoning_effort)? =/m);
-    assertAgentSettings(home, "itixo-security-reviewer", { model: "gpt-6-astra", effort: "max" });
+    assertAgentSettings(home, "itixo-security-reviewer", { model: "gpt-6.2-astra", effort: "max" });
   });
 });
 
@@ -316,16 +316,18 @@ test("accepts legacy and GPT-6 model aliases for every agent", () => {
   withTemporaryDirectory((temporary) => {
     const plugin = makePlugin(temporary);
     const aliases = [
-      ["sol", "gpt-6.1-sol"],
+      ["sol", "gpt-6.2-sol"],
       ["terra", "gpt-6.1-terra"],
       ["luna", "gpt-6-luna"],
-      ["astra", "gpt-6-astra"],
+      ["astra", "gpt-6.2-astra"],
       ["gpt6-sol", "gpt-6-sol"],
       ["gpt6-luna", "gpt-6-luna"],
       ["gpt-5.6-sol", "gpt-5.6-sol"],
       ["gpt-5.6-terra", "gpt-5.6-terra"],
       ["gpt-5.6-luna", "gpt-5.6-luna"],
       ["gpt-6-astra", "gpt-6-astra"],
+      ["gpt-6.2-astra", "gpt-6.2-astra"],
+      ["gpt-6.2-sol", "gpt-6.2-sol"],
       ["gpt-6-sol", "gpt-6-sol"],
       ["gpt-6.1-sol", "gpt-6.1-sol"],
       ["gpt-6.1-terra", "gpt-6.1-terra"],
@@ -373,7 +375,7 @@ test("retains every legacy effort override", () => {
       assert.match(result.stdout, new RegExp(`agent-efforts=${overrides.map(([agentId]) => `${agentId}:${effort}`).join(",")}\\n$`));
       for (const agentId of AGENT_IDS) {
         assertAgentSettings(project, agentId, {
-          model: "gpt-6.1-sol",
+          model: "gpt-6.2-sol",
           effort: effort === "none" ? null : effort,
         });
       }
@@ -386,6 +388,8 @@ test("accepts GPT-6 efforts, including the inherited-effort sentinel", () => {
     const plugin = makePlugin(temporary);
     const valid = [
       ["astra", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
+      ["gpt-6.2-sol", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
+      ["gpt-6.2-astra", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
       ["gpt-6.1-sol", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
       ["gpt-6.1-terra", ["none", "low", "medium", "high", "xhigh", "max"]],
       ["gpt6-sol", ["none", "low", "medium", "high", "xhigh", "max", "ultra"]],
@@ -402,7 +406,7 @@ test("accepts GPT-6 efforts, including the inherited-effort sentinel", () => {
         ]);
         assert.equal(result.status, 0, result.stderr);
         assertAgentSettings(project, "itixo-planner", {
-          model: model === "astra" ? "gpt-6-astra" : model.replace("gpt6-", "gpt-6-"),
+          model: model === "astra" ? "gpt-6.2-astra" : model.replace("gpt6-", "gpt-6-"),
           effort: effort === "none" ? null : effort,
         });
       }
@@ -450,7 +454,7 @@ test("installs explicit planner Sol and max overrides together", () => {
       result.stdout,
       /summary installed=9 skipped=0 scope=project .*cheap-model=gpt-6-luna cheap-effort=high agent-models=itixo-planner:sol agent-efforts=itixo-planner:max\n$/,
     );
-    assertAgentSettings(project, "itixo-planner", { model: "gpt-6.1-sol", effort: "max" });
+    assertAgentSettings(project, "itixo-planner", { model: "gpt-6.2-sol", effort: "max" });
   });
 });
 
@@ -679,7 +683,7 @@ test("reinstalling identical overrides is idempotent and changing one field upda
     ]);
     assert.equal(changed.status, 0, changed.stderr);
     assert.match(changed.stdout, /summary installed=1 skipped=8 .*agent-models=itixo-planner:sol agent-efforts=itixo-planner:xhigh\n$/);
-    assertAgentSettings(project, "itixo-planner", { model: "gpt-6.1-sol", effort: "xhigh" });
+    assertAgentSettings(project, "itixo-planner", { model: "gpt-6.2-sol", effort: "xhigh" });
   });
 });
 
@@ -911,12 +915,12 @@ test("changes a tier alias without changing that alias default version", () => {
 
     assert.equal(result.status, 0, result.stderr);
     for (const agentId of ["itixo-builder", "itixo-github-issues", "itixo-reviewer", "itixo-tester"]) {
-      assertAgentSettings(project, agentId, { model: "gpt-6.1-sol", effort: "medium" });
+      assertAgentSettings(project, agentId, { model: "gpt-6.2-sol", effort: "medium" });
     }
     for (const agentId of ["itixo-investigator", "itixo-junior-builder", "itixo-docs-updater"]) {
       assertAgentSettings(project, agentId, { model: "gpt-6-luna", effort: "high" });
     }
-    assertAgentSettings(project, "itixo-security-reviewer", { model: "gpt-6-astra", effort: "max" });
+    assertAgentSettings(project, "itixo-security-reviewer", { model: "gpt-6.2-astra", effort: "max" });
   });
 });
 
@@ -1018,7 +1022,7 @@ test("updates packaged agents from an unrelated project without marketplace reso
       "--model-version", "sol=gpt-6.1-sol", "--model-version", "astra=gpt-6-astra",
       "--cheap-effort", "high", ...retainedOverrides]);
     assert.equal(updated.status, 0, updated.stderr);
-    assert.match(updated.stdout, /summary installed=3 skipped=6/);
+    assert.match(updated.stdout, /summary installed=4 skipped=5/);
     for (const id of ["itixo-builder", "itixo-github-issues", "itixo-tester"]) {
       assertAgentSettings(project, id, { model: "gpt-6.1-sol", effort: "medium" });
     }
