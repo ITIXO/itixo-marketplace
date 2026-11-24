@@ -1,3 +1,9 @@
+## 2026-11-18
+
+### itixo 0.8.10
+
+- Default the `astra` and `sol` aliases to GPT-6.2 Astra and GPT-6.2 Sol, retaining older versions for explicit selection.
+
 ## 2026-10-27
 
 ### itixo 0.8.9
